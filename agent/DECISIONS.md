@@ -932,7 +932,7 @@ Three explicit tiers, and every piece of state is assigned one:
 
 | Tier | Guarantee | Applies to |
 | --- | --- | --- |
-| **A — Bit-exact** | Identical bytes for the same seed on any platform. Uses only IEEE-754 exact operations (`+ − × ÷ √`, comparisons) and **our own** transcendental implementations (`packages/core/src/stableMath.ts`: polynomial/table-based `sin`, `cos`, `exp`, `log`, `pow`, `atan2`). | Authoritative world state: elevation, plates, climate state, hydrology, entities. Replay and golden tests run here. |
+| **A — Bit-exact** | Identical bytes for the same seed on any platform. Uses only IEEE-754 exact operations (`+ − × ÷ √`, comparisons) and **our own** transcendental implementations (`packages/core/src/stableMath/`: polynomial/table-based `sin`, `cos`, `exp`, `log`, `pow`, `atan2`). | Authoritative world state: elevation, plates, climate state, hydrology, entities. Replay and golden tests run here. |
 | **B — Reproducible** | Same seed produces a statistically and visually identical world; small floating-point drift tolerated. May use `Math.*`. | Non-authoritative derived data, analysis, statistics. |
 | **C — Non-deterministic** | No guarantee. | Rendering, particles, post-processing, UI animation. |
 
