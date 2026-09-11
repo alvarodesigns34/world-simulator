@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev, 'agent/**', 'claude/**']
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # DEC-011 / DEC-017 / DEC-027. These are errors, not warnings, and
+      # weakening them to make a change pass is forbidden (PROTOCOL §0).
+      - name: Types
+        run: pnpm run check:types
+      - name: Package boundaries
+        run: pnpm run check:boundaries
+      - name: Boundary checker self-test
+        run: pnpm run check:boundaries:selftest
+
+      - name: Tests
+        run: pnpm test
+
+      # The founding principle, as a job: the simulation must run with no
+      # renderer present. ARCHITECTURE.md §1.1.
+      - name: Simulation stands alone
+        run: pnpm run check:sim-standalone
