@@ -1,0 +1,28 @@
+{
+  "name": "world-simulator",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "pnpm run check:types && pnpm run check:boundaries && pnpm run check:boundaries:selftest",
+    "check:types": "tsc --noEmit && tsc --noEmit -p packages/render/tsconfig.json && tsc --noEmit -p packages/app/tsconfig.json",
+    "check:boundaries": "node tools/check-boundaries.mjs",
+    "check:boundaries:selftest": "node tools/selftest-boundaries.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:determinism": "vitest run -t determinism",
+    "check:sim-standalone": "node tools/check-sim-standalone.mjs",
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.72",
+    "typescript": "~5.9.0",
+    "vitest": "^3.2.0",
+    "vite": "^7.0.0"
+  }
+}
