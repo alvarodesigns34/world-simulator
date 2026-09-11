@@ -256,7 +256,7 @@ interface SimTime { readonly year: number; readonly seconds: number }
 
 `year` is an exact integer (±9 × 10¹⁵ available). `seconds` is `f64` within one
 year, where one ulp is ~4 ns. A single `f64` seconds-since-epoch counter would have
-a 4 ms ulp at one million years and a 4 s ulp at one billion — which destroys
+a 7.8 ms ulp at one million years and a 4 s ulp at one billion — which destroys
 replay. The split point is the year because the year is the system's natural period
 (tilt, seasons, orbit), so it is physically meaningful as well as numerically
 convenient.
@@ -517,6 +517,29 @@ packages/
   tools/
     bench/  trace/  worldgen-cli/
 ```
+
+---
+
+## 11a. What exists today (M0)
+
+Scaffolding only, and deliberately so. It was built to turn the decisions that are
+hardest to reverse from reasoning into measurement, not to start the simulator.
+
+| Module | Validates | Measured |
+| --- | --- | --- |
+| `core/time` | DEC-014 — the year-split time representation | 10⁷ steps of 1/60 s at year 10⁶: error **1.7 × 10⁻⁵ s**, against **1.04 × 10⁴ s** for a flat `f64` seconds counter |
+| `core/rng` | DEC-017 — stateless, order-independent seeding | forward, reversed and shuffled generation of 2 400 keys give identical maps; golden values recorded |
+| `core/budgets` | DEC-024 — budgets as code, not prose | — |
+| `core/assert` | DEC-024 — assertions stripped in production | — |
+| `data/coords` | DEC-006, DEC-007 — frames, cube-sphere, quadkeys | round-trip **< 1 mm** at planet radius including all corners; tangent warp gives **1.27×** area ratio vs ~1.9× naive |
+| `tools/check-boundaries.mjs` | DEC-011, DEC-017, DEC-027 — the boundary rules | self-tested: plants a cross-package import, a `Math.random` and a DOM access, and confirms each is rejected for the right reason |
+| `tools/check-sim-standalone.mjs` | §1.1 — the founding-principle test as a CI job | pure packages run under plain Node with no renderer |
+
+45 tests. `tsc --noEmit` clean under `strict`, `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes`.
+
+There is no `FieldStore`, no scheduler and no renderer. Those are M1, and building
+them before the decisions had been attacked would have been building on sand.
 
 ---
 

@@ -19,10 +19,16 @@ type Duration = number;      // branded f64 seconds
 ```
 
 **Why not a single `f64` seconds counter.** At one million years
-(3.156 × 10¹³ s) one ulp is ≈ 4 ms; at one billion years it is ≈ 4 s. Two runs
+(3.156 × 10¹³ s) one ulp is ≈ 7.8 ms; at one billion years it is ≈ 4 s. Two runs
 would disagree about what time it is, and replay dies. The `year` split keeps a
 *exact* integer where exactness is needed and `f64` where it is cheap: within one
-year (max 3.156 × 10⁷ s) one `f64` ulp is ≈ 4 × 10⁻⁹ s.
+year (max 3.156 × 10⁷ s) one `f64` ulp is ≈ 7 × 10⁻⁹ s.
+
+**Measured** (`packages/core/test/time.test.ts`): accumulating 10⁷ steps of 1/60 s
+at year 10⁶ gives an error of **1.7 × 10⁻⁵ s** with the year split, against
+**1.04 × 10⁴ s** for a flat `f64` seconds-since-epoch counter — which at that
+magnitude rounds every 1/60 s increment to 1/64 s and silently loses 6.25% of
+all elapsed time.
 
 **Why the year specifically.** It is the system's natural period — axial tilt,
 seasons, insolation, orbit — so the split point is physically meaningful, not just

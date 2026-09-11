@@ -21,8 +21,8 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 | ID | Title | Owner | Status | Pri | Acceptance |
 | --- | --- | --- | --- | --- | --- |
 | T-0001 | Architecture v0: decisions, docs, agent infrastructure | Opus | **Review** | P0 | All M0 criteria in `docs/ROADMAP.md`; every ADR has alternatives/rationale/consequences |
-| T-0002 | Monorepo skeleton, strict TS, Vitest, CI, boundary checker | Opus | **Review** | P0 | `pnpm run check` and `pnpm test` pass; boundary checker fails on a deliberate `sim → render` import |
-| T-0003 | `SimTime` / `Duration` with exact year-split arithmetic | Opus | **Review** | P0 | 10⁶ yr of 1/60 s steps loses zero whole seconds; full op coverage |
+| T-0002 | Monorepo skeleton, strict TS, Vitest, CI, boundary checker | Opus | **Review** | P0 | `pnpm run check` and `pnpm test` pass; `check:boundaries:selftest` proves the checker rejects cross-package imports, `Math.random` and DOM access |
+| T-0003 | `SimTime` / `Duration` with exact year-split arithmetic | Opus | **Review** | P0 | 10⁷ steps of 1/60 s at year 10⁶ has error < 1 ms and beats a flat f64 counter by > 10⁶×; full op coverage |
 | T-0004 | Stateless hashing + noise primitives (`hash64`, domain ids) | Opus | **Review** | P0 | Forward and reverse key-order generation produce identical values; distribution sanity test |
 | T-0005 | Cube-sphere coordinates, tangent warp, quadkeys | Opus | **Review** | P0 | `PCF → CubeFace → PCF` round-trip error < 1 mm at R, including face corners |
 | T-0006 | `budgets.ts` + dev assertions | Opus | **Review** | P0 | Budgets are importable and referenced by docs; assertions strip from production builds |

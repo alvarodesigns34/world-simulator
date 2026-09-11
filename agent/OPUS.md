@@ -39,11 +39,44 @@ session's designated branch.
 | Graphics | WebGPU only, no WebGL2, no three.js | Compute shaders are load-bearing; a framework owns exactly the layers our precision strategy needs |
 | Precision | `f64` world, camera-relative `f32` upload, reversed-Z infinite far | `f32` ulp at Earth radius is **0.5 m**; `f64` is free in JS |
 | Grids | Tangent-warped cube-sphere (terrain) + icosahedral geodesic (climate) | One structure for quadtree/atlas/seed/index; a separate solver grid with no corners or poles |
-| Time | `{year: int, seconds: f64}` | A single `f64` seconds counter has a **4 ms ulp at 10⁶ years** — replay dies |
+| Time | `{year: int, seconds: f64}` | A flat `f64` seconds counter loses **10 417 s** where the year split loses **17 µs** (measured) |
 | Multiscale | Temporal LOD: regimes + `quiesce`/`resume` + mandatory aggregates | 1 Myr/s vs. 1 h weather steps is a **9-order-of-magnitude** gap; no optimisation closes it |
 | Determinism | Stateless hashed seeds; honest A/B/C tiers; GPU never authoritative | Chunks generate in camera order across a variable worker count — order-independence is a requirement |
 | Terrain data | Global L11 authoritative / regional L12–L18 on demand / L19+ decorative | What makes "the GPU is never authoritative" *affordable* |
 | Concurrency | Worker pool, SAB preferred, phase separation not locks | Single-writer ownership already gives us the safety; we buy it once |
+
+### Measured, not assumed
+
+The scaffolding exists to turn four claims from reasoning into measurement.
+All four now have numbers:
+
+| Claim | Result |
+| --- | --- |
+| `SimTime` beats a flat `f64` seconds counter (DEC-014) | **1.7 × 10⁻⁵ s** vs **1.04 × 10⁴ s** error over 10⁷ steps of 1/60 s at year 10⁶ — a factor of 6 × 10⁸. The flat counter rounds every 1/60 s to 1/64 s and loses 6.25% of all elapsed time. |
+| Cube-sphere round-trip error (DEC-007) | **< 1 mm** at planet radius over 20 000 sampled points, and at all 8 cube corners and 12 edge midpoints. |
+| Tangent warp reduces area distortion (DEC-007) | centre/corner arc ratio **≈ 1.27×** (naive cube-sphere is ~1.9×). |
+| Stateless hashing is order-independent (DEC-017) | Forward, reversed and hash-shuffled generation of 2 400 keys produce **identical** maps. Golden values recorded so a hash change cannot happen silently. |
+
+Also proven rather than asserted:
+
+- `pnpm run check:boundaries:selftest` plants a cross-package import, a
+  `Math.random` and a DOM access, confirms each is rejected **for the right
+  reason**, and removes them. A check that has never been seen to fail is not a
+  check.
+- `pnpm run check:sim-standalone` runs the pure packages under plain Node with no
+  renderer present — `ARCHITECTURE.md` §1.1's founding-principle test as an actual
+  CI job.
+
+45 tests, `tsc --noEmit` clean under `strict` + `noUncheckedIndexedAccess` +
+`exactOptionalPropertyTypes`.
+
+### A figure I had wrong
+
+My first draft claimed a ~4 ms `f64` ulp at 10⁶ years. It is **7.8 ms**. The
+docs now carry measured numbers rather than my arithmetic. Noted because it is
+exactly the kind of thing this scaffolding exists to catch, and because Grok
+should assume the same about the performance budgets, which have had no such
+correction yet.
 
 ### Reasoning I want challenged
 

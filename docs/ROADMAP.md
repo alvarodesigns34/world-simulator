@@ -71,10 +71,16 @@ each other.
 **Acceptance criteria**
 - [ ] `pnpm run check` (typecheck + lint + boundaries) passes.
 - [ ] `pnpm test` passes.
-- [ ] The boundary checker **fails** on a deliberately introduced `sim → render`
-      import (the check is proven, not merely present).
-- [ ] `SimTime` arithmetic is exact: 10⁶ years of accumulated 1/60 s steps loses
-      **zero** whole seconds, verified by test.
+- [ ] The boundary checker **fails** on a deliberately introduced cross-package
+      import, on `Math.random` in a pure package, and on DOM access in a pure
+      package — proven by `pnpm run check:boundaries:selftest`, which plants each
+      violation, asserts it is caught for the right reason, and removes it.
+      *A check that has never been seen to fail is not a check.*
+- [ ] `pnpm run check:sim-standalone` passes: the pure packages run under plain
+      Node with no renderer present (`ARCHITECTURE.md` §1.1).
+- [ ] `SimTime` precision: accumulating 10⁷ steps of 1/60 s at year 10⁶ has error
+      **< 1 ms**, and beats a flat `f64` seconds-since-epoch counter by **> 10⁶×**,
+      verified by test. *(Measured: 1.7 × 10⁻⁵ s vs 1.04 × 10⁴ s.)*
 - [ ] Stateless hashing is order-independent: keys generated in forward and reverse
       order produce identical values, verified by test.
 - [ ] Cube-sphere round-trip `PCF → CubeFace → PCF` error **< 1 mm** at R,

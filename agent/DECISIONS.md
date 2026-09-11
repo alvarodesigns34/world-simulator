@@ -683,7 +683,7 @@ interface SimTime {
 - `year` is an exact integer; `Number.MAX_SAFE_INTEGER` allows ±9 × 10¹⁵ years,
   ~10⁶× more than the deepest geological scale we will ever run.
 - `seconds` is `f64` within a single year (max 3.156 × 10⁷), where one ulp is
-  ~4 × 10⁻⁹ s. Sub-microsecond exactness forever.
+  ~7 × 10⁻⁹ s. Sub-microsecond exactness forever.
 - Every arithmetic operation **normalises** (carry/borrow into `year`).
 - `Duration` is a separate branded type, `f64` seconds, for step sizes.
 - The planet's year length is a world parameter, fixed at world creation and
@@ -692,7 +692,7 @@ interface SimTime {
 ### Alternatives considered
 | Option | Why not |
 | --- | --- |
-| `f64` seconds since epoch | Fails: at 10⁶ years (3.2 × 10¹³ s), ulp ≈ 4 ms; at 10⁹ years, ulp ≈ 4 s. Accumulated error destroys replay. |
+| `f64` seconds since epoch | Fails: at 10⁶ years (3.16 × 10¹³ s), ulp ≈ 7.8 ms; at 10⁹ years, ulp ≈ 4 s. **Measured:** accumulating 10⁷ steps of 1/60 s at year 10⁶ loses **10 417 s** on a flat counter (increments of 1/60 round to 1/64) versus **17 µs** with the year split. |
 | `bigint` nanoseconds | Exact and simple, but `bigint` arithmetic is ~10–50× slower than `number` and allocates. Time is advanced thousands of times per second by the scheduler. Also awkward to serialise and to mix with `f64` physics. |
 | Integer ticks in a `number` at a fixed rate | A 64 Hz tick fits 10⁶ years in 2 × 10¹⁵ ticks — under the safe-integer limit, but with less than 5× headroom, and it forces every subsystem's dt to be a multiple of 1/64 s. Too tight and too rigid. |
 | Two-part `{seconds:int, subsecond:f64}` | Equivalent exactness, but `year` is the unit humans, geology and orbital mechanics all actually use, and it makes calendars and seasons fall out naturally. |
