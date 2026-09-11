@@ -68,6 +68,24 @@ constraint that shapes the entire renderer.
    Permitted only in a shader that provably needs it, with a comment saying why.
    Currently anticipated: none.
 
+### 2.2b Shader-side rules (DEC-033)
+
+"One conversion point" is a statement about CPU files and is not enforceable
+inside a shader. Three rules make it true end to end:
+
+1. **No shader adds a planet-centred camera position in `f32`.** Doing so
+   reconstructs a magnitude of 6.37 × 10⁶ and immediately quantises it to 0.5 m.
+   Every pass stays camera-relative. There is deliberately **no** `camera_pcf`
+   uniform in the standard bind group — the absence is the enforcement.
+2. **World position reconstructed from the depth buffer is low-precision**, and
+   labelled so. Fine for fog and atmospheric density; not fine for contact
+   shadows, decals, picking, or any simulation query. Picking uses a CPU-side
+   `f64` intersection, never a depth read-back.
+3. **`cameraNear` and the reversed-Z depth range are two different things.**
+   `cameraNear = clamp(altitude × 1e-4, 0.05, 1000)` m and is never zero; the
+   *depth range* is reversed (near → 1.0, far → 0.0, clear 0.0, `GreaterEqual`).
+   DEC-005 wrote "near = 0" meaning the second and it read as the first.
+
 ### 2.3 The single conversion point
 
 There is exactly **one** place where an `f64` world position becomes an `f32` render
@@ -130,6 +148,25 @@ grazing angles near the 8 corner points, where three cells meet.
 ---
 
 ## 4. LOD (DEC-010)
+
+### 4.0 Visibility comes first (DEC-034)
+
+Before any of the four LOD elements: **horizon culling is part of the contract.**
+At orbital altitude roughly half the planet faces away from the camera and a
+frustum test removes none of it, so the cull order is horizon → frustum →
+screen-space error.
+
+The planet is the occluder, at its **solid** radius. Tall terrain and the
+atmosphere shell inflate the *node's* bounding radius, never the occluder's —
+inflating the occluder raises the threshold and culls **more**, which is
+backwards. (This was a real sign error in the first implementation, caught by its
+own test.)
+
+Two further rules close the gap between DEC-019's data split and DEC-010's mesh:
+the quadtree **exists at every level** with ancestor upsampling, so a descending
+camera never pops from 4.9 km cells to 38 m cells; and streaming prefetches the
+**chain** of ancestors, coarse to fine, because a leaf arriving before its parents
+cannot be shown without a discontinuity.
 
 ### 4.1 The four elements
 
@@ -342,13 +379,55 @@ fragmentation and the compositor.
 | Cold start to first rendered planet | ≤ 4 s |
 | Telemetry overhead | ≤ 0.2 ms/frame in dev, ~0 in production |
 
-### 7.7 Honest caveat
+### 7.7 What the audit did to this section (DEC-032)
 
-Every number above is an engineering estimate, not a measurement. The GPU split in
-particular is guesswork until a real terrain pass exists — 4.0 ms for terrain at
-8.2 M triangles plus atlas sampling is plausible on the reference hardware and could
-be off by 2×. **This section is a primary target for Grok's audit**: the budgets
-should be attacked with arithmetic before they are attacked with a profiler.
+The budgets above were attacked with arithmetic (T-0024) and several lost.
+
+**The patch budget and τ were never simultaneously satisfiable.** At 1440p:
+
+| Patch | Triangles | 1000 patches | Patches at ≥ 2 px/tri |
+| --- | --- | --- | --- |
+| 17×17 | 512 | 7.20 px/tri | 3600 |
+| 33×33 | 2 048 | 1.80 px/tri | 900 |
+| **65×65** | **8 192** | **0.450 px/tri** | **225** |
+
+And τ = 2.0 px with a 64-segment patch means a patch spans ~128 px, so a *full*
+1440p screen holds ~225 patches ≈ 1.84 M triangles — not the 8.2 M that
+`maxVisiblePatches: 1200` implied. The two constants described different designs.
+
+**So the budget is now a function.** `budgets.resolvePatchBudget({pixelCount,
+gpuTier, patchVerticesPerSide})` returns the admissible patch count, and the LOD
+selector, the HUD and the perf tests all call it. Constants that a selector reads
+directly are how the contradiction survived a review in the first place.
+
+**Three hardware tiers, not one sentence.** M0 grouped Iris Xe (~1.7 TFLOPS),
+Apple M1 (~2.6) and RTX 3050 (~6) as "reference hardware" — a 3–5× span that made
+"60 FPS on reference hardware" unfalsifiable. `discrete` / `integrated` / `floor`,
+each with its own resolution and frame target.
+
+**Still unmeasured.** The GPU half of E1 — actual rasterisation cost per patch
+size, and whether the small-triangle cliff bites as hard as the arithmetic says —
+needs real hardware. `tools/bench/patch-size.out.md` has the CPU and arithmetic
+half; the GPU column is Grok's. Until then the ms figures in §7.2–§7.3 remain
+estimates and are labelled as such in `budgets.ts`.
+
+### 7.8 Measured depth behaviour
+
+Reversed-Z with `depth32float` and an infinite far plane, measured across the
+altitude sweep:
+
+| Altitude | `cameraNear` | Resolvable depth separation |
+| --- | --- | --- |
+| 1 m | 0.05 m | 7.5 × 10⁻⁸ m |
+| 1 km | 0.1 m | 7.3 × 10⁻⁵ m |
+| 100 km | 10 m | 7.3 × 10⁻³ m |
+| 40 000 km | 1000 m | 2.9 m |
+
+The absolute number degrades with distance, and that is fine: one pixel at
+40 000 km covers ~29 km, so 2.9 m is ~10 000× finer than anything visible. The
+property that holds at every altitude — and that the test asserts — is that depth
+resolution stays **more than 100× finer than one pixel's lateral extent**. A fixed
+absolute target ("1 m at 40 000 km") is the wrong criterion and fails.
 
 ---
 

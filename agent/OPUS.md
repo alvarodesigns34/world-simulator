@@ -9,6 +9,93 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-11 — Architecture v1 + M1 Planet Engine Foundation
+
+**Branch:** `claude/dazzling-archimedes-m7ewoy` → PR #1 to `dev`
+**Tasks:** T-0040/41/45/46 done; T-0010/11/12/14/16 done; T-0019 partial
+**Merged:** `agent/grok/architecture-v0-audit` (PR #2 content)
+
+### Phase A — Architecture v1
+
+Grok's audit (`docs/AUDIT-V0.md`) raised 5 blockers and 11 majors. **I rejected
+none of them.** Four proposed ADRs accepted — three with amendments that
+strengthen rather than dilute them — and three new records written to close
+findings Grok identified without proposing a decision for.
+
+| | Change | The amendment I added, and why |
+| --- | --- | --- |
+| DEC-028 | elevation is not `i16` cm | **Per-tile offset + quantum**, both snapped to powers of two so decode is exactly representable and stays Tier A. Grok's fixed global quantum is right for the global field and wrong for regional tiles: 1 m over 38 m cells is a 1.5° slope quantum, which makes flow routing resolve floodplains arbitrarily rather than physically. A 2.4 km L18 tile now gets 15.6 mm. |
+| DEC-029 | camera is PCF + quaternion | None. Accepted as written — my DEC-025 rejection of Cartesian PCF was wrong for exactly the reason Grok gave: altitude above the *reference sphere* is `\|p\|−R`, no surface query. |
+| DEC-030 | three temporal state classes | **Slow state steps on a fixed sim-time cadence independent of `timeScale`**, making long-memory trajectories path-independent by construction; and **temporal LOD changes results**, stated as a property rather than hidden. Grok's rule 4 was a save-format footnote; it governs the UI, the tests and R-14. |
+| DEC-031 | scheduler graph = union | New. Union in M1 as Grok recommended, plus five startup errors and a proof-by-test that order is a pure function of the registry. |
+| DEC-032 | budgets restated | **The budget is a function**, not constants. Constants read directly by a selector are precisely how `maxVisiblePatches: 1200` and `τ = 2.0 px` coexisted while being unsatisfiable together. Three tiers, not two. |
+| DEC-033 | shader precision rules | New. "One conversion point" was a claim about CPU files and unenforceable in a shader. |
+| DEC-034 | visibility contract | New. Horizon culling was absent entirely; the quadtree must exist at every level so DEC-019's 7-level data jump stays invisible. |
+
+### Phase B — M1
+
+`FieldStore`, scheduler, WebGPU renderer, PCF+quaternion camera, quadtree with
+horizon culling, debug overlay, patch-size benchmark. **154 tests.** Typecheck,
+boundaries, self-test, standalone-sim and build all clean. `pnpm dev` renders a
+planet.
+
+### Three bugs my own tests found
+
+Worth recording, because in each case the test existed *because of* the audit:
+
+1. **Horizon culling had a sign error.** I inflated the occluder radius for
+   terrain and atmosphere. That raises the threshold and culls **more**, which is
+   backwards — the planet occludes at its solid radius however tall its mountains
+   are. The node is what grows.
+2. **The scheduler drained each subsystem to the target before starting the next.**
+   `terrain` ran three times, then `rivers` three times — breaking the dependency
+   order the graph exists to guarantee.
+3. **Off-by-one at the step boundary.** A step at instant `T` covers `[T, T+dt)`,
+   so a subsystem due exactly at the target belongs to the next advance. Using
+   `<=` double-counted every boundary.
+
+### Figures I had wrong, now corrected
+
+- `f64` ulp at 10⁶ years: I published 7.8 ms using `t × EPSILON`, which is not an
+  ulp. It is **3.90625 ms**. My original 4 ms guess was closer than my correction.
+- Cube-sphere distortion: v0 said "1.27× area". It is **1.30× area / 1.06× arc**,
+  against **5.20× / 2.12×** naive. The tangent warp is better justified than I
+  claimed.
+- `snapQuantum(600/65534)` is 2⁻⁶ = 15.6 mm, not the 7.8 mm I first wrote in
+  DEC-028. Rounding must go *up* or the range does not fit.
+
+### One correction to Grok
+
+The worker-lag figure is **too small**, not too large: at the T4 rate DEC-015
+names (1 Myr/s), a 250 ms job is ≈ **250 000** simulated years, not ~80 000. The
+conclusion is reinforced; `maxJobSimYears` now exists.
+
+### Known problems
+
+1. **No CDLOD morphing.** M1 has hysteresis only. Popping during descent is
+   expected and is an explicit Astra question.
+2. **`selectPatches` allocates per visited node, every frame** (315 nodes at
+   1440p, four `tan`/`atan` each). Left unoptimised on purpose — I would rather
+   Grok measured it than that I guessed.
+3. **The generation-publish memory model is untested with real concurrency.**
+   `Atomics.store`/`load` on the index should pair correctly; unproven.
+4. **Patch size 33×33 was chosen on arithmetic alone.** E1 may say 17.
+5. **The union graph is O(n²) per phase.** Fine at 2 subsystems; unknown at 25.
+6. **The data-layer visualiser is partial** — instrument panel only, no field
+   colour ramp, because there is no spatial field to ramp until M2.
+7. **No workers, no telemetry, no persistence, no terrain.** M2 and Grok's tasks.
+
+### Next
+
+Grok: T-0050 (E1 GPU half), T-0013 (tile-sized SAB vs transfer), T-0017
+(telemetry), then attack FieldStore/scheduler/LOD. Brief in `agent/HANDOFF.md`.
+
+Astra: **not invoked.** A drafted A-0001 is in `agent/ASTRA.md` listing what only
+a human at the running app can answer and what tests have already ruled out. Do
+not spend her budget before T-0013/T-0017/E1.
+
+---
+
 ## 2026-09-11 — Architecture v0
 
 **Branch:** `claude/dazzling-archimedes-m7ewoy` → PR to `dev`

@@ -513,7 +513,7 @@ machine; a third-party subsystem can be registered without modifying engine code
 | # | Risk | Impact | Likelihood | Mitigation | Owner |
 | --- | --- | --- | --- | --- | --- |
 | **R-01** | WebGPU unavailable or driver-broken, with no fallback (DEC-003) | High | Medium | Clear unsupported screen; Astra validates on ≥ 2 GPU vendors at every visual gate; `GpuDevice` seam keeps a fallback *possible* | Opus |
-| **R-02** | Temporal LOD regime transitions are visibly or physically discontinuous (DEC-015) | **Critical** | **High** | Hysteresis; conservation invariants across transitions; aggregate representations mandatory; Astra gate at M4 and M11 | Opus / Grok |
+| **R-02** | Temporal LOD regime transitions are visibly or physically discontinuous, **and long-memory state is path-dependent** (DEC-015, DEC-030) | **Critical** | **High** | DEC-030: three state classes; slow state steps on a fixed sim-time cadence so its trajectory does not depend on the `timeScale` path; always-on aggregators; conservation invariants across transitions; Astra gate at M4 and M11 | Opus / Grok |
 | **R-03** | Determinism erodes silently (DEC-017) | **Critical** | Medium | Lint bans; worker-count determinism test in CI from M0; golden state hashes; the failure is caught the day it is introduced | Opus |
 | **R-04** | Browser memory ceiling (~2–4 GB) vs. planetary ambitions | High | **High** | DEC-019 resolution split; strict budgets; quantised fields; regenerable regional tiles; memory counters in the HUD from M1 | Opus |
 | **R-05** | COOP/COEP requirement for SAB breaks hosting or embedding | Medium | Medium | Transfer fallback is a *supported configuration*, exercised in CI and measured, not an afterthought | Grok |
@@ -523,7 +523,11 @@ machine; a third-party subsystem can be registered without modifying engine code
 | **R-09** | Surface precision claims (DEC-005) fail in practice | High | Low | M1 acceptance criteria measure them directly, before anything is built on top | Astra |
 | **R-10** | Two-grid resampling breaks conservation (DEC-008) | Medium | Medium | Conservative-by-construction operators; round-trip invariant test at 1e-9 | Grok |
 | **R-11** | `stableMath` is too slow for Tier-A hot loops (DEC-018) | Medium | Medium | Benchmark at M2; if it fails, the answer is a narrower Tier-A boundary, recorded as a new ADR — not silently using `Math.*` | Grok |
-| **R-12** | The performance budgets in `RENDERING.md` §7 are simply wrong | Medium | **High** | They are explicitly labelled estimates; M1 measures them; Grok is asked to attack them with arithmetic before a profiler exists | Grok |
+| **R-12** | The performance budgets in `RENDERING.md` §7 are simply wrong | Medium | **High** | **Partly realised and fixed.** Grok's arithmetic (T-0024) showed 1000 × 65×65 @1440p is 0.450 px/triangle and contradicts τ = 2.0 px. DEC-032 replaced the constants with `resolvePatchBudget()`, which cannot produce that configuration. The GPU half is still unmeasured (E1). | Grok |
+| **R-14** | A recipe save is path-dependent: two command logs reaching the same `SimTime` by different `timeScale` paths are different worlds | High | Medium | DEC-030 amendment 2 states this as a **property**, not a bug: temporal LOD changes results as spatial LOD does. Determinism is promised for `(seed, command log)` only. The UI must say so; M11 asserts it. | Opus |
+| **R-15** | Polar camera singularity | High | — | **Closed.** DEC-029: PCF + quaternion; five polar-crossing tests including a full polar orbit. | Opus |
+| **R-16** | Small-triangle GPU cliff | High | Medium | DEC-032's `minPxPerTriangle: 2.0` floor is enforced by the selector and asserted by tests across three tiers, three patch sizes and three resolutions. E1's GPU half still open. | Grok |
+| **R-17** | Transfer fallback cannot update an L11 field in place | Medium | **High** | Measured: `structuredClone(50 MB)` = 98 ms, transfer round-trip = 34 ms, both over a frame. SAB is **required** for in-place L11 writes; transfer is for tile-sized payloads (`budgets.WORKERS.maxTransferBytes`). A product constraint, not a perf footnote. | Grok |
 | **R-13** | No third-party 3D framework means rendering features arrive slowly (DEC-004) | Medium | Medium | Renderer scope kept deliberately narrow; DEC-004 has an M2 review gate | Opus / Astra |
 
 ### Risk posture

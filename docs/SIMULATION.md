@@ -106,6 +106,51 @@ Worked example — the atmosphere:
 | `climatology` | 30 d – 100 y | monthly climatological means from the current boundary conditions | monthly means only; no weather events |
 | `paleo` | > 100 y | energy balance vs. orbit, CO₂, albedo, orography | annual means; climate belts |
 
+### 2.2b Three state classes, not two (DEC-030)
+
+DEC-015 as first written had **fast state** (flushed by `quiesce`) and
+**aggregates** (what coarse regimes read). It quietly assumed every quantity was
+one of the two. It is not:
+
+| Quantity | Memory | Reconstructible from a monthly mean? |
+| --- | --- | --- |
+| Wind, storms | hours | plausibly, seeded |
+| Soil moisture, snowpack | weeks–months | lossily |
+| Ocean mixed layer, thermohaline | years–centuries | **no** |
+| Ice sheets, groundwater | centuries–millennia | **no** |
+
+`quiesce`-into-an-aggregate is not a lossy operation for an ice sheet, it is a
+meaningless one. So every field declares a **temporal class**:
+
+- **`slow`** — long memory, always live, never flushed. `quiesce` is a no-op.
+  **Steps on a fixed sim-time cadence independent of `timeScale`**, which is what
+  makes its trajectory path-independent by construction.
+- **`fast`** — regime-switched transients. May be discarded on `quiesce` and
+  re-seeded purely on `resume` from aggregate + world seed.
+- **`aggregate`** — always-on running windows over fast state, **and they may live
+  on a coarser grid**. A 12-month `i16` T+P climatology is **1.21 GB** on cube
+  L11 and **1.97 MB** on geodesic n6; same-grid aggregates were never affordable.
+
+Aggregates are running windows updated in the fine regime, **not** flushed at the
+transition. That turns the least-tested moment in the project into a boring one.
+
+### 2.2c Temporal LOD changes results — and that is the design
+
+The honest framing, and the one that governs what may be promised:
+
+> Running a span at a coarse `timeScale` is not an approximation of running it at
+> a fine one. It is a different, cheaper model of the same physics — exactly as a
+> low-LOD patch is a different, cheaper model of the same terrain.
+>
+> Determinism is a promise about **`(worldSeed, command log)`**, and `timeScale`
+> changes are commands. It is **not** a promise that two different paths to the
+> same `SimTime` agree.
+
+This governs three things at once: what a recipe save reproduces (§7), what the
+invariant tests may assert (conservation across a transition — yes; identical
+state via two paths — no), and what the UI must tell the user ("fast-forwarding
+will change your world" is a fact, not a bug). It is risk **R-14**.
+
 ### 2.3 The three rules that make it coherent
 
 **Rule 1 — transitions are explicit lifecycle events.**
@@ -166,6 +211,25 @@ type Cadence =
   | { kind: 'everyNOf';   n: number; of: SubsystemId }
   | { kind: 'onDemand';   trigger: TriggerId };
 ```
+
+### 3.1b The graph is the union over regimes (DEC-031)
+
+`reads`/`writes` are declared per *subsystem*, but regimes of the same subsystem
+read different fields (`precip.instant` vs `precip.annualMean`). The declared set
+is therefore the **union over all regimes**, and the graph is built once at
+startup from the registry alone.
+
+The union is conservative: it can only over-constrain, never under-constrain. An
+over-constrained schedule loses some parallelism; an under-constrained one loses
+determinism. At M1's scale the parallelism is worth nothing and the determinism is
+worth everything.
+
+Four conditions are **startup errors, never warnings**: a cycle, a write conflict
+(two writers of one field), an undeclared owner, and an unknown field. A fifth
+guards `readsPrev` against a field that is not double-buffered — there would be no
+previous generation to read.
+
+Implemented and tested in `packages/sim/src/scheduler/graph.ts`.
 
 ### 3.2 Ordering
 
@@ -394,7 +458,7 @@ compressed with the platform's `CompressionStream('deflate-raw')` — no depende
 
 | Kind | Contents | Size | Valid when |
 | --- | --- | --- | --- |
-| **Recipe** | seed, parameters, `SimTime`, full command log | kilobytes | Tier-A determinism holds and the engine version matches or migrates |
+| **Recipe** | seed, parameters, `SimTime`, full command log | kilobytes | Tier-A determinism holds, the engine version matches or migrates, **and the log is replayed rather than jumped to** (§2.2c, R-14) |
 | **Snapshot** | all authoritative fields + entity tables | 50–500 MB | always |
 | **Hybrid** | snapshot + subsequent command log | — | this is also **replay** |
 

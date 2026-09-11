@@ -520,26 +520,50 @@ packages/
 
 ---
 
-## 11a. What exists today (M0)
+## 11a. What exists today (Architecture v1 + M1)
 
-Scaffolding only, and deliberately so. It was built to turn the decisions that are
-hardest to reverse from reasoning into measurement, not to start the simulator.
+### Executable engine core
 
-| Module | Validates | Measured |
+| Module | Role | Decision |
 | --- | --- | --- |
-| `core/time` | DEC-014 — the year-split time representation | 10⁷ steps of 1/60 s at year 10⁶: error **1.7 × 10⁻⁵ s**, against **1.04 × 10⁴ s** for a flat `f64` seconds counter |
-| `core/rng` | DEC-017 — stateless, order-independent seeding | forward, reversed and shuffled generation of 2 400 keys give identical maps; golden values recorded |
-| `core/budgets` | DEC-024 — budgets as code, not prose | — |
-| `core/assert` | DEC-024 — assertions stripped in production | — |
-| `data/coords` | DEC-006, DEC-007 — frames, cube-sphere, quadkeys | round-trip **< 1 mm** at planet radius including all 12 edge midpoints; tangent warp gives **1.30×** centre/corner *area* ratio and **1.06×** *arc* ratio, against **5.20×** and **2.12×** naive |
-| `tools/check-boundaries.mjs` | DEC-011, DEC-017, DEC-027 — the boundary rules | self-tested: plants a cross-package import, a `Math.random` and a DOM access, and confirms each is rejected for the right reason |
-| `tools/check-sim-standalone.mjs` | §1.1 — the founding-principle test as a CI job | pure packages run under plain Node with no renderer |
+| `data/fields` | `FieldStore`: closed registry, quantised rasters, ownership, dirty blocks, generation-publish commit | DEC-012, DEC-013, DEC-028, DEC-030, DEC-032 |
+| `data/grids` | cube-sphere and geodesic grid registry; aggregate grids may be coarser | DEC-007, DEC-008, DEC-030 |
+| `sim/scheduler` | union dependency graph, phases, cadence in sim time, deterministic order, quiesce/resume | DEC-016, DEC-030, DEC-031 |
+| `render/camera` | PCF + quaternion state, derived geodetic, the single f64→f32 point, reversed-Z projection | DEC-005, DEC-029, DEC-033 |
+| `render/lod` | quadtree nodes, horizon + frustum culling, screen-space error, hysteresis | DEC-010, DEC-032, DEC-034 |
+| `render/gpu` | WebGPU device with typed failure, instanced planet renderer | DEC-003, DEC-004 |
+| `app` | composition root, input, frame loop, debug overlay | DEC-011, DEC-026 |
+| `core/math` | f64 vectors and unit quaternions | DEC-029 |
+| `core/rng` | `hashU32` and `hashU64` (splitmix64), domain separation | DEC-017 |
+| `core/time` | `SimTime` year-split, `Duration`, calendar | DEC-014 |
+| `core/budgets` | `resolvePatchBudget()` — the budget is a function, not a constant | DEC-024, DEC-032 |
 
-45 tests. `tsc --noEmit` clean under `strict`, `noUncheckedIndexedAccess` and
-`exactOptionalPropertyTypes`.
+**154 tests.** Typecheck clean under `strict` + `noUncheckedIndexedAccess` +
+`exactOptionalPropertyTypes`, boundaries clean, `check:sim-standalone` clean,
+`vite build` clean.
 
-There is no `FieldStore`, no scheduler and no renderer. Those are M1, and building
-them before the decisions had been attacked would have been building on sand.
+### What the numbers actually are
+
+Every figure below is measured in this repository, not estimated.
+
+| Claim | Result |
+| --- | --- |
+| `SimTime` vs a flat `f64` counter | **1.7 × 10⁻⁵ s** vs **1.04 × 10⁴ s** error over 10⁷ steps of 1/60 s at year 10⁶ |
+| `f64` ulp at 10⁶ years | **3.90625 ms** (v0 published 7.8 ms, which was `t × EPSILON`, not an ulp) |
+| Cube-sphere round-trip | **< 1 mm** at planet radius, all 12 edge midpoints and 8 corners |
+| Tangent warp distortion | **area 1.30×, arc 1.06×** — against **5.20×** and **2.12×** naive |
+| `f32` ulp at planet radius | **0.5 m** — the reason for the whole precision strategy |
+| Depth resolution | **75 nm** at 1 m altitude; **2.9 m** at 40 000 km — both >100× finer than one pixel |
+| `hashU64` collisions | **0** in 300 000 keys, where 32-bit expects ~10 |
+| L11 `i16` field | **50.33 MB** (48.00 MiB) |
+| 12-month T+P climatology | **1.21 GB** on cube L11, **1.97 MB** on geodesic n6 |
+| 65×65 × 1000 patches @1440p | **0.450 px/triangle** — the small-triangle cliff |
+
+### What is deliberately absent
+
+No terrain generation, no tile streaming, no workers, no telemetry ring buffer,
+no persistence, no regimes. Those are M2 and the tasks assigned to Grok. M1's job
+was to make the decisions executable and falsifiable, not to fill them in.
 
 ---
 

@@ -16,53 +16,35 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ---
 
-## Now — M0 closing / M1 opening
+## Now — M1 closing / M2 opening
+
+Architecture v1 is consolidated and the M1 kernel is executable. What remains in
+M1 is measurement on real hardware (E1/E2), the worker pool, telemetry, and
+Astra's visual gate — none of which can be done from here.
 
 | ID | Title | Owner | Status | Pri | Acceptance |
 | --- | --- | --- | --- | --- | --- |
-| T-0001 | Architecture v0: decisions, docs, agent infrastructure | Opus | **Review** | P0 | All M0 criteria in `docs/ROADMAP.md`; every ADR has alternatives/rationale/consequences |
-| T-0002 | Monorepo skeleton, strict TS, Vitest, CI, boundary checker | Opus | **Review** | P0 | `pnpm run check` and `pnpm test` pass; `check:boundaries:selftest` proves the checker rejects cross-package imports, `Math.random` and DOM access |
-| T-0003 | `SimTime` / `Duration` with exact year-split arithmetic | Opus | **Review** | P0 | 10⁷ steps of 1/60 s at year 10⁶ has error < 1 ms and beats a flat f64 counter by > 10⁶×; full op coverage |
-| T-0004 | Stateless hashing + noise primitives (`hash64`, domain ids) | Opus | **Review** | P0 | Forward/reverse identical (holds for `hashU32`). **Gap:** DEC-017 says 64-bit; code is `hashU32`. Follow-up T-0045 |
-| T-0005 | Cube-sphere coordinates, tangent warp, quadkeys | Opus | **Review** | P0 | `PCF → CubeFace → PCF` round-trip error < 1 mm at R, including face corners |
-| T-0006 | `budgets.ts` + dev assertions | Opus | **Review** | P0 | Budgets are importable and referenced by docs; assertions strip from production builds |
-| **T-0007** | **Adversarial audit of Architecture v0** | **Grok** | **Review** | **P0** | Report in `docs/AUDIT-V0.md`; 12-area verdicts; DEC-028/029/030/032 Proposed; benches in `tools/bench/` |
-
----
-
-## Next — M1 (Planet Engine Foundation)
-
-| ID | Title | Owner | Status | Pri | Acceptance |
-| --- | --- | --- | --- | --- | --- |
-| T-0010 | WebGPU device, pipeline layer, reversed-Z infinite-far depth | Opus | Open | P0 | Clears and draws; depth behaviour verified across the altitude sweep |
-| T-0011 | `FieldStore` + `EntityStore` + registry + `WorldView` | Opus | Open | P0 | **Blocked on T-0040 / DEC-028+030.** Descriptors include dtype/quantum/offset, `class`, coarser aggregate grid, generation publish (no memcpy). WorldView read-only by type; serialisation round-trip |
-| T-0012 | Scheduler skeleton: phases, cadence, ordering, commit discipline | Opus | Open | P0 | **Blocked on T-0040 (union-graph rule).** Order independent of registration; cycle detection throws; graph is the union of regimes |
-| T-0013 | Worker pool, job protocol, SAB detection + transfer fallback | **Grok** | Open | P0 | 1/4/8 workers identical. 50 MB clone=98 ms, transfer RT=34 ms measured (`tools/bench/audit-v0.mjs`). Fallback is **tile-sized jobs**, not in-place L11. SAB required for L11 writes |
-| T-0014 | Cube-sphere quadtree, screen-space error, split/merge | Opus | Open | P0 | Horizon culling in M1. 65×65 is a knob (E1). Patch count also satisfies min px/triangle (DEC-032). Prefetch the chain of levels, not only leaves |
-| T-0015 | Patch mesh, CDLOD morphing, skirts, indirect instanced draws | Opus | Open | P1 | No popping; no cracks at face seams or corners at grazing angles |
-| T-0016 | Camera: continuous state + altitude-blended controllers | Opus | Open | P0 | **Blocked on T-0040 / DEC-029.** PCF+quat canonical; geodetic derived. Descent includes a **polar** pass. No `switch` on altitude |
-| T-0017 | Telemetry ring buffer, zones, Chrome Trace export | **Grok** | Open | P1 | Trace opens in Perfetto; overhead ≤ 0.2 ms/frame; no allocation in the hot path |
-| T-0018 | Dev HUD: frame graph, budget bars, counters | Opus | Open | P2 | Reads `budgets.ts`; colours match actual budget state |
-| T-0019 | Data-layer visualiser (field → colour ramp + legend + probe) | Opus | Open | P1 | Any registered field; probe readout matches the underlying value exactly |
-| T-0020 | Cube-face seam topology and neighbour resolution | **Grok** | Open | P1 | No visible seam at any face boundary or corner; unit tests for all 24 edge adjacencies. Write-up covers valence-3 corners for hydrology |
-| T-0021 | `stableMath`: Tier-A sin/cos/exp/log/pow/atan2 | **Grok** | Open | P1 | Documented ULP bound vs. a high-precision reference; benchmark vs. native `Math.*` recorded |
-| T-0022 | `hashWorldState()` + determinism test suite | Opus | Open | P0 | Same seed, reversed order, 1/4/8 workers, save→load→step — all identical |
-| T-0023 | Command types + command log recording | Opus | Open | P1 | All mutation flows through commands; log serialises and replays (validation at M11) |
-| **T-0024** | **Attack the performance budgets in `RENDERING.md` §7 with arithmetic** | **Grok** | **Review** | **P0** | Done in T-0007. 0.45 px/tri; 50 MB clone 98 ms; DEC-032 Proposed. Numbers in `budgets.ts` not silently edited |
-
----
-
----
-
-## Architecture v1 (from T-0007) — do these before T-0011 / T-0012 / T-0016
-
-| ID | Title | Owner | Status | Pri | Acceptance |
-| --- | --- | --- | --- | --- | --- |
-| **T-0040** | **Architecture v1: accept/reject DEC-028/029/030/032 and close B1–B5** | **Opus** | Open | **P0** | Each Proposed ADR is Accepted or Rejected with reasoning. Union-graph, recipe=command-log, no-f32-PCF-add, required `__frame`, ulp 3.90625 ms written down. Blocks T-0011/12/16 |
-| T-0041 | Required PCF/PCI/Render discriminants | Opus | Open | P0 | `{x,y,z}` is not assignable to both PCF and PCI; constructors only. Part of T-0040 |
-| T-0045 | `hashU64` as DEC-017 already specified | **Grok** | Open | P0 | 64-bit mix; `hashU32` goldens unchanged; L11-scale birthday documented. Bug against DEC-017, not a new ADR |
-| T-0046 | Boundary checker covers sort / Map / quoted-property | **Grok** | Open | P1 | Self-test plants `Math["random"]()` and a comparator-less `sort` and sees them rejected |
-
+| T-0001 | Architecture v0 | Opus | **Done** | — | Superseded by Architecture v1 |
+| T-0007 | Adversarial audit of Architecture v0 | Grok | **Done** | — | `docs/AUDIT-V0.md`; 5 blockers + 11 majors; all resolved in v1 |
+| **T-0040** | **Architecture v1: close B1–B5** | Opus | **Done** | — | DEC-028/029/030/032 accepted (three amended); DEC-031/033/034 added; figures corrected |
+| T-0041 | Required PCF/PCI/Render discriminants | Opus | **Done** | — | `__frame` required; `{x,y,z}` no longer assignable to two frames |
+| T-0045 | `hashU64` as DEC-017 specified | Opus | **Done** | — | splitmix64 over u32 halves; verified against a BigInt oracle over 20 000 cases |
+| T-0046 | Boundary checker covers sort / Map / quoted-property | Opus | **Done** | — | Seven planted violations, all rejected for the right reason |
+| T-0011 | `FieldStore` + descriptors | Opus | **Done** | — | Quantised dtypes, ownership, temporal class, coarser aggregates, generation publish, dirty blocks |
+| T-0012 | Scheduler: phases, union graph, ordering, quiesce/resume | Opus | **Done** | — | Order independent of registration; five startup errors; 24 tests |
+| T-0016 | Camera: PCF + quaternion | Opus | **Done** | — | Five polar-crossing tests including a full polar orbit |
+| T-0010 | WebGPU device + reversed-Z | Opus | **Done** | — | Typed failure, no WebGL2; depth measured across the altitude sweep |
+| T-0014 | Quadtree + horizon cull + LOD selection | Opus | **Done** | — | Horizon/frustum/SSE/hysteresis; budget never exceeded across 3 tiers × 3 sizes × 3 resolutions |
+| T-0019 | Data-layer / debug overlay | Opus | **Partial** | P1 | Patch boundaries, LOD level, culling, altitude, frame time, resolved budget. **Field colour-ramp view still to do** — needs a field with spatial data, i.e. M2 |
+| **T-0013** | **Worker pool, SAB vs transfer, tile-sized jobs** | **Grok** | Open | **P0** | 1/4/8 workers identical. 50 MB numbers are in; measure the **tile** path (8 KB–1 MB) in a browser, COOP/COEP on and off |
+| **T-0017** | **Telemetry ring buffer + Chrome Trace export** | **Grok** | Open | **P0** | Opens in Perfetto; ≤ 0.2 ms/frame; no allocation in the hot path. Needed before anyone argues about the 6.0 ms budget |
+| **T-0050** | **E1: patch-size sweep on real GPUs** | **Grok** | Open | **P0** | 17/33/65 at 1080p/1440p/2160p on ≥ 2 vendors. CPU half is in `tools/bench/patch-size.out.md`; the GPU half decides the default |
+| **T-0051** | **E2: reversed-Z vertex swim, measured in-shader** | **Grok** | Open | P1 | Stationary camera at 1 m altitude; measure actual vertex jitter. Closes R-09 |
+| T-0020 | Cube-face seam topology, incl. valence-3 corners for hydrology | Grok | Open | P1 | 24 edge adjacencies; write-up covers hydrology at the 8 corners |
+| T-0021 | `stableMath` Tier-A transcendentals | Grok | Open | P1 | ULP bound vs a high-precision reference; benchmark vs native; CI matrix for E4 |
+| T-0022 | `hashWorldState()` + determinism suite | Opus | Open | P1 | Same seed / reversed order / 1-4-8 workers / save→load→step |
+| T-0023 | Command types + command log recording | Opus | Open | P1 | All mutation flows through commands; `timeScale` changes ARE commands (DEC-030) |
+| T-0052 | Ancestor upsampling + chain prefetch | Opus | Open | P1 | DEC-034 rules 2–4. Needs tiles, so it lands with M2 |
 
 ## Backlog
 
@@ -94,4 +76,27 @@ milestone plus the milestone gate. Requests must use the template in
 
 | ID | Title | Owner | Closed |
 | --- | --- | --- | --- |
-| — | — | — | — |
+| T-0001 | Architecture v0 | Opus | M0 — superseded by Architecture v1 |
+| T-0002 | Monorepo, strict TS, Vitest, CI, boundary checker | Opus | M0 |
+| T-0003 | `SimTime` / `Duration` year-split arithmetic | Opus | M0 |
+| T-0004 | Stateless hashing (`hashU32`) | Opus | M0 — extended by T-0045 |
+| T-0005 | Cube-sphere coordinates, tangent warp, quadkeys | Opus | M0 |
+| T-0006 | `budgets.ts` + dev assertions | Opus | M0 — restated by DEC-032 |
+| T-0007 | Adversarial audit of Architecture v0 | Grok | `docs/AUDIT-V0.md` |
+| T-0010 | WebGPU device + reversed-Z | Opus | M1 |
+| T-0011 | `FieldStore` + descriptors | Opus | M1 |
+| T-0012 | Scheduler: union graph, phases, ordering | Opus | M1 |
+| T-0014 | Quadtree + horizon cull + LOD selection | Opus | M1 |
+| T-0016 | Camera: PCF + quaternion, polar-safe | Opus | M1 |
+| T-0024 | Attack the performance budgets with arithmetic | Grok | Folded into T-0007; led to DEC-032 |
+| T-0040 | Architecture v1: close B1–B5 | Opus | DEC-028…034 |
+| T-0041 | Required PCF/PCI/Render discriminants | Opus | M1 |
+| T-0045 | `hashU64` as DEC-017 specified | Opus | M1 |
+| T-0046 | Boundary checker: sort / Map / quoted-property / Tier A | Opus | M1 |
+
+### Deferred with a reason
+
+| ID | Title | Why not now |
+| --- | --- | --- |
+| T-0015 | Patch mesh: CDLOD morphing + skirts | M1 ships hysteresis only. Morphing needs the tile pipeline to carry a parent surface to morph *toward*, which arrives with M2. Astra's gate decides whether the popping is tolerable until then. |
+| T-0018 | Dev HUD budget bars | Folded into T-0019; the overlay reads `resolvePatchBudget` already. |
