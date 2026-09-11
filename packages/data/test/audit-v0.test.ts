@@ -10,6 +10,7 @@ import {
   FACE,
   cubeFaceToPcf,
   cubeFaceToUnit,
+  pcf,
   geodeticToPcf,
   pcfToCubeFace,
   pcfToGeodetic,
@@ -80,7 +81,7 @@ describe('audit: cube-sphere metrics actually produced by the code', () => {
       [0, -1, -1],
     ] as const) {
       const l = Math.SQRT2;
-      edges.push({ x: a / l, y: b / l, z: c / l });
+      edges.push(pcf(a / l, b / l, c / l));
     }
     expect(edges.length).toBe(12);
     let worst = 0;

@@ -36,6 +36,37 @@ const CASES = [
     source: `export const w = (globalThis as never as { win${'dow'}: { innerWidth: number } }).win${'dow'}.innerWidth;\n`,
     expect: 'must not use',
   },
+  // T-0046 (AUDIT-V0 M9): the three cases the M0 checker missed.
+  {
+    name: 'DEC-017: quoted-property Math["random"]',
+    file: join(ROOT, 'packages/core/src/__selftest_qrand.ts'),
+    source: `export const r: number = (Math as never as Record<string, () => number>)["rand${'om'}"]();\n`,
+    expect: 'DEC-017',
+  },
+  {
+    name: 'DEC-017: sort() without a comparator',
+    file: join(ROOT, 'packages/core/src/__selftest_sort.ts'),
+    source: `export const xs = [3, 1, 2].so${'rt'}();\n`,
+    expect: 'DEC-017',
+  },
+  {
+    name: 'DEC-017: Map iterated in insertion order',
+    file: join(ROOT, 'packages/core/src/__selftest_mapiter.ts'),
+    source:
+      `const m = new Map<string, number>();\n` +
+      `export function total(): number {\n` +
+      `  let s = 0;\n` +
+      `  for (const [, v] of m) s += v;\n` +
+      `  return s;\n` +
+      `}\n`,
+    expect: 'DEC-017',
+  },
+  {
+    name: 'DEC-018: native Math.sin in @tier A code',
+    file: join(ROOT, 'packages/core/src/__selftest_tiera.ts'),
+    source: `/** @tier A */\nexport const s = Math.s${'in'}(1);\n`,
+    expect: 'DEC-018',
+  },
 ];
 
 let failures = 0;

@@ -531,7 +531,7 @@ hardest to reverse from reasoning into measurement, not to start the simulator.
 | `core/rng` | DEC-017 — stateless, order-independent seeding | forward, reversed and shuffled generation of 2 400 keys give identical maps; golden values recorded |
 | `core/budgets` | DEC-024 — budgets as code, not prose | — |
 | `core/assert` | DEC-024 — assertions stripped in production | — |
-| `data/coords` | DEC-006, DEC-007 — frames, cube-sphere, quadkeys | round-trip **< 1 mm** at planet radius including all corners; tangent warp gives **1.27×** area ratio vs ~1.9× naive |
+| `data/coords` | DEC-006, DEC-007 — frames, cube-sphere, quadkeys | round-trip **< 1 mm** at planet radius including all 12 edge midpoints; tangent warp gives **1.30×** centre/corner *area* ratio and **1.06×** *arc* ratio, against **5.20×** and **2.12×** naive |
 | `tools/check-boundaries.mjs` | DEC-011, DEC-017, DEC-027 — the boundary rules | self-tested: plants a cross-package import, a `Math.random` and a DOM access, and confirms each is rejected for the right reason |
 | `tools/check-sim-standalone.mjs` | §1.1 — the founding-principle test as a CI job | pure packages run under plain Node with no renderer |
 

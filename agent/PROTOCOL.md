@@ -201,11 +201,22 @@ These are the rules that CI checks or that break the project silently if ignored
 
 1. **Package boundaries** (DEC-011). `sim ⇏ render`. `render ⇏ sim`.
    `core`/`data`/`sim` are DOM-free.
-2. **Determinism** (DEC-017). In `core`/`data`/`sim`: no `Math.random`, `Date.now`,
-   `performance.now`, `new Date()`, `crypto.getRandomValues`. No result-affecting
-   iteration over insertion-ordered collections. No `sort()` without an explicit
-   total-order comparator. Reduce in key order, never completion order.
-3. **Tier-A code** (DEC-018) uses `stableMath`, not `Math.*`, for transcendentals.
+2. **Determinism** (DEC-017). In `core`/`data`/`sim`: no `Math.random` (dotted or
+   quoted), `Date.now`, `performance.now`, `new Date()`, `crypto.getRandomValues`
+   or `crypto.randomUUID`; no `sort()` without an explicit total-order comparator;
+   no insertion-order iteration over a `Map`/`Set` that reaches a result. Reduce in
+   key order, never completion order.
+
+   **What is mechanical and what is not.** `pnpm run check:boundaries` enforces all
+   of the above, and its self-test plants each one to prove it. Its one honest
+   limit: the `Map`/`Set` rule sees a single file and no types, so it catches
+   collections constructed in that file and cannot see one received as a parameter
+   or imported. That residue is a **review item**. Suppress a deliberate case with
+   `// deterministic-order: <why>` on the line above — and say why.
+
+3. **Tier A** (DEC-018). A file marked `@tier A` may not use native `Math`
+   transcendentals or `**`; it uses `stableMath`. Enforced by the checker on
+   files that carry the marker.
 4. **Single-writer fields** (DEC-013). Write only what your subsystem owns. Declare
    `reads` and `writes` accurately — the scheduler trusts them.
 5. **Time** (DEC-014). All time arithmetic goes through `packages/core/src/time/`.

@@ -25,7 +25,7 @@
  */
 
 import { assert, assertInRange } from '@ws/core';
-import { FACE, type CubeFace, type PCF, type PlanetGeometry } from './frames.js';
+import { FACE, pcf, type CubeFace, type PCF, type PlanetGeometry } from './frames.js';
 
 const QUARTER_PI = Math.PI / 4;
 
@@ -69,7 +69,7 @@ export function cubeFaceToUnit(c: CubeFace): PCF {
   }
 
   const inv = 1 / Math.sqrt(x * x + y * y + z * z);
-  return { x: x * inv, y: y * inv, z: z * inv };
+  return pcf(x * inv, y * inv, z * inv);
 }
 
 /** Unit vector in PCF -> (face, u, v). Inverse of `cubeFaceToUnit`. */
@@ -123,13 +123,13 @@ export function unitToCubeFace(p: PCF): CubeFace {
 export function cubeFaceToPcf(c: CubeFace, planet: PlanetGeometry, altitude = 0): PCF {
   const n = cubeFaceToUnit(c);
   const r = planet.radius + altitude;
-  return { x: n.x * r, y: n.y * r, z: n.z * r };
+  return pcf(n.x * r, n.y * r, n.z * r);
 }
 
 export function pcfToCubeFace(p: PCF): CubeFace {
   const l = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
   assert(l > 0, 'pcfToCubeFace: zero-length vector');
-  return unitToCubeFace({ x: p.x / l, y: p.y / l, z: p.z / l });
+  return unitToCubeFace(pcf(p.x / l, p.y / l, p.z / l));
 }
 
 /** Arc length of one cube-face edge on the sphere: a quarter of a great circle. */

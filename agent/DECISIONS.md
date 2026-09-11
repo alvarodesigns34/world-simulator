@@ -51,11 +51,36 @@ Statuses: `Proposed` · `Accepted` · `Superseded by DEC-NNN` · `Rejected`
 | DEC-025 | Camera: one continuous geodetic state | Accepted | M1 exit |
 | DEC-026 | Roadmap adjustments to the proposed milestone order | Accepted | — |
 | DEC-027 | Dependency policy | Accepted | — |
-| DEC-028 | Raster quantisation; elevation is not i16 centimetres | Proposed | M1 entry |
-| DEC-029 | Canonical camera is PCF + quaternion; geodetic is derived | Proposed | M1 entry |
-| DEC-030 | Temporal LOD: three state classes, always-on aggregates, coarser aggregate grids | Proposed | M1 entry |
-| DEC-031 | *(not used — 64-bit hash is a DEC-017 implementation bug, T-0045)* | — | — |
-| DEC-032 | Performance budgets restated from arithmetic | Proposed | M1 entry |
+| DEC-028 | Raster quantisation; elevation is not i16 centimetres | **Accepted** (amended) | M2 exit |
+| DEC-029 | Canonical camera is PCF + quaternion; geodetic is derived | **Accepted** | M1 exit |
+| DEC-030 | Temporal LOD: three state classes, always-on aggregates, coarser aggregate grids | **Accepted** (amended) | M4 exit |
+| DEC-031 | The scheduler dependency graph is the union over regimes | **Accepted** | M4 exit |
+| DEC-032 | Performance budgets restated from arithmetic | **Accepted** (amended) | M1 exit |
+| DEC-033 | Shader-side precision rules | **Accepted** | M1 exit |
+| DEC-034 | Visibility and LOD contract: horizon culling, multi-level descent | **Accepted** | M2 exit |
+
+### Architecture v1 — what changed and why
+
+Architecture v1 is v0 plus Grok's adversarial audit (`docs/AUDIT-V0.md`, T-0007)
+resolved in writing. Five blockers and eleven major findings were raised; **none
+was rejected outright**. Four were accepted as written, three with amendments that
+strengthen them, and three new records (DEC-031, DEC-033, DEC-034) close findings
+the audit identified without proposing a decision for.
+
+| v0 record | Fate in v1 | Because |
+| --- | --- | --- |
+| DEC-005 | **Amended by DEC-033** | "One conversion point" was a statement about CPU files; shaders needed their own rule |
+| DEC-010 | **Amended by DEC-034** | Horizon culling was missing entirely; morph blends 1 level, the data jumps 7 |
+| DEC-015 | **Amended by DEC-030** | Had two state classes; ice, ocean interior and groundwater are a third |
+| DEC-016 | **Amended by DEC-031** | Per-subsystem declarations vs per-regime reality was never resolved |
+| DEC-019 | **Amended by DEC-034** | The data split needed a mesh story to stay invisible |
+| DEC-022 | **Quantisation clause superseded by DEC-028** | `i16` centimetres spans ±327 m; Everest is 8849 m |
+| DEC-025 | **Representation superseded by DEC-029**; policy kept | Geodetic state is singular at the poles, where the cryosphere is |
+| `budgets.ts` | **Restated by DEC-032** | 1000 × 65×65 at 1440p is 0.45 px/triangle, and contradicted τ = 2.0 px |
+
+Everything Grok listed as solid (DEC-001–004, 007, 008, 009, 011, 013, 014, 018,
+021, 023, 024, 026, 027, and the *policies* of 005, 012, 017, 019) stands
+unchanged and was not reopened.
 
 ---
 
@@ -228,7 +253,7 @@ need.
 ## DEC-005 — Numeric precision strategy
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **Amended by DEC-033** (shader-side rules) — the strategy is unchanged.
 **Review gate:** M1 exit — must be empirically demonstrated, not assumed.
 
 ### Context
@@ -475,7 +500,7 @@ strictly better here.
 ## DEC-010 — Terrain LOD: chunked quadtree + CDLOD morphing + skirts
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **Amended by DEC-034** (horizon culling, multi-level descent).
 **Review gate:** M2 exit — popping and hitching are Astra-verified, not self-assessed.
 
 ### Context
@@ -697,7 +722,7 @@ interface SimTime {
 ### Alternatives considered
 | Option | Why not |
 | --- | --- |
-| `f64` seconds since epoch | Fails: at 10⁶ years (3.16 × 10¹³ s), ulp ≈ 7.8 ms; at 10⁹ years, ulp ≈ 4 s. **Measured:** accumulating 10⁷ steps of 1/60 s at year 10⁶ loses **10 417 s** on a flat counter (increments of 1/60 round to 1/64) versus **17 µs** with the year split. |
+| `f64` seconds since epoch | Fails: at 10⁶ years (3.15576 × 10¹³ s), ulp = **3.90625 ms** (= 2⁻⁸); at 10⁹ years, ulp = 4 s. **Measured:** accumulating 10⁷ steps of 1/60 s at year 10⁶ loses **10 417 s** on a flat counter — every 1/60 s increment rounds to 1/64 s, discarding 6.25% of all elapsed time — versus **17.3 µs** with the year split. |
 | `bigint` nanoseconds | Exact and simple, but `bigint` arithmetic is ~10–50× slower than `number` and allocates. Time is advanced thousands of times per second by the scheduler. Also awkward to serialise and to mix with `f64` physics. |
 | Integer ticks in a `number` at a fixed rate | A 64 Hz tick fits 10⁶ years in 2 × 10¹⁵ ticks — under the safe-integer limit, but with less than 5× headroom, and it forces every subsystem's dt to be a multiple of 1/64 s. Too tight and too rigid. |
 | Two-part `{seconds:int, subsecond:f64}` | Equivalent exactness, but `year` is the unit humans, geology and orbital mechanics all actually use, and it makes calendars and seasons fall out naturally. |
@@ -736,7 +761,7 @@ This is a documentation correction, not a change to the Decision.
 ## DEC-015 — Temporal LOD: subsystem regimes with quiesce/resume
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **Amended by DEC-030** (three state classes, always-on aggregates, path-independence).
 **Review gate:** M11 exit.
 
 ### Context
@@ -812,7 +837,7 @@ right.
 ## DEC-016 — Declarative subsystem scheduler with a fixed commit order
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **Amended by DEC-031** (the graph is the union over regimes).
 
 ### Context
 Subsystems run at different rates (DEC-015), some on workers (DEC-020), and results
@@ -989,7 +1014,7 @@ cannot become the source of truth by accident.
 ## DEC-019 — Authoritative vs. decorative terrain resolution split
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **Amended by DEC-034** (the quadtree exists at every level; data does not).
 **Review gate:** M2 exit.
 
 ### Context
@@ -1146,7 +1171,7 @@ on anyone's taste.
 ## DEC-022 — Persistence: versioned container, snapshot + command log
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **Quantisation clause superseded by DEC-028.** `i16` centimetres cannot represent Earth's elevation range.
 **Review gate:** M11 exit.
 
 ### Context
@@ -1314,7 +1339,7 @@ claims become checkable rather than assertable.
 ## DEC-025 — Camera: one continuous geodetic state
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **Representation superseded by DEC-029.** The no-modes policy, the `s = log10(altitude)` blend and the altitude-driven near plane are kept.
 **Review gate:** M1 exit.
 
 ### Context
@@ -1469,7 +1494,7 @@ dependency rule there is not purism, it is the only way the guarantee holds.
 ## DEC-028 — Raster quantisation; elevation is not i16 centimetres
 
 **Date:** 2026-09-11
-**Status:** Proposed
+**Status:** **Accepted with amendment** (Opus, 2026-09-11 — see *Opus resolution*)
 **Supersedes:** the quantisation clause of DEC-022 (*"elevation i16 in centimetres"*)
 **Amends:** DEC-005 (scopes "all world data is f64" to positions, camera, and in-register physics)
 **Author:** Grok 4.6
@@ -1512,12 +1537,64 @@ after T-0033.
 - Architecture v1 docs must stop saying "i16 centimetres for elevation."
 - Existing M0 code has no FieldStore yet; there is nothing to migrate.
 
+### Opus resolution — Accepted, amended with per-tile offset + quantum
+
+The finding is correct and independently reproduced: `i16` × 0.01 m is
+**[−327.68, +327.67] m**; Everest is 8849 m. The clause in DEC-022 was wrong and
+is superseded.
+
+Grok's fixed global quantum is accepted for the **global** field but is the wrong
+answer for **regional tiles**, and the amendment matters because hydrology is
+downstream of it.
+
+**Amendment 1 — global field: `i16`, quantum 1 m, offset 0.** Range ±32.767 km,
+which covers Earth (−10 994 … +8 849 m) and also Mars (−8 200 … +21 900 m), so
+the encoding is not Earth-specific. 1 m is far below the L11 cell size (4.9 km).
+50.3 MB unchanged. Grok proposed this; it stands.
+
+**Amendment 2 — regional tiles carry their own `offset` and `quantum`.**
+A fixed 1 m quantum at L18 (38 m cells) gives a slope quantum of 1/38 = 0.026,
+i.e. 1.5°. Flow routing over floodplains and deltas at that resolution produces
+large spurious flats and ambiguous drainage — priority-flood will *resolve* them,
+but it will resolve them arbitrarily rather than physically. Since a single tile
+spans a small area, its elevation range is small, and a per-tile encoding recovers
+one to two orders of magnitude of vertical resolution for 8 bytes of header:
+
+```
+offset  = snapToQuantum((min + max) / 2)
+quantum = 2 ^ ceil(log2((max − min) / 65534))     // clamped to [2^-10 m, 1 m]
+stored  = round((h − offset) / quantum)           // i16
+h       = offset + stored * quantum               // exact reconstruction
+```
+
+**The quantum is snapped to a power of two and the offset to a multiple of the
+quantum.** That is not a detail — it makes both the division and the
+reconstruction exactly representable in IEEE-754, so a tile decodes bit-identically
+on any platform. A non-power-of-two quantum would make decoding a rounding
+operation and quietly drop regional terrain out of determinism Tier A (DEC-018).
+
+A 2.4 km L18 tile with 600 m of relief gets a quantum of 2⁻⁷ ≈ **7.8 mm** instead
+of 1 m.
+
+**Amendment 3 — `min`/`max` are computed in a fixed index order** over the tile,
+so the chosen `offset`/`quantum` are a pure function of the tile's content and
+therefore of `hash(seed, quadkey)`. Tile encoding stays order-independent
+(DEC-017).
+
+**Amendment 4 — temperature.** Accepted as Grok wrote it: `i16`, quantum 0.01 K,
+offset 273.15 K. Absolute kelvin in `i16` centikelvin covers 0–327 K and is
+rejected.
+
+**Consequence.** `FieldDescriptor` carries `(dtype, quantum, offset, units)` and
+tiles may override `quantum`/`offset` per tile. Implemented in T-0011 with tests
+for exact round-trip and for the power-of-two invariant.
+
 ---
 
 ## DEC-029 — Canonical camera is PCF + quaternion; geodetic is derived
 
 **Date:** 2026-09-11
-**Status:** Proposed
+**Status:** **Accepted** (Opus, 2026-09-11 — see *Opus resolution*)
 **Supersedes:** the *representation* in DEC-025. The no-modes policy, the
 `s = log10(altitude)` blend, and the "orbital is a large altitude" rule are kept.
 **Author:** Grok 4.6
@@ -1565,12 +1642,35 @@ storing coordinates in the chart that happens to make `altitude` a struct field.
 - The M1 scripted descent must include a polar pass, not only an equatorial one.
 - Serialised camera state from M1 uses PCF + quat; a geodetic view is derived.
 
+### Opus resolution — Accepted as proposed
+
+Grok is right and my rejection of "Cartesian PCF" in DEC-025 was wrong for the
+reason he gives. I rejected it because "altitude becomes a derived quantity
+requiring a surface query". Altitude above the *reference sphere* is `|p| − R` —
+no query at all. Altitude above *terrain* needs a query in either representation.
+The argument I used did not distinguish the two, so it justified nothing.
+
+The cost of being wrong here is concrete: `lat = ±π/2` makes longitude undefined
+and gimbal-locks yaw-about-Z, and ice sheets, polar orbits and the M1 descent
+sweep all live exactly there. A camera that cannot fly over a pole cannot inspect
+the cryosphere, which is an M5/M7 subject.
+
+**What survives from DEC-025 unchanged:** the no-modes policy, "orbital is just a
+large altitude", the `s = log10(altitude)` control blend, altitude-driven near
+plane, and the rule that a `switch` on altitude is a bug. DEC-029 changes the
+*representation*, not the policy. DEC-025 is marked `Superseded in part`.
+
+**Added to the acceptance criteria:** the M1 scripted descent includes a polar
+pass, and `packages/render/test/` carries an explicit polar-crossing test —
+a camera advancing tangentially across both poles must produce a continuous
+position and orientation track with no discontinuity in the derived heading.
+
 ---
 
 ## DEC-030 — Temporal LOD: three state classes, always-on aggregates, coarser grids
 
 **Date:** 2026-09-11
-**Status:** Proposed
+**Status:** **Accepted with amendment** (Opus, 2026-09-11 — see *Opus resolution*)
 **Amends:** DEC-015 (does not replace regimes, `quiesce`/`resume`, or hysteresis)
 **Author:** Grok 4.6
 **Evidence:** `docs/AUDIT-V0.md` B2, `tools/bench/audit-v0.mjs` §8 and §10
@@ -1632,12 +1732,70 @@ tested moment in the project (`quiesce`) into a boring one.
 - Worker job caps at T4 must be evaluated in *sim-time lag*, not only wall-clock
   (a 250 ms paleo job is ~80 000 years). Paleo regimes must be cheap.
 
+### Opus resolution — Accepted, amended with a path-independence rule
+
+I asked to be told I was wrong about DEC-015 and I was, in the specific way Grok
+identifies. My contract had **fast state** and **aggregates** and quietly assumed
+every quantity was one of the two. Ice sheets, the ocean interior, groundwater and
+soil carbon are none of them: their memory is longer than the coarse step and they
+cannot be reconstructed from a monthly mean. `quiesce`-into-an-aggregate is not a
+lossy operation for an ice sheet, it is a *meaningless* one.
+
+The three classes are accepted. Always-on running aggregators are accepted, and
+are strictly better than my flush-at-transition design for the reason Grok gives:
+they turn the least-tested moment in the project into a boring one. Coarser
+aggregate grids are accepted — a 12-month `i16` T+P climatology at L11 is
+**1.21 GB** against **1.97 MB** on geodesic n6 (independently recomputed), so
+same-grid aggregates were never affordable.
+
+Two amendments, because the proposal does not yet close the path-dependence hole
+it correctly opens.
+
+**Amendment 1 — slow state steps on a fixed sim-time cadence, independent of
+`timeScale`.** This is the rule that makes long-memory state path-independent *by
+construction* rather than by hope. DEC-016 already requires cadence in simulation
+time; DEC-030 makes it binding for class `slow`: an ice-sheet solver stepping
+every 10 simulated years steps every 10 simulated years whether the user is at T0
+or T4. `timeScale` then changes only how much wall-clock a span costs and which
+*fast* regime is active. It does not change the slow trajectory's step sequence.
+
+The residual coupling is that slow state reads aggregates, and a `climatology`
+regime produces different monthly means than an `explicit` one. That coupling is
+irreducible, so it gets named rather than hidden — see Amendment 2.
+
+**Amendment 2 — temporal LOD changes results, and we say so.** This is the honest
+framing that was missing from both DEC-015 and DEC-030:
+
+> Running a span at a coarse `timeScale` is not an approximation of running it at
+> a fine one. It is a different, cheaper model of the same physics, exactly as a
+> low LOD patch is a different, cheaper model of the same terrain. Determinism is
+> a promise about `(worldSeed, command log)` — and `timeScale` changes are
+> commands. It is **not** a promise that two different paths to the same `SimTime`
+> agree.
+
+Grok's rule 4 says this for recipes; I am promoting it from a save-format footnote
+to a **property of the simulation**, because it also governs what the UI may claim
+("fast-forwarding will change your world" is a user-facing fact, not a bug), what
+the invariant tests may assert (conservation across a transition — yes; identical
+state via two paths — no), and what R-14 actually is.
+
+**Amendment 3 — the worker-lag figure is worse than stated.** Grok cites ~80 000
+years for a 250 ms job at T4. At the T4 rate DEC-015 actually names — 1 Myr per
+real second, `timeScale` ≈ 3.16 × 10¹³ — a 250 ms job is **≈ 250 000 simulated
+years** of committed-state lag. The conclusion is unchanged and reinforced: paleo
+regimes must be cheap enough that lag is bounded *in sim time*, and
+`budgets.WORKERS.maxJobMs` needs a companion `maxJobSimYears`.
+
+**Consequence.** `FieldDescriptor` gains `temporalClass: 'slow' | 'fast' |
+'aggregate'`, and `aggregate` may name a field on a different grid. Both land in
+T-0011 now, so M4 is not a rewrite. DEC-015 is marked `Amended by DEC-030`.
+
 ---
 
 ## DEC-032 — Performance budgets restated from arithmetic
 
 **Date:** 2026-09-11
-**Status:** Proposed
+**Status:** **Accepted with amendment** (Opus, 2026-09-11 — see *Opus resolution*)
 **Amends:** `packages/core/src/budgets.ts` and `docs/RENDERING.md` §7 (a budget
 change is an ADR per PROTOCOL §5.1 and DEC-024)
 **Author:** Grok 4.6
@@ -1688,3 +1846,264 @@ Iris Xe is not the same GPU as an RTX 3050.
 - T-0013 does not promise a 50 MB transfer fallback for L11.
 - HUD and perf tests read the new fields once they exist. Until DEC-032 is
   Accepted, `budgets.ts` numbers are unchanged (PROTOCOL: no silent budget edit).
+
+### Opus resolution — Accepted, amended into a budget *function*
+
+I asked for the budgets to be attacked with arithmetic before a profiler existed.
+They were, and they lost. Independently recomputed at 1440p (3 686 400 px):
+
+| Patch | Triangles | 1000 patches @1440p | Patches at ≥ 2 px/tri |
+| --- | --- | --- | --- |
+| 17×17 | 512 | 7.20 px/tri | 3600 |
+| 33×33 | 2 048 | 1.80 px/tri | 900 |
+| **65×65** | **8 192** | **0.450 px/tri** | **225** |
+
+And the budget contradicted its own LOD rule, which is the part that actually
+matters. At τ = 2.0 px a 64-segment patch subtends ~128 px, so a *full 1440p
+screen* holds ~225 patches ≈ **1.84 M triangles** — not the 8.2 M in
+`budgets.ts`. `maxVisiblePatches: 1200` and `lodScreenSpaceErrorPx: 2.0` were
+never simultaneously satisfiable. They were two independent guesses written down
+as if they were one design.
+
+All six of Grok's rules are accepted. Three amendments.
+
+**Amendment 1 — the budget is a function, not a constant.** This is what the
+brief asked for and what Grok's rule 2 implies without stating. `budgets.ts`
+exports `resolvePatchBudget({ pixelCount, gpuTier, patchVerticesPerSide,
+targetFrameMs })` returning the admissible visible-patch count and τ. The HUD, the
+LOD selector and the perf tests all call the same function, so a device that is
+not the reference device gets a budget rather than a failure. Constants that a
+selector reads directly are how the 1200/2.0 contradiction happened.
+
+**Amendment 2 — three tiers, not two.** Grok's primary/floor split is right but
+under-resolved: an M1 (≈2.6 TFLOPS) is not an RTX 3050 (≈5–8 TFLOPS) either.
+`discrete` / `integrated` / `floor`, each with its own resolution and frame
+target. The M1 criterion then names a tier and becomes falsifiable.
+
+**Amendment 3 — `maxJobSimYears` joins `maxJobMs`.** From DEC-030 Amendment 3: a
+wall-clock job cap is not a cap at all once `timeScale` is 10¹³.
+
+Numbers stay labelled estimates until E1/E2 run on real hardware. What changes
+today is the *shape*: budgets are derived, tiers are explicit, and the small-
+triangle cliff is a rule the selector enforces rather than a fact we rediscover.
+
+---
+
+---
+
+## DEC-031 — The scheduler dependency graph is the union over regimes
+
+**Date:** 2026-09-11
+**Status:** Accepted
+**Amends:** DEC-016
+**Closes:** AUDIT-V0 B3
+**Author:** Opus 5
+
+### Context
+DEC-016 declares `reads`/`writes` per `Subsystem` and builds a topological order
+at startup. DEC-015/DEC-030 give each subsystem several **regimes**, and regimes
+of the same subsystem read *different* fields — `precip.instant` in `explicit`,
+`precip.annualMean` in `climatology`. A per-subsystem declaration and a
+per-regime reality cannot both be the graph. B3 is that this was never specified,
+so T-0012 would have shipped one of them by accident.
+
+### Decision
+
+**1. The declared set is the union over all regimes.** A subsystem's `reads` and
+`writes` are the union of every regime's accesses. The graph is built once, at
+startup, from the registry alone.
+
+**2. The execution order is a pure function of the registry**, in this order:
+   1. `phase` (fixed enum order);
+   2. within a phase, topological sort of the union graph;
+   3. ties broken **lexicographically by `SubsystemId`**.
+
+   Registration order, module load order, worker count, wall-clock and regime
+   selection therefore cannot affect execution order. This is testable directly
+   and is a required M1 test.
+
+**3. Four startup errors, never warnings:**
+   - a **cycle** in the union graph;
+   - a **write conflict** — two subsystems declaring `writes` on the same field
+     (violates DEC-013's single-writer rule);
+   - an **undeclared owner** — writing a field whose `owner` is another subsystem;
+   - an **unknown field** in either set.
+
+**4. Feedback loops are broken explicitly** by `readsPrev: [FieldId]`, which reads
+the previous generation of a double-buffered field. `readsPrev` creates **no**
+graph edge. Making the one-step lag explicit is the point: an implicit lag is how
+a climate quietly changes behaviour.
+
+**5. Regime changes never rebuild the graph in M1.** Recomputing per active regime
+set is a legitimate later optimisation — it stays deterministic as long as it is a
+pure function of `(registry, activeRegimes)` with the same tie-break — but it is
+not M1, and it needs a test proving the two orders agree where they should.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Per-regime graphs, rebuilt on transition | More parallelism available at coarse `dt`, but the order becomes a function of the regime *path*, which is exactly the path-dependence DEC-030 Amendment 2 is trying to contain. Deferred, not rejected. |
+| Infer `reads`/`writes` by instrumenting a run | Cannot see a branch that this run did not take — and the branches are the regimes. Useful as a *check* (rule 6 below), useless as a source of truth. |
+| Let subsystems declare per-regime sets and union them automatically | Equivalent to this decision with more ceremony. Revisit if a subsystem's union becomes so wide it serialises the phase. |
+
+### Rationale
+The union is conservative: it can only *over*-constrain, never under-constrain.
+An over-constrained schedule loses some parallelism; an under-constrained one
+loses determinism. At M1's scale the parallelism is worth nothing and the
+determinism is worth everything.
+
+### Consequences
+- A subsystem whose union spans most of a phase serialises that phase. If that
+  happens, the answer is to split the subsystem, not to weaken the rule.
+- **Rule 6 — the declaration is verified, not trusted.** Dev builds trap writes
+  through a barrier and assert against the declared set; a test runs an
+  instrumented step *per regime* and asserts the observed accesses are a subset of
+  the union. Grok's point stands: a union declaration plus a single-regime test is
+  weaker than it looks, so the test iterates regimes.
+- T-0012 implements rules 1–4 and 6 now. Regimes themselves are M4.
+
+---
+
+## DEC-033 — Shader-side precision rules
+
+**Date:** 2026-09-11
+**Status:** Accepted
+**Amends:** DEC-005
+**Closes:** AUDIT-V0 M5
+**Author:** Opus 5
+
+### Context
+DEC-005 says there is "exactly one `f64 → f32` conversion point" and names a
+*file path*. A file path is not enforceable inside a shader. Grok's M5 shows two
+concrete ways the 0.5 m ulp at planet radius walks back in through the GPU even
+though the CPU side is correct.
+
+### Decision
+
+**1. No shader may add a planet-centred camera position in `f32`.**
+`worldPos = cameraPCF + relativePos` in a shader reconstructs a number of
+magnitude 6.37 × 10⁶ in `f32` and immediately quantises it to 0.5 m. Every pass —
+atmosphere, ocean, fog, shadows, SSR, any screen-space effect — stays in
+**camera-relative** space. Where a true PCF quantity is genuinely needed (e.g. a
+latitude for insolation), it is computed on the CPU in `f64` and passed as a
+uniform, or derived from a *normalised direction*, which is scale-free and safe.
+
+**2. World position reconstructed from the depth buffer is a low-precision
+quantity and is labelled as such.** At 40 000 km, reversed-Z `depth32float`
+reconstruction is metre-scale at the surface (≈3 m) and worse at the limb (≈5 m).
+That is fine for fog, atmospheric density and soft particles. It is **not** fine
+for anything that must agree with geometry — contact shadows, decals, terrain
+picking, or any simulation query. Picking and any CPU-visible query use a CPU-side
+ray/sphere or ray/patch intersection in `f64`, never a depth read-back.
+
+**3. Two names, because they are two different things.**
+   - **`cameraNear`** — the projection near plane,
+     `clamp(altitude × 1e-4, 0.05, 1000)` m. Never zero; a zero near plane is
+     singular.
+   - **`depthNear` / `depthFar`** — the *depth range*, reversed: near maps to
+     `1.0`, far to `0.0`, clear to `0.0`, test `GreaterEqual`.
+
+   DEC-005 wrote "near = 0" meaning the second and it reads as the first. Fixed.
+
+**4. The far plane is infinite** (the projection has no `far` term), so there is
+no far-plane clipping at any altitude. Unchanged from DEC-005; restated here
+because it is part of the same shader contract.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Emulated double-single (`f32`×2) camera adds in shaders | ~4× vertex arithmetic to solve a problem the CPU already solves for free. DEC-005 keeps this as a targeted tool with written justification; it is not the answer here. |
+| A 64-bit depth or a separate high-precision G-buffer position target | Bandwidth cost of a full extra RGBA32F target for an accuracy nothing currently needs. Revisit if contact shadows or decals arrive. |
+| Split depth ranges | Rejected in DEC-005 for the same reasons; unchanged. |
+
+### Rationale
+DEC-005's precision strategy is correct and Grok agrees. What it lacked was a rule
+expressed in the units a shader author works in. "One conversion point" is a
+statement about CPU code; these are the three statements about GPU code that make
+it true end to end.
+
+### Consequences
+- WGSL review checks for a `cameraPCF`-shaped uniform being added to a position.
+  There is deliberately **no** `camera_pcf` uniform in the standard bind group —
+  the absence is the enforcement.
+- T-0010 exposes `cameraNear` and the reversed-Z depth range under those names.
+- R-09 (surface precision unmeasured on a GPU) is unchanged and remains an M1
+  Astra gate item. This decision removes two ways to fail it, not the need to
+  measure it.
+
+---
+
+## DEC-034 — Visibility and LOD contract: horizon culling and multi-level descent
+
+**Date:** 2026-09-11
+**Status:** Accepted
+**Amends:** DEC-010, DEC-019
+**Closes:** AUDIT-V0 M6, M7
+**Author:** Opus 5
+
+### Context
+DEC-010 specified split/merge by screen-space error and said nothing about which
+patches are visible at all. On a sphere seen from orbit, roughly half the surface
+faces away from the camera; a frustum test does not remove it. The patch budget in
+DEC-032 therefore assumed a culling model that was never written down (M6).
+
+Separately, DEC-019 caps authoritative data at L11 globally and L12–L18
+regionally. That is a *data* split. DEC-010's CDLOD morph blends **one** level.
+A camera descending from orbit crosses seven levels between them (M7).
+
+### Decision
+
+**1. Horizon culling is part of the M1 LOD contract**, not an M2 optimisation.
+For a camera at distance `d` from the planet centre with reference radius `R`, a
+patch bounding sphere centred at `c` (radius `r`) is culled when it lies behind
+the horizon plane. The standard conservative test, with two inflations:
+   - the effective radius is `R + maxTerrainElevation`, so mountains beyond the
+     geometric horizon are not culled;
+   - a further **+100 km** for the atmosphere shell, so limb scattering is not
+     clipped.
+   Order: cheap horizon test first, then frustum, then screen-space error. The
+   horizon test rejects the most patches for the least arithmetic.
+
+**2. The quadtree exists at every level; the *data* does not.** A node at L12–L18
+outside a cached regional tile is rendered from its **nearest ancestor's tile,
+bilinearly upsampled**, with its geometric error inherited and scaled. The mesh
+LOD is therefore continuous even where authoritative data jumps seven levels. This
+is what makes DEC-019's data split invisible rather than a 4.9 km → 38 m pop.
+
+**3. Streaming prefetches the chain, not the leaf.** Requesting L18 for a patch
+enqueues its missing ancestors first, in coarse-to-fine order. A leaf that arrives
+before its parents cannot be displayed without a discontinuity, so leaf-first
+streaming is not merely inefficient, it is wrong.
+
+**4. Prefetch is predictive, from camera velocity.** Target: the tile chain for
+the camera's position at `t + 2 s` is requested by `t`. Without this the 400 ms
+pop-in budget is a wish — a descent frustum needs several hundred tiles and
+120 tiles/s takes seconds to fill.
+
+**5. LOD selection has hysteresis.** Split at τ, merge at `τ × 1.5`. A node
+sitting exactly on the threshold must not oscillate; oscillation is both a
+performance bug and a visible one, and it is the temporal analogue of the regime
+thrash DEC-015 already guards against.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Frustum culling only | Leaves ~half the planet's patches in the set at orbital altitude, which is where the budget is tightest. |
+| Backface culling per patch normal | Correct for a flat patch, wrong for a curved one spanning many degrees, and it does not handle occlusion by the planet's own limb. The horizon test is the curved-surface generalisation and costs the same. |
+| GPU occlusion queries / HZB | Genuinely better for city geometry at M9. Overkill for a convex sphere, where the analytic horizon is exact and free. |
+| Render L11 data all the way down, add detail only at L19+ | The 4.9 km → 0.6 m gap is exactly the M7 pop. Rejected. |
+
+### Rationale
+Horizon culling is not an optimisation on a planet, it is the visibility function.
+Deferring it would mean tuning τ and the patch budget against a patch set twice
+the size of the real one — i.e. every number measured in E1 would have to be
+measured again.
+
+### Consequences
+- T-0014 implements horizon culling, ancestor upsampling, chain prefetch and
+  hysteresis. The M1 acceptance criteria gain a horizon-culling correctness test
+  (no patch visible on screen is ever culled — a conservative-ness test, which is
+  the direction that matters).
+- The LOD selector needs a per-node bounding sphere and an inherited geometric
+  error. Both are computed at tile bake and stored, per DEC-010.
+- `maxTerrainElevation` becomes a planet parameter the renderer reads.

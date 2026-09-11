@@ -46,13 +46,42 @@ const BANNED_PLATFORM = [
   [/\bGPUDevice\b|\bGPUBuffer\b|\bGPUTexture\b/, 'WebGPU types'],
 ];
 
-/** DEC-017. */
+/**
+ * DEC-017, widened by T-0046 (AUDIT-V0 M9).
+ *
+ * The M0 checker caught only the three obvious spellings. PROTOCOL §6 claims
+ * more than that as enforced, so either the checker grows or the protocol is
+ * lying. It grows.
+ */
 const BANNED_DETERMINISM = [
-  [/\bMath\.random\b/, 'Math.random (DEC-017: use hashU32 with an explicit key)'],
+  [/\bMath\.random\b/, 'Math.random (DEC-017: use hashU64 with an explicit key)'],
+  // Quoted-property access evades the dotted form entirely.
+  // Quoted-property access evades the dotted form, however it is reached.
+  [/\[\s*['"`]random['"`]\s*\]\s*\(/, '["random"]() (DEC-017: quoted access is still Math.random)'],
+  [/\bglobalThis\s*\.\s*Math\s*\.\s*random\b/, 'globalThis.Math.random (DEC-017)'],
   [/\bDate\.now\b/, 'Date.now (DEC-017: sim time comes from SimTime)'],
-  [/\bperformance\.now\b/, 'performance.now (DEC-017: use telemetry, not sim logic)'],
+  [/\bperformance\s*\.\s*now\b/, 'performance.now (DEC-017: use telemetry, not sim logic)'],
+  [/\bperformance\s*\[\s*['"`]now/, 'performance["now"] (DEC-017)'],
   [/\bnew Date\b/, 'new Date (DEC-017)'],
-  [/\bcrypto\.getRandomValues\b/, 'crypto.getRandomValues (DEC-017)'],
+  [/\bcrypto\s*\.\s*getRandomValues\b/, 'crypto.getRandomValues (DEC-017)'],
+  [/\bcrypto\s*\.\s*randomUUID\b/, 'crypto.randomUUID (DEC-017)'],
+  // A sort with no comparator is locale/implementation-defined for non-strings
+  // and is a classic silent order dependence. DEC-017 requires a total order.
+  [/\.sort\s*\(\s*\)/, '.sort() without an explicit comparator (DEC-017: reductions fold in key order)'],
+  [/\bMath\.max\s*\(\s*\.\.\./, 'Math.max(...spread) over a large array (stack overflow risk; also hides order)'],
+];
+
+/**
+ * Tier-A code (DEC-018) must not use native transcendentals: Math.sin/exp/pow
+ * are implementation-defined and not bit-exact across engines. Only files that
+ * opt in with the marker below are checked, because Tier B/C legitimately use
+ * them and `stableMath` does not exist yet (R-11, T-0021).
+ */
+const TIER_A_MARKER = '@tier A';
+const BANNED_TIER_A = [
+  [/\bMath\.(sin|cos|tan|asin|acos|atan|atan2|exp|log|log2|log10|pow|cbrt|sinh|cosh|tanh)\b/,
+   'native Math transcendental in @tier A code (DEC-018: use stableMath)'],
+  [/\*\*/, 'exponentiation operator in @tier A code (DEC-018: ** on non-integers is Math.pow)'],
 ];
 
 /** DEC-027: zero runtime dependencies in core/data/sim. */
@@ -143,6 +172,51 @@ for (const pkg of packageNames) {
       for (const [re, name] of [...BANNED_PLATFORM, ...BANNED_DETERMINISM]) {
         const m = re.exec(src);
         if (m) report(file, lineOf(src, m.index), `'${pkg}' must not use ${name}`);
+      }
+      // Insertion-order iteration over a Map/Set is order-dependent and is the
+      // determinism hole a regex can most easily miss. Rather than guessing from
+      // the variable's NAME (which fails the moment someone calls it `m`), find
+      // identifiers actually constructed as `new Map`/`new Set` in this file and
+      // flag iteration over those.
+      //
+      // Limits, stated honestly: this sees one file and no types. A collection
+      // received as a parameter or returned from another module is invisible to
+      // it. That residue is a review item, not a mechanical one — PROTOCOL §6
+      // says so rather than pretending otherwise.
+      const collections = new Set();
+      for (const m of src.matchAll(
+        /(?:const|let|var)\s+(\w+)\s*(?::[^=]+)?=\s*new\s+(?:Map|Set|WeakMap|WeakSet)\b/g,
+      )) {
+        collections.add(m[1]);
+      }
+      if (collections.size > 0) {
+        const names = [...collections].join('|');
+        const iterRe = new RegExp(
+          `(?:for\\s*\\([^)]*\\bof\\s+(${names})\\b` +
+            `|\\b(${names})\\.(?:forEach|keys|values|entries)\\s*\\(` +
+            `|\\[\\s*\\.\\.\\.\\s*(${names})\\s*\\])`,
+          'g',
+        );
+        for (const m of src.matchAll(iterRe)) {
+          const lineNo = lineOf(src, m.index);
+          const prev = (raw.split('\n')[lineNo - 2] ?? '') + (raw.split('\n')[lineNo - 1] ?? '');
+          if (prev.includes('deterministic-order:')) continue;
+          const name = m[1] ?? m[2] ?? m[3];
+          report(
+            file,
+            lineNo,
+            `'${pkg}' iterates '${name}' in insertion order (DEC-017). Sort by an explicit ` +
+              `key before folding, or annotate with '// deterministic-order: <why>'`,
+          );
+        }
+      }
+    }
+
+    // 3b. Tier-A transcendental ban, opt-in per file.
+    if (raw.includes(TIER_A_MARKER)) {
+      for (const [re, name] of BANNED_TIER_A) {
+        const m = re.exec(src);
+        if (m) report(file, lineOf(src, m.index), `${name}`);
       }
     }
 

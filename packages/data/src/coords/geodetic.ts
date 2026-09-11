@@ -6,16 +6,12 @@
  */
 
 import { assertFinite } from '@ws/core';
-import type { Geodetic, PCF, PlanetGeometry } from './frames.js';
+import { pcf, type Geodetic, type PCF, type PlanetGeometry } from './frames.js';
 
 export function geodeticToPcf(g: Geodetic, planet: PlanetGeometry): PCF {
   const r = planet.radius + g.altitude;
   const cosLat = Math.cos(g.lat);
-  return {
-    x: r * cosLat * Math.cos(g.lon),
-    y: r * cosLat * Math.sin(g.lon),
-    z: r * Math.sin(g.lat),
-  };
+  return pcf(r * cosLat * Math.cos(g.lon), r * cosLat * Math.sin(g.lon), r * Math.sin(g.lat));
 }
 
 export function pcfToGeodetic(p: PCF, planet: PlanetGeometry): Geodetic {

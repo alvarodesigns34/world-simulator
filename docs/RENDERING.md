@@ -107,7 +107,7 @@ configurable option.
 ### 3.2 Cube-sphere with tangent warping
 
 Face coordinate `s ∈ [-1, 1]` is warped by `tan(s·π/4) / tan(π/4)` before
-normalisation to the sphere. This reduces cell-area variation from ~1.9× (naive) to
+normalisation to the sphere. This reduces cell-area variation from 5.20× (naive) to
 ~1.3×, for the cost of a `tan`/`atan` per conversion.
 
 | Level | Cell size | Cells (6·4^L) | `i16` field size |

@@ -41,12 +41,50 @@ describe('audit: hash width vs DEC-017', () => {
 });
 
 describe('audit: budgets.ts triangle arithmetic', () => {
-  it('1000 patches of 65×65 at 1440p is 0.45 pixels per triangle', () => {
-    expect(budgets.PATCH_TRIANGLES).toBe(8192);
-    expect(budgets.MAX_TRIANGLES).toBe(8192 * budgets.QUALITY.maxVisiblePatches);
+  // The original M0 finding, kept as the regression it is: the constants that
+  // Architecture v0 shipped describe a design nobody wanted.
+  it('the v0 constants (1000 patches of 65x65 at 1440p) were 0.45 px/triangle', () => {
+    const v0PatchTris = budgets.patchTriangles(65);
+    expect(v0PatchTris).toBe(8192);
     const px = 2560 * 1440;
-    const pxPerTri = px / (budgets.PATCH_TRIANGLES * 1000);
-    expect(pxPerTri).toBeLessThan(0.5);
+    expect(px / (v0PatchTris * 1000)).toBeLessThan(0.5);
+  });
+
+  // DEC-032: the budget is now a function, and it cannot produce that result.
+  it('resolvePatchBudget never returns a sub-2px/triangle budget', () => {
+    for (const tier of ['discrete', 'integrated', 'floor'] as const) {
+      for (const n of [17, 33, 65]) {
+        for (const px of [1920 * 1080, 2560 * 1440, 3840 * 2160]) {
+          const b = budgets.resolvePatchBudget({
+            pixelCount: px,
+            gpuTier: tier,
+            patchVerticesPerSide: n,
+          });
+          expect(b.pxPerTriangle).toBeGreaterThanOrEqual(budgets.QUALITY.minPxPerTriangle);
+          expect(b.maxVisiblePatches).toBeGreaterThan(0);
+          expect(b.maxVisiblePatches).toBeLessThanOrEqual(
+            budgets.QUALITY.absoluteMaxVisiblePatches,
+          );
+        }
+      }
+    }
+  });
+
+  it('a bigger patch buys fewer patches, at constant triangle budget', () => {
+    const req = { pixelCount: 2560 * 1440, gpuTier: 'discrete' as const };
+    const a = budgets.resolvePatchBudget({ ...req, patchVerticesPerSide: 33 });
+    const b = budgets.resolvePatchBudget({ ...req, patchVerticesPerSide: 65 });
+    expect(b.maxVisiblePatches).toBeLessThan(a.maxVisiblePatches);
+    // 65x65 is 4x the triangles of 33x33, so the patch counts differ ~4x and the
+    // triangle totals land within rounding of each other.
+    expect(a.maxTriangles).toBeCloseTo(b.maxTriangles, -3);
+  });
+
+  it('the floor tier gets a smaller budget than discrete at the same pixels', () => {
+    const req = { pixelCount: 1920 * 1080, patchVerticesPerSide: 33 };
+    const d = budgets.resolvePatchBudget({ ...req, gpuTier: 'discrete' });
+    const f = budgets.resolvePatchBudget({ ...req, gpuTier: 'floor' });
+    expect(f.maxVisiblePatches).toBeLessThan(d.maxVisiblePatches);
   });
 
   it('main-thread zones still sum to the stated total', () => {

@@ -54,7 +54,7 @@ All four now have numbers:
 | --- | --- |
 | `SimTime` beats a flat `f64` seconds counter (DEC-014) | **1.7 × 10⁻⁵ s** vs **1.04 × 10⁴ s** error over 10⁷ steps of 1/60 s at year 10⁶ — a factor of 6 × 10⁸. The flat counter rounds every 1/60 s to 1/64 s and loses 6.25% of all elapsed time. |
 | Cube-sphere round-trip error (DEC-007) | **< 1 mm** at planet radius over 20 000 sampled points, and at all 8 cube corners and 12 edge midpoints. |
-| Tangent warp reduces area distortion (DEC-007) | centre/corner arc ratio **≈ 1.27×** (naive cube-sphere is ~1.9×). |
+| Tangent warp reduces area distortion (DEC-007) | centre/corner **area** ratio **1.30×** vs **5.20×** naive; **arc** ratio **1.06×** vs **2.12×**. *(v0 wrote 1.27× and called it area; it was neither — corrected in v1.)* |
 | Stateless hashing is order-independent (DEC-017) | Forward, reversed and hash-shuffled generation of 2 400 keys produce **identical** maps. Golden values recorded so a hash change cannot happen silently. |
 
 Also proven rather than asserted:
@@ -72,7 +72,7 @@ Also proven rather than asserted:
 
 ### A figure I had wrong
 
-My first draft claimed a ~4 ms `f64` ulp at 10⁶ years. It is **7.8 ms**. The
+My first draft claimed a ~4 ms `f64` ulp at 10⁶ years. I then "corrected" it to 7.8 ms using `t × EPSILON`, which is not an ulp. It is **3.90625 ms** — my first figure was closer than my correction. The
 docs now carry measured numbers rather than my arithmetic. Noted because it is
 exactly the kind of thing this scaffolding exists to catch, and because Grok
 should assume the same about the performance budgets, which have had no such

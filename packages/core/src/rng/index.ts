@@ -124,6 +124,123 @@ export function hashInt(
 }
 
 /**
+ * A 64-bit hash value as a pair of u32.
+ *
+ * WHY 64 BITS (T-0045, AUDIT-V0 M1). DEC-017 specified "splitmix64-style 64-bit
+ * mixing"; M0 shipped only `hashU32`, which is a bug against an Accepted record,
+ * not a new decision. At L11 there are 6·4^11 = 25 165 824 cells; keying every
+ * one in 32 bits gives ~73 700 expected birthday collisions. That is harmless
+ * per-tile (a few thousand keys) and unacceptable as a per-cell world-generation
+ * stream, where a collision means two cells share a "random" value forever.
+ *
+ * At 64 bits the same 25.2 M keys expect ~1.7e-5 collisions.
+ */
+export interface U64 {
+  readonly hi: number;
+  readonly lo: number;
+}
+
+/**
+ * splitmix64 finaliser, exact in 32-bit halves.
+ *
+ * The reference constants are 0xbf58476d1ce4e5b9 and 0x94d049bb133111eb with
+ * shifts of 30, 27 and 31. Implemented with Math.imul-based 64x64 multiplication
+ * over u32 halves, so it uses only integer operations and is Tier A (DEC-018) on
+ * any platform.
+ */
+function mul64(ah: number, al: number, bh: number, bl: number): U64 {
+  // Split each 32-bit half into 16-bit limbs so every partial product fits in
+  // an f64 mantissa exactly.
+  const a0 = al & 0xffff;
+  const a1 = al >>> 16;
+  const b0 = bl & 0xffff;
+  const b1 = bl >>> 16;
+
+  const p00 = a0 * b0;
+  const p01 = a0 * b1;
+  const p10 = a1 * b0;
+  const p11 = a1 * b1;
+
+  const mid = p01 + p10;
+  const midLo = (mid & 0xffff) * 0x10000;
+  // Carry out of the low 32 bits, as an exact integer.
+  const loSum = p00 + midLo;
+  const lo = loSum >>> 0;
+  const carry = Math.floor(loSum / 0x100000000) + (mid > 0xffff ? Math.floor(mid / 0x10000) : 0);
+
+  // High word: a_lo*b_hi + a_hi*b_lo (mod 2^32) + p11 + carry.
+  const hi = (Math.imul(al, bh) + Math.imul(ah, bl) + p11 + carry) >>> 0;
+  return { hi, lo };
+}
+
+function xorShr64(h: number, l: number, n: number): U64 {
+  let sh: number;
+  let sl: number;
+  if (n < 32) {
+    sh = h >>> n;
+    sl = n === 0 ? l : ((l >>> n) | (h << (32 - n))) >>> 0;
+  } else {
+    sh = 0;
+    sl = h >>> (n - 32);
+  }
+  return { hi: (h ^ sh) >>> 0, lo: (l ^ sl) >>> 0 };
+}
+
+/** splitmix64's finalising mix, applied to a 64-bit state. */
+export function splitmix64(hi: number, lo: number): U64 {
+  let z = xorShr64(hi >>> 0, lo >>> 0, 30);
+  z = mul64(z.hi, z.lo, 0xbf58476d, 0x1ce4e5b9);
+  z = xorShr64(z.hi, z.lo, 27);
+  z = mul64(z.hi, z.lo, 0x94d049bb, 0x133111eb);
+  return xorShr64(z.hi, z.lo, 31);
+}
+
+const GOLDEN_GAMMA_HI = 0x9e3779b9;
+const GOLDEN_GAMMA_LO = 0x7f4a7c15;
+
+/** Add a 64-bit constant to a 64-bit value, wrapping at 2^64. */
+function add64(ah: number, al: number, bh: number, bl: number): U64 {
+  const loSum = (al >>> 0) + (bl >>> 0);
+  const lo = loSum >>> 0;
+  const carry = loSum >= 0x100000000 ? 1 : 0;
+  return { hi: ((ah >>> 0) + (bh >>> 0) + carry) >>> 0, lo };
+}
+
+/**
+ * 64-bit stateless hash of a seed plus an arbitrary key — the function DEC-017
+ * actually specified. Same purity and order-independence guarantees as
+ * `hashU32`; use this wherever the key space approaches or exceeds ~10^5 values,
+ * which means anything per-cell at L11 or finer.
+ */
+export function hashU64(seed: Seed, domain: DomainId, ...key: readonly number[]): U64 {
+  let st = add64(seed.hi, seed.lo, GOLDEN_GAMMA_HI, GOLDEN_GAMMA_LO);
+  let h = splitmix64(st.hi, st.lo);
+  st = add64(h.hi, h.lo, 0, domain >>> 0);
+  h = splitmix64(st.hi, st.lo);
+  for (let i = 0; i < key.length; i++) {
+    st = add64(h.hi, h.lo, GOLDEN_GAMMA_HI, ((key[i] as number) | 0) >>> 0);
+    h = splitmix64(st.hi, st.lo);
+  }
+  return h;
+}
+
+/**
+ * Uniform in [0, 1) with 53 bits of resolution, from `hashU64`.
+ *
+ * Prefer this over `hashFloat01` for per-cell world generation: `hashFloat01`
+ * has 2^-32 resolution and a 32-bit key space.
+ */
+export function hashFloat01x64(
+  seed: Seed,
+  domain: DomainId,
+  ...key: readonly number[]
+): number {
+  const h = hashU64(seed, domain, ...key);
+  // 53 bits: 21 high bits + 32 low bits, scaled to [0,1).
+  return ((h.hi >>> 11) * 0x100000000 + (h.lo >>> 0)) / 9007199254740992;
+}
+
+/**
  * A local stateful sequence, seeded purely from a key.
  *
  * Legitimate ONLY inside a pure function whose inputs fully determine the key

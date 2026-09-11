@@ -7,6 +7,7 @@ import {
   cellSize,
   cubeFaceToPcf,
   cubeFaceToUnit,
+  pcf,
   faceEdgeArcLength,
   geodeticToPcf,
   pcfToCubeFace,
@@ -27,7 +28,7 @@ function samplePoints(n: number): PCF[] {
     const z = hashFloat01(SEED, DOMAIN.TEST, i, 0) * 2 - 1;
     const phi = hashFloat01(SEED, DOMAIN.TEST, i, 1) * 2 * Math.PI;
     const r = Math.sqrt(Math.max(0, 1 - z * z));
-    out.push({ x: r * Math.cos(phi), y: r * Math.sin(phi), z });
+    out.push(pcf(r * Math.cos(phi), r * Math.sin(phi), z));
   }
   return out;
 }
@@ -49,7 +50,7 @@ describe('cube-sphere round-trip (DEC-007)', () => {
     const corners: PCF[] = [];
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
       const l = Math.sqrt(3);
-      corners.push({ x: sx / l, y: sy / l, z: sz / l });
+      corners.push(pcf(sx / l, sy / l, sz / l));
     }
     for (const [a, b, c] of [
       [1, 1, 0], [1, -1, 0], [-1, 1, 0], [-1, -1, 0],
@@ -57,7 +58,7 @@ describe('cube-sphere round-trip (DEC-007)', () => {
       [0, 1, 1], [0, 1, -1], [0, -1, 1], [0, -1, -1],
     ] as const) {
       const l = Math.SQRT2;
-      corners.push({ x: a / l, y: b / l, z: c / l });
+      corners.push(pcf(a / l, b / l, c / l));
     }
     expect(corners).toHaveLength(20);
 
