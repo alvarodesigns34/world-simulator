@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PURE = ['core', 'data']; // 'sim' joins this list at M1.
+const PURE = ['core', 'data', 'sim'];
 
 try {
   execFileSync(

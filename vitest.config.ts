@@ -8,6 +8,8 @@ export default defineConfig({
     alias: {
       '@ws/core': r('./packages/core/src/index.ts'),
       '@ws/data': r('./packages/data/src/index.ts'),
+      '@ws/sim': r('./packages/sim/src/index.ts'),
+      '@ws/render': r('./packages/render/src/index.ts'),
     },
   },
   test: {

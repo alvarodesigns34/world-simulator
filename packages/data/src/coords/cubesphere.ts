@@ -147,7 +147,8 @@ export function cellCount(level: number): number {
   return 6 * 4 ** level;
 }
 
-/** Bytes for a single-component field of this dtype at this level. */
-export function fieldBytes(level: number, bytesPerCell: number): number {
+/** Bytes for a single-component raster at this level. Sizing arithmetic only —
+ *  a real field's footprint comes from its descriptor (`fields/descriptor.ts`). */
+export function rasterBytes(level: number, bytesPerCell: number): number {
   return cellCount(level) * bytesPerCell;
 }

@@ -1573,8 +1573,9 @@ reconstruction exactly representable in IEEE-754, so a tile decodes bit-identica
 on any platform. A non-power-of-two quantum would make decoding a rounding
 operation and quietly drop regional terrain out of determinism Tier A (DEC-018).
 
-A 2.4 km L18 tile with 600 m of relief gets a quantum of 2⁻⁷ ≈ **7.8 mm** instead
-of 1 m.
+A 2.4 km L18 tile with 600 m of relief gets a quantum of 2⁻⁶ = **15.6 mm**
+instead of 1 m — a 64× gain in vertical resolution for 8 bytes of tile header.
+(The snap rounds *up*: rounding down would not fit the tile's range in `i16`.)
 
 **Amendment 3 — `min`/`max` are computed in a fixed index order** over the tile,
 so the chosen `offset`/`quantum` are a pure function of the tile's content and

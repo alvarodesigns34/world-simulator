@@ -103,9 +103,17 @@ function walk(dir, out = []) {
   return out;
 }
 
-/** Strips line and block comments so a rule name in prose is not a violation. */
+/**
+ * Strip comment CONTENT while preserving every newline, so that line numbers in
+ * the stripped source still index the raw source. Without this, reported lines
+ * drift after the first block comment and an annotation lookup reads the wrong
+ * line — which is how the `deterministic-order:` escape hatch silently stopped
+ * working the first time it was needed.
+ */
 function stripComments(src) {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:])\/\/.*$/gm, (m, p1) => p1 + ' '.repeat(Math.max(0, m.length - p1.length)));
 }
 
 const IMPORT_RE = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g;
@@ -197,10 +205,13 @@ for (const pkg of packageNames) {
             `|\\[\\s*\\.\\.\\.\\s*(${names})\\s*\\])`,
           'g',
         );
+        const rawLines = raw.split('\n');
         for (const m of src.matchAll(iterRe)) {
           const lineNo = lineOf(src, m.index);
-          const prev = (raw.split('\n')[lineNo - 2] ?? '') + (raw.split('\n')[lineNo - 1] ?? '');
-          if (prev.includes('deterministic-order:')) continue;
+          // Look back up to 3 lines for the annotation; a comment block directly
+          // above the statement is where a reader would naturally put it.
+          const window = rawLines.slice(Math.max(0, lineNo - 4), lineNo).join('\n');
+          if (window.includes('deterministic-order:')) continue;
           const name = m[1] ?? m[2] ?? m[3];
           report(
             file,

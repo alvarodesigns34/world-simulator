@@ -1,11 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": [],
-
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -15,18 +16,41 @@
     "noUnusedParameters": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-
     "noEmit": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-
     "baseUrl": ".",
     "paths": {
-      "@ws/core": ["packages/core/src/index.ts"],
-      "@ws/core/*": ["packages/core/src/*"],
-      "@ws/data": ["packages/data/src/index.ts"],
-      "@ws/data/*": ["packages/data/src/*"]
+      "@ws/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@ws/core/*": [
+        "packages/core/src/*"
+      ],
+      "@ws/data": [
+        "packages/data/src/index.ts"
+      ],
+      "@ws/data/*": [
+        "packages/data/src/*"
+      ],
+      "@ws/sim": [
+        "packages/sim/src/index.ts"
+      ],
+      "@ws/sim/*": [
+        "packages/sim/src/*"
+      ],
+      "@ws/render": [
+        "packages/render/src/index.ts"
+      ],
+      "@ws/render/*": [
+        "packages/render/src/*"
+      ]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts", "tools/**/*.ts"]
+  "include": [
+    "packages/core/**/*.ts",
+    "packages/data/**/*.ts",
+    "packages/sim/**/*.ts",
+    "tools/**/*.ts"
+  ]
 }
