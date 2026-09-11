@@ -45,16 +45,21 @@ describe('cube-sphere round-trip (DEC-007)', () => {
   });
 
   it('holds at face corners, where three cells meet', () => {
-    // The 8 cube corners, plus the 12 edge midpoints.
+    // The 8 cube corners PLUS all 12 cube-edge midpoints (M0 built only 4; Grok audit).
     const corners: PCF[] = [];
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
       const l = Math.sqrt(3);
       corners.push({ x: sx / l, y: sy / l, z: sz / l });
     }
-    for (const s of [-1, 1]) {
+    for (const [a, b, c] of [
+      [1, 1, 0], [1, -1, 0], [-1, 1, 0], [-1, -1, 0],
+      [1, 0, 1], [1, 0, -1], [-1, 0, 1], [-1, 0, -1],
+      [0, 1, 1], [0, 1, -1], [0, -1, 1], [0, -1, -1],
+    ] as const) {
       const l = Math.SQRT2;
-      corners.push({ x: s / l, y: 1 / l, z: 0 }, { x: 0, y: s / l, z: 1 / l });
+      corners.push({ x: a / l, y: b / l, z: c / l });
     }
+    expect(corners).toHaveLength(20);
 
     let worst = 0;
     for (const p of corners) {
@@ -107,8 +112,8 @@ describe('cube-sphere round-trip (DEC-007)', () => {
       return Math.acos(Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z));
     };
     const ratio = arc(0.5, 0.5) / arc(0.0, 0.0);
-    // Naive cube-sphere gives ~1.9x here; the tangent warp should be well under
-    // 1.5x. Measured ~1.27x.
+    // ARC ratio, not area. Grok audit: warped arc ≈ 1.06×, warped AREA ≈ 1.30×,
+    // naive area ≈ 5.1×. The "1.27×" figure was never asserted. Bound kept loose.
     expect(ratio).toBeGreaterThan(1.0);
     expect(ratio).toBeLessThan(1.5);
   });

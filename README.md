@@ -22,6 +22,7 @@ The simulation must remain conceptually complete with the renderer switched off.
 | [`docs/SIMULATION.md`](docs/SIMULATION.md) | Time, scheduling, determinism, concurrency, persistence |
 | [`docs/RENDERING.md`](docs/RENDERING.md) | Precision, coordinates, LOD, camera, render passes, budgets |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones, acceptance criteria, risks |
+| [`docs/AUDIT-V0.md`](docs/AUDIT-V0.md) | Grok adversarial audit of Architecture v0 (T-0007) |
 | [`agent/PROTOCOL.md`](agent/PROTOCOL.md) | **Mandatory** collaboration rules for all agents |
 | [`agent/DECISIONS.md`](agent/DECISIONS.md) | Architecture Decision Records |
 

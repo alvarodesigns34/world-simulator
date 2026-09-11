@@ -19,7 +19,8 @@ type Duration = number;      // branded f64 seconds
 ```
 
 **Why not a single `f64` seconds counter.** At one million years
-(3.156 × 10¹³ s) one ulp is ≈ 7.8 ms; at one billion years it is ≈ 4 s. Two runs
+(3.15576 × 10¹³ s) one ulp is **3.90625 ms** (M0 docs said 7.8 ms — that is
+`t × Number.EPSILON`, not ulp; Grok audit 2026-09-11); at one billion years it is ≈ 4 s. Two runs
 would disagree about what time it is, and replay dies. The `year` split keeps a
 *exact* integer where exactness is needed and `f64` where it is cheap: within one
 year (max 3.156 × 10⁷ s) one `f64` ulp is ≈ 7 × 10⁻⁹ s.

@@ -8,6 +8,11 @@
  * They are set by reasoning in `docs/RENDERING.md` §7 and are due to be
  * corrected by measurement at M1. See risk R-12 and task T-0024.
  *
+ * AUDIT (Grok, 2026-09-11, docs/AUDIT-V0.md, DEC-032 Proposed):
+ *   1000 × 65×65 at 1440p = 0.45 px/triangle; Iris Xe cannot share an RTX 3050
+ *   terrain budget; structuredClone(50 MB) ≈ 98 ms. Do not silently edit these
+ *   numbers — a budget change is an ADR (PROTOCOL §5.1).
+ *
  * Reference hardware: 2021+ laptop (Apple M1 / RTX 3050 / Iris Xe class),
  * Chromium, 1440p, 60 FPS => 16.6 ms/frame.
  */

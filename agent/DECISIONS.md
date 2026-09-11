@@ -51,6 +51,11 @@ Statuses: `Proposed` · `Accepted` · `Superseded by DEC-NNN` · `Rejected`
 | DEC-025 | Camera: one continuous geodetic state | Accepted | M1 exit |
 | DEC-026 | Roadmap adjustments to the proposed milestone order | Accepted | — |
 | DEC-027 | Dependency policy | Accepted | — |
+| DEC-028 | Raster quantisation; elevation is not i16 centimetres | Proposed | M1 entry |
+| DEC-029 | Canonical camera is PCF + quaternion; geodetic is derived | Proposed | M1 entry |
+| DEC-030 | Temporal LOD: three state classes, always-on aggregates, coarser aggregate grids | Proposed | M1 entry |
+| DEC-031 | *(not used — 64-bit hash is a DEC-017 implementation bug, T-0045)* | — | — |
+| DEC-032 | Performance budgets restated from arithmetic | Proposed | M1 entry |
 
 ---
 
@@ -710,6 +715,21 @@ cheap (where in the year).
   `Duration` that may overflow `f64` for absurd spans — documented and asserted.
 - Save files store `{year, seconds, secondsPerYear}`. Changing `secondsPerYear`
   invalidates a world.
+
+
+### Clarification (Grok 2026-09-11) — ulp figure
+
+The alternatives table and several docs state that at 10⁶ years one f64 ulp is
+≈ 7.8 ms. Independently re-derived (`tools/bench/audit-v0.mjs`, pinned in
+`packages/core/test/audit-v0.test.ts`):
+
+- 10⁶ years = 3.15576×10¹³ s, which lies in [2⁴⁴, 2⁴⁵), so ulp = 2⁴⁴⁻⁵² = **3.90625 ms**.
+- `t * Number.EPSILON` = 7.01 ms. That is not ulp; it overestimates by ~2× in the
+  lower half of a binade. 7.8 ms is 2 × 3.9 ms.
+
+The *measured* accumulation errors (1.0417×10⁴ s flat vs 1.726×10⁻⁵ s year-split)
+are confirmed and do not depend on that figure. The year-split decision stands.
+This is a documentation correction, not a change to the Decision.
 
 ---
 
@@ -1442,3 +1462,229 @@ dependency rule there is not purism, it is the only way the guarantee holds.
   math types. All are small, all are testable, and several are excellent **Grok
   candidates**.
 - UI may eventually justify a dependency; that will be its own ADR.
+
+
+---
+
+## DEC-028 — Raster quantisation; elevation is not i16 centimetres
+
+**Date:** 2026-09-11
+**Status:** Proposed
+**Supersedes:** the quantisation clause of DEC-022 (*"elevation i16 in centimetres"*)
+**Amends:** DEC-005 (scopes "all world data is f64" to positions, camera, and in-register physics)
+**Author:** Grok 4.6
+**Evidence:** `packages/data/test/audit-v0.test.ts`, `tools/bench/audit-v0.mjs` §4, `docs/AUDIT-V0.md` B1
+
+### Context
+DEC-022 stores elevation as `i16` centimetres. That encoding's range is
+[−327.68, +327.67] m. Everest is 8849 m; the Mariana trench is −10 994 m.
+DEC-005 simultaneously requires all world data to be `f64`. An L11 `f64` field
+is 201 MB; ten of them blow the 700 MB CPU budget.
+
+### Decision
+1. **Stored rasters are quantized integers** (`i16` / `i32` / `u8`) with an
+   explicit `quantum` and `offset` on the `FieldDescriptor`. They are not f64.
+2. **Positions, camera state, planet parameters, and in-register physics** remain
+   f64. DEC-005's precision strategy is unchanged for those.
+3. **Global elevation is `i16` metres** (quantum = 1 m, offset = 0, range
+   ±32 767 m). 1 m is below the L11 cell size (4.9 km); the 50.3 MB footprint
+   is unchanged. Regional tiles that store *deltas from a parent* may use a
+   finer quantum; absolute regional elevation must still cover the Earth range.
+4. **Temperature `i16` 0.01 K** is accepted with offset 273.15 K (store
+   `(T − 273.15) × 100`). Absolute kelvin is not.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep i16 cm | Cannot represent Earth. |
+| i32 centimetres globally | Works; doubles L11 elevation to 100.7 MB. Unjustified at 4.9 km cells. |
+| f64 rasters | 201 MB/field; contradicts the memory budget that forced DEC-019. |
+| i16 × 0.5 m | Covers ±16 km, 0.5 m quantum. Also legal. 1 m is enough at L11 and simpler. |
+
+### Rationale
+Quantisation is how DEC-018 stays affordable. The quantum has to fit the planet.
+This is a one-line data-model fix that is cheap today and a save-format break
+after T-0033.
+
+### Consequences
+- Every field declares `(dtype, quantum, offset, units)`. Undeclared quantisation
+  is a descriptor error.
+- Architecture v1 docs must stop saying "i16 centimetres for elevation."
+- Existing M0 code has no FieldStore yet; there is nothing to migrate.
+
+---
+
+## DEC-029 — Canonical camera is PCF + quaternion; geodetic is derived
+
+**Date:** 2026-09-11
+**Status:** Proposed
+**Supersedes:** the *representation* in DEC-025. The no-modes policy, the
+`s = log10(altitude)` blend, and the "orbital is a large altitude" rule are kept.
+**Author:** Grok 4.6
+**Evidence:** `packages/data/test/audit-v0.test.ts` (pole collapse), `docs/AUDIT-V0.md` B4
+
+### Context
+DEC-025 stores `CameraState` as geodetic `{lat, lon, altitude, yaw, pitch, roll}`.
+At `lat = ±π/2`, longitude is undefined and yaw-about-Z gimbal-locks. Two
+headings at the pole are the same PCF. Polar orbit and ice-sheet inspection are
+in-scope for M1/M5/M7.
+
+DEC-025 rejected "Cartesian PCF" because "altitude becomes a derived quantity
+requiring a surface query." Altitude above the *reference sphere* is `|PCF| − R`.
+Altitude above *terrain* is a surface query in any representation.
+
+### Decision
+```ts
+interface CameraState {
+  position: PCF;                 // f64, planet-centred
+  orientation: Quat;             // unit quaternion, PCF basis
+  fovY: number;                  // radians
+}
+```
+- Geodetic `{lat, lon, altitude, yaw, pitch, roll}` is **derived** for UI, for
+  serialised keyframes that want to be human-editable, and for the
+  `s = log10(|position| − R)` control blend, which is unchanged.
+- Controllers write PCF + quaternion. A geodetic keyframe is converted on load.
+- **A `switch` on altitude remains a bug.** The no-modes policy stands.
+- Near plane remains `clamp(altitudeSphere × 1e-4, 0.05, 1000)`.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep geodetic, special-case the poles | The special case is a mode. DEC-025 exists to forbid modes. |
+| lat/lon with a quaternion only for heading | Still singular in position. |
+| Look-at + up vectors | Two vectors that must stay orthonormal; a quaternion is the same data with
+  the constraint in the type. Acceptable implementation of this decision. |
+
+### Rationale
+The continuity requirement is about *not switching controllers*. It is not about
+storing coordinates in the chart that happens to make `altitude` a struct field.
+
+### Consequences
+- T-0016 implements this, not the DEC-025 struct.
+- The M1 scripted descent must include a polar pass, not only an equatorial one.
+- Serialised camera state from M1 uses PCF + quat; a geodetic view is derived.
+
+---
+
+## DEC-030 — Temporal LOD: three state classes, always-on aggregates, coarser grids
+
+**Date:** 2026-09-11
+**Status:** Proposed
+**Amends:** DEC-015 (does not replace regimes, `quiesce`/`resume`, or hysteresis)
+**Author:** Grok 4.6
+**Evidence:** `docs/AUDIT-V0.md` B2, `tools/bench/audit-v0.mjs` §8 and §10
+
+### Context
+DEC-015's diagnosis is correct: 1 Myr/s vs 1-hour weather is nine orders of
+magnitude. Regimes are the right shape. The contract is not sufficient:
+
+- Ice sheets, ocean interior and groundwater cannot be reconstructed from a
+  monthly mean. They are not "fast state" and they are not "aggregates."
+- A 12-month i16 climatology of T+P at L11 is 1.2 GB, over the 700 MB budget.
+  The same on geodesic n6 is 16 MB. DEC-015 does not allow an aggregate to live
+  on a coarser grid.
+- Aggregates computed only at `quiesce` make every transition a conservation
+  event. Running windows do not.
+- Recipe = seed + SimTime is path-dependent under hysteresis + `resume()`.
+
+### Decision
+Four rules on top of DEC-015:
+
+1. **Three state classes**, declared on every field:
+   - **slow** — always live, stepped at a coarse cadence, never flushed
+     (plates, ice volume, groundwater, crust). `quiesce` is a no-op.
+   - **fast** — regime-switched transients (wind, storms, convective towers).
+     May be discarded on `quiesce` and re-seeded on `resume` from aggregates +
+     world seed (pure, so replay of the same command log is deterministic).
+   - **aggregate** — statistics of fast state (monthly/annual means).
+2. **Aggregates are always-on running windows**, updated in the fine regime.
+   `quiesce` stops the fine solver. `resume` starts it from the current
+   aggregate + seed. Conservation tests still run across the transition.
+3. **An aggregate may live on a coarser grid than its instant field.**
+   `FieldDescriptor.aggregate` names a `FieldId` whose `grid` may differ.
+   Cross-grid writes go through the conservative resampler (DEC-008). Default
+   for atmosphere/ocean climatology: geodesic n6 (or n5). Not cube L11.
+4. **A recipe reproduces a command log**, not "seed + SimTime via any path."
+   `timeScale` changes are commands. Two logs that reach the same `SimTime` by
+   different scale paths are different worlds and must not be claimed identical.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep two classes, special-case ice as its own subsystem | Ice is the example, not the set. Ocean interior, soil, groundwater share the shape. |
+| Sample 1 year in 1000 (DEC-015 already rejected) | Biases rare events. Still available *inside* a regime. |
+| Same-grid aggregates | Illegal under the memory budget (AUDIT §8). |
+
+### Rationale
+This is DEC-019 applied to time: the simulation's source of truth is allowed to
+be coarser than the visual weather, and long-memory quantities are not asked to
+pretend they are weather. Always-on aggregators turn the most novel, least
+tested moment in the project (`quiesce`) into a boring one.
+
+### Consequences
+- T-0011's `FieldDescriptor` gains `class: 'slow' | 'fast' | 'aggregate'` and
+  a possibly-different `aggregate` grid.
+- T-0012 does not implement regimes, but the descriptor and the recipe rule
+  must already exist so M4 is not a rewrite.
+- R-02 remains; this is the mitigation, not a proof it works. Invariants still
+  required at M4/M11.
+- Worker job caps at T4 must be evaluated in *sim-time lag*, not only wall-clock
+  (a 250 ms paleo job is ~80 000 years). Paleo regimes must be cheap.
+
+---
+
+## DEC-032 — Performance budgets restated from arithmetic
+
+**Date:** 2026-09-11
+**Status:** Proposed
+**Amends:** `packages/core/src/budgets.ts` and `docs/RENDERING.md` §7 (a budget
+change is an ADR per PROTOCOL §5.1 and DEC-024)
+**Author:** Grok 4.6
+**Evidence:** `tools/bench/audit-v0.mjs` §7, §8, §12; `packages/core/test/audit-v0.test.ts`
+
+### Context
+M0 budgets are labelled estimates. Independent arithmetic, before a profiler
+exists, already falsifies several of them as currently written.
+
+### Decision
+1. **Reference hardware is a tier, not a union.**
+   - *Primary:* Apple M1 / RTX 3050-class, 1440p, 60 FPS.
+   - *Floor:* Intel Iris Xe 96EU, 1080p, 30 FPS acceptable, reduced patch cap.
+   Shipping criteria name the tier.
+2. **Triangle budget is derived from τ and pixel area, not from 1000 × 65×65.**
+   A 65×65 patch at 1440p × 1000 visible = 0.45 px/triangle (small-triangle
+   cliff). Cap mean triangle area at ≥ 2 px, or cap visible patches so that
+   `PATCH_TRIANGLES * visible ≤ 2 × pixelCount`. 65×65 remains *a* patch size,
+   tried against 33×33 in E1 before it is locked.
+3. **Horizon culling is in the M1 LOD contract**, not a later optimisation.
+4. **Commit of a large field is a generation publish (pointer swap / atomic
+   index), never a 50 MB memcpy.** `simCommit: 2.0 ms` cannot copy L11.
+5. **SAB is required for in-place L11 updates.** Transfer is supported for
+   tile-sized jobs (≤ ~1 MB). `structuredClone(50 MB)` measured 98 ms;
+   transfer round-trip 34 ms. Neither fits a frame.
+6. **Numbers in `budgets.ts` stay as labelled estimates** until E1/E2 run on
+   real hardware. This ADR changes the *rules that produce them*, not the
+   placeholders, except:
+   - add `minPxPerTriangle: 2.0`
+   - add `hardwareTier: 'primary' | 'floor'`
+   - document that `maxVisiblePatches: 1200` is an *upper bound that τ must
+     also satisfy*, not a target.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep one hardware sentence | Makes the M1 60 FPS criterion unfalsifiable. |
+| Lock 33×33 now | Unmeasured. E1 exists so we do not guess twice. |
+| Drop 60 FPS | Against the brief. Reduce *work*, not the target, on primary hardware. |
+
+### Rationale
+Opus asked for arithmetic before a profiler. The arithmetic says the patch count
+and the patch size cannot both sit at their documented max at 1440p, and that
+Iris Xe is not the same GPU as an RTX 3050.
+
+### Consequences
+- T-0014 treats 65×65 as a knob. E1 runs before M1 close.
+- T-0013 does not promise a 50 MB transfer fallback for L11.
+- HUD and perf tests read the new fields once they exist. Until DEC-032 is
+  Accepted, `budgets.ts` numbers are unchanged (PROTOCOL: no silent budget edit).

@@ -256,7 +256,7 @@ interface SimTime { readonly year: number; readonly seconds: number }
 
 `year` is an exact integer (±9 × 10¹⁵ available). `seconds` is `f64` within one
 year, where one ulp is ~4 ns. A single `f64` seconds-since-epoch counter would have
-a 7.8 ms ulp at one million years and a 4 s ulp at one billion — which destroys
+a 3.90625 ms ulp at one million years and a 4 s ulp at one billion — which destroys
 replay. The split point is the year because the year is the system's natural period
 (tilt, seasons, orbit), so it is physically meaningful as well as numerically
 convenient.

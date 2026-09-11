@@ -18,6 +18,11 @@ export interface PCF {
   readonly x: number;
   readonly y: number;
   readonly z: number;
+  /**
+   * Optional in M0 — and that is a bug against DEC-006.
+   * `{x,y,z}` is assignable to both PCF and PCI, so a frame mismatch is NOT a
+   * compile error. Architecture v1 must make `__frame` required (T-0041).
+   */
   readonly __frame?: 'PCF';
 }
 

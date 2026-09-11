@@ -6,7 +6,7 @@
  * agreeing on what time it is.
  *
  * A single f64 seconds-since-epoch counter fails:
- *     10^6 years = 3.156e13 s  ->  1 ulp = 3.9 ms
+ *     10^6 years = 3.15576e13 s ->  1 ulp = 3.90625 ms (docs said 7.8 ms = x*EPSILON, not ulp)
  *     10^9 years = 3.156e16 s  ->  1 ulp = 4.0 s
  * Measured: accumulating 1e7 steps of 1/60 s at year 1e6 loses 10 417 s on a flat
  * counter (each increment rounds to 1/64) versus 1.7e-5 s with the year split.
