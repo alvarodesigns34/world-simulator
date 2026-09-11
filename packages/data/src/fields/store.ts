@@ -18,10 +18,20 @@
  *    field data, and it touches the INDEX, not the data — DEC-020's "no locks on
  *    field data" is intact.
  *
+ *    Every read path loads the generation ONCE and uses that snapshot to pick
+ *    the front buffer. Two separate loads can observe N then N+1 and mix a
+ *    generation with a buffer from another — that pairing is the actual race.
+ *
  * 3. QUANTISATION IS EXACT (DEC-028).
  *    quantum is a power of two and offset a multiple of it, so
  *    `offset + stored * quantum` is exactly representable and decodes
  *    bit-identically everywhere. Enforced in `validateDescriptor`.
+ *
+ * PHASE SEPARATION (DEC-020) is what makes double-buffering safe under SAB:
+ * a reader may not hold a `raw()` view across a `commit()` of a writer that
+ * will then overwrite that buffer. `consistentRead` detects a torn generation
+ * so a concurrent worker can retry. Holding the TypedArray itself across a
+ * commit is still a data race — don't.
  */
 
 import { assert, assertFinite } from '@ws/core';
@@ -56,6 +66,10 @@ function makeArray(dtype: Dtype, buffer: ArrayBufferLike, byteOffset: number, le
     case 'f32': return new Float32Array(buffer, byteOffset, length);
     case 'f64': return new Float64Array(buffer, byteOffset, length);
   }
+}
+
+function isShared(buf: ArrayBufferLike): boolean {
+  return typeof SharedArrayBuffer === 'function' && buf instanceof SharedArrayBuffer;
 }
 
 /** Is SharedArrayBuffer usable here? Requires COOP/COEP in a browser (DEC-020). */
@@ -121,6 +135,23 @@ export class DirtyMask {
   }
 }
 
+/** SAB handles a worker needs. Small, transferable as a structured object of SABs. */
+export interface FieldHandles {
+  readonly data: ArrayBufferLike;
+  readonly control: ArrayBufferLike;
+  readonly copies: number;
+  readonly elems: number;
+  readonly dtype: Dtype;
+  readonly shared: boolean;
+}
+
+export interface ConsistentRead<T> {
+  readonly value: T;
+  readonly generation: number;
+  /** True if the generation changed during the callback — retry. */
+  readonly torn: boolean;
+}
+
 /** Read-only view of one field. This is what `render` and the UI ever see. */
 export interface ReadonlyFieldView {
   readonly descriptor: FieldDescriptor;
@@ -131,6 +162,13 @@ export interface ReadonlyFieldView {
   /** Decoded physical value: `offset + stored * quantum`. */
   get(cell: number, component?: number): number;
   readonly dirty: DirtyMask;
+  /** Worker-shareable backing stores. */
+  handles(): FieldHandles;
+  /**
+   * Seqlock-style read: load generation, run `fn` on that front, load again.
+   * `torn` means a publisher committed during `fn`. Safe retry if `fn` is pure.
+   */
+  consistentRead<T>(fn: (raw: Readonly<TypedArray>, generation: number) => T): ConsistentRead<T>;
 }
 
 export interface FieldView extends ReadonlyFieldView {
@@ -147,6 +185,7 @@ class Field implements FieldView {
   readonly dirty: DirtyMask;
 
   private readonly buffers: readonly TypedArray[];
+  private readonly dataBacking: ArrayBufferLike;
   /** [generation] — atomically published so readers see a consistent pair. */
   private readonly control: Int32Array;
   private readonly clampLo: number;
@@ -163,6 +202,7 @@ class Field implements FieldView {
 
     const Buf = useShared && sharedMemoryAvailable() ? SharedArrayBuffer : ArrayBuffer;
     const backing = new Buf(bytes * copies);
+    this.dataBacking = backing;
     const arrs: TypedArray[] = [];
     for (let i = 0; i < copies; i++) arrs.push(makeArray(d.dtype, backing, i * bytes, elems));
     this.buffers = arrs;
@@ -175,34 +215,39 @@ class Field implements FieldView {
     this.clampHi = hi;
   }
 
+  private loadGeneration(): number {
+    return isShared(this.control.buffer)
+      ? Atomics.load(this.control, 0)
+      : (this.control[0] as number);
+  }
+
   /** Acquire load of the published generation (rule 2). */
   get generation(): number {
-    return this.control.buffer instanceof ArrayBuffer
-      ? (this.control[0] as number)
-      : Atomics.load(this.control, 0);
+    return this.loadGeneration();
   }
 
-  private front(): TypedArray {
-    return this.buffers[this.generation % this.buffers.length] as TypedArray;
+  private frontAt(gen: number): TypedArray {
+    return this.buffers[gen % this.buffers.length] as TypedArray;
   }
 
-  private back(): TypedArray {
+  private backAt(gen: number): TypedArray {
     return this.buffers.length === 1
       ? (this.buffers[0] as TypedArray)
-      : (this.buffers[(this.generation + 1) % 2] as TypedArray);
+      : (this.buffers[(gen + 1) % 2] as TypedArray);
   }
 
   raw(): Readonly<TypedArray> {
-    return this.front();
+    return this.frontAt(this.loadGeneration());
   }
 
   rawMut(): TypedArray {
-    return this.back();
+    return this.backAt(this.loadGeneration());
   }
 
   get(cell: number, component = 0): number {
     const d = this.descriptor;
-    const stored = this.front()[cell * d.components + component] as number;
+    const gen = this.loadGeneration();
+    const stored = this.frontAt(gen)[cell * d.components + component] as number;
     return isFloatDtype(d.dtype) ? stored : d.offset + stored * d.quantum;
   }
 
@@ -210,11 +255,12 @@ class Field implements FieldView {
     const d = this.descriptor;
     assertFinite(value, `${d.id}[${String(cell)}]`);
     const i = cell * d.components + component;
+    const back = this.backAt(this.loadGeneration());
     if (isFloatDtype(d.dtype)) {
-      this.back()[i] = value;
+      back[i] = value;
     } else {
       const q = Math.round((value - d.offset) / d.quantum);
-      this.back()[i] = Math.min(this.clampHi, Math.max(this.clampLo, q));
+      back[i] = Math.min(this.clampHi, Math.max(this.clampLo, q));
     }
     this.dirty.markCell(cell);
   }
@@ -225,9 +271,27 @@ class Field implements FieldView {
    * detect change.
    */
   commit(): void {
-    const next = this.generation + 1;
-    if (this.control.buffer instanceof ArrayBuffer) this.control[0] = next;
-    else Atomics.store(this.control, 0, next);
+    const next = this.loadGeneration() + 1;
+    if (isShared(this.control.buffer)) Atomics.store(this.control, 0, next);
+    else this.control[0] = next;
+  }
+
+  handles(): FieldHandles {
+    return {
+      data: this.dataBacking,
+      control: this.control.buffer,
+      copies: this.buffers.length,
+      elems: this.cellCount * this.descriptor.components,
+      dtype: this.descriptor.dtype,
+      shared: isShared(this.dataBacking),
+    };
+  }
+
+  consistentRead<T>(fn: (raw: Readonly<TypedArray>, generation: number) => T): ConsistentRead<T> {
+    const g0 = this.loadGeneration();
+    const value = fn(this.frontAt(g0), g0);
+    const g1 = this.loadGeneration();
+    return { value, generation: g0, torn: g0 !== g1 };
   }
 }
 

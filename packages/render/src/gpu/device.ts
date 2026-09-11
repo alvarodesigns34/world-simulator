@@ -31,6 +31,9 @@ export interface GpuContext {
   readonly tier: budgets.GpuTier;
   readonly hasTimestampQuery: boolean;
   readonly adapterInfo: string;
+  /** Populated if the device is lost after acquisition. HUD reads this. */
+  lostReason(): string | null;
+  lastUncapturedError(): string | null;
 }
 
 export type GpuAcquireResult = GpuContext | GpuUnavailable;
@@ -61,8 +64,6 @@ export function inferTier(adapter: GPUAdapter, info?: GPUAdapterInfo): budgets.G
   if (/nvidia|radeon rx|geforce|rtx|arc a/.test(desc)) return 'discrete';
   if (/apple/.test(desc)) return 'integrated';
   if (/iris|uhd|hd graphics|adreno|mali|powervr/.test(desc)) return 'floor';
-  // Unknown: the conservative choice is the middle tier when the adapter
-  // reports generous limits, the floor otherwise.
   const maxBuf = adapter.limits.maxBufferSize ?? 0;
   return maxBuf >= 1 << 30 ? 'integrated' : 'floor';
 }
@@ -88,6 +89,16 @@ export async function acquireGpu(): Promise<GpuAcquireResult> {
     return { ok: false, reason: 'no-device', message: MESSAGES['no-device'] };
   }
 
+  let lost: string | null = null;
+  let lastError: string | null = null;
+  void device.lost.then((info) => {
+    lost = `${info.reason}: ${info.message}`;
+  });
+  device.addEventListener('uncapturederror', (ev) => {
+    ev.preventDefault();
+    lastError = ev.error.message;
+  });
+
   const info = (adapter as { info?: GPUAdapterInfo }).info;
   return {
     ok: true,
@@ -99,6 +110,8 @@ export async function acquireGpu(): Promise<GpuAcquireResult> {
     adapterInfo: info
       ? `${info.vendor ?? '?'} / ${info.architecture ?? '?'} ${info.description ?? ''}`.trim()
       : 'unknown adapter',
+    lostReason: () => lost,
+    lastUncapturedError: () => lastError,
   };
 }
 

@@ -6,21 +6,32 @@
  * CULL ORDER IS DELIBERATE: horizon, then frustum, then screen-space error.
  * On a sphere seen from orbit roughly half the surface faces away from the
  * camera and a frustum test does not remove any of it, so the horizon test
- * rejects the most patches for the least arithmetic. DEC-034 puts it in the M1
- * contract for exactly that reason: tuning tau against a patch set twice the
- * real size would mean measuring everything twice.
+ * rejects the most patches for the least arithmetic.
  *
- * THE BUDGET IS A FUNCTION, NOT A CONSTANT (DEC-032). The selector asks
- * `resolvePatchBudget` what it may spend on this device at this resolution.
- * Architecture v0 shipped `maxVisiblePatches: 1200` and `tau: 2.0px` as if they
- * were one design; at 1440p they differ by ~5x and 65x65 patches at that count
- * would be 0.45 px/triangle.
+ * THE BUDGET IS A FUNCTION, NOT A CONSTANT (DEC-032).
+ *
+ * Allocation: pass a `NodePool` and a `SelectWorkspace` owned by the renderer.
+ * Semantics are unchanged: a cached node is bit-identical to a freshly built
+ * one because `makeNode` is pure. The workspace reuses the stack / visible
+ * array / lod-count buffer; the output `split` set is always a fresh Set so
+ * the caller can hold it as `previouslySplit` without it being cleared next
+ * frame.
  */
 
-import { budgets, v3, vdot, vlen, vnorm, vsub, type Vec3 } from '@ws/core';
-import { quadkey, type PlanetGeometry, type QuadKey } from '@ws/data';
+import { budgets, vdot, vlen, type Vec3 } from '@ws/core';
+import { quadkey, type PlanetGeometry } from '@ws/data';
 import type { CameraState } from '../camera/state.js';
-import { childNodes, rootNodes, type PatchNode } from './quadtree.js';
+import { childNodes, rootNodes, type NodePool, type PatchNode } from './quadtree.js';
+
+export interface SelectWorkspace {
+  stack: PatchNode[];
+  visible: PatchNode[];
+  lodCounts: number[];
+}
+
+export function createSelectWorkspace(): SelectWorkspace {
+  return { stack: [], visible: [], lodCounts: [] };
+}
 
 export interface SelectOptions {
   readonly planet: PlanetGeometry;
@@ -40,6 +51,10 @@ export interface SelectOptions {
    * so a node sitting on the threshold cannot oscillate.
    */
   readonly previouslySplit?: ReadonlySet<number>;
+  /** Optional persistent node cache. Same keys → same nodes, fewer `tan`s. */
+  readonly pool?: NodePool;
+  /** Optional reused buffers. `visible` is invalidated by the next call. */
+  readonly workspace?: SelectWorkspace;
 }
 
 export interface SelectResult {
@@ -58,6 +73,10 @@ export interface SelectStats {
   maxLevelReached: number;
   budgetPatches: number;
   budgetExhausted: boolean;
+  /** Count of visible patches at each level. Index = level. */
+  lodCounts: readonly number[];
+  poolHits: number;
+  poolMisses: number;
 }
 
 /**
@@ -68,8 +87,6 @@ export interface SelectStats {
  *
  *     visible  <=>  dot(P, C) >= R_occ^2
  *
- * which is exact: at the tangent point |P| = R_occ and dot(P, C) = R_occ^2.
- *
  * For a BOUNDING SPHERE of radius r centred at P, keep it if ANY point in it
  * could be visible. The maximum of dot(Q, C) over that sphere is
  * dot(P, C) + r|C|, so the test relaxes to
@@ -77,9 +94,7 @@ export interface SelectStats {
  *     visible  <=>  dot(P, C) >= R_occ^2 - r|C|
  *
  * NOTE WHICH TERM GROWS. Tall terrain and the atmosphere shell make the NODE
- * bigger, not the occluder. Inflating R_occ instead would raise the threshold
- * and cull MORE, which is exactly backwards — the planet still occludes at its
- * solid radius however tall its mountains are.
+ * bigger, not the occluder.
  */
 export function horizonVisible(
   nodeCentre: Vec3,
@@ -109,26 +124,31 @@ export function screenSpaceError(
   return (geometricError / distance) * (viewportHeight / 2 / Math.tan(fovY / 2));
 }
 
-/** Conservative frustum test against a bounding sphere, in camera-relative space. */
+/**
+ * Conservative frustum test against a bounding sphere, in camera-relative space.
+ * Scalar on purpose: the previous version allocated a `rel` Vec3 per node.
+ */
 function inFrustum(
-  centre: Vec3,
+  cx: number,
+  cy: number,
+  cz: number,
   radius: number,
-  cam: CameraState,
-  forward: Vec3,
-  aspect: number,
+  camX: number,
+  camY: number,
+  camZ: number,
+  fwdX: number,
+  fwdY: number,
+  fwdZ: number,
+  maxHalf: number,
   near: number,
 ): boolean {
-  const rel = vsub(centre, v3(cam.position.x, cam.position.y, cam.position.z));
-  const z = vdot(rel, forward);
+  const rx = cx - camX;
+  const ry = cy - camY;
+  const rz = cz - camZ;
+  const z = rx * fwdX + ry * fwdY + rz * fwdZ;
   if (z + radius < near) return false;
-
-  // Half-angle test, widened by the bounding radius. Cheap and conservative:
-  // it may keep a patch that a plane test would reject, never the reverse.
-  const dist = vlen(rel);
+  const dist = Math.sqrt(rx * rx + ry * ry + rz * rz);
   if (dist <= radius) return true;
-  const halfV = Math.atan(Math.tan(cam.fovY / 2));
-  const halfH = Math.atan(Math.tan(cam.fovY / 2) * aspect);
-  const maxHalf = Math.max(halfV, halfH);
   const angleToCentre = Math.acos(Math.min(1, Math.max(-1, z / dist)));
   const angularRadius = Math.asin(Math.min(1, radius / dist));
   return angleToCentre - angularRadius <= maxHalf + 1e-3;
@@ -141,6 +161,8 @@ export function selectPatches(cam: CameraState, opts: SelectOptions): SelectResu
   const aspect = opts.viewportWidth / opts.viewportHeight;
   const useHorizon = opts.enableHorizonCull ?? true;
   const useFrustum = opts.enableFrustumCull ?? true;
+  const pool = opts.pool;
+  const ws = opts.workspace;
 
   const budget = budgets.resolvePatchBudget({
     pixelCount: opts.viewportWidth * opts.viewportHeight,
@@ -151,20 +173,36 @@ export function selectPatches(cam: CameraState, opts: SelectOptions): SelectResu
       : {}),
   });
 
-  const camPos = v3(cam.position.x, cam.position.y, cam.position.z);
-  const forward = vnorm(
-    v3(
-      -(2 * (cam.orientation.x * cam.orientation.z + cam.orientation.w * cam.orientation.y)),
-      -(2 * (cam.orientation.y * cam.orientation.z - cam.orientation.w * cam.orientation.x)),
-      -(1 - 2 * (cam.orientation.x * cam.orientation.x + cam.orientation.y * cam.orientation.y)),
-    ),
-  );
-  const near = Math.min(1000, Math.max(0.05, Math.abs(vlen(camPos) - planet.radius) * 1e-4));
+  const camX = cam.position.x;
+  const camY = cam.position.y;
+  const camZ = cam.position.z;
+  const ox = cam.orientation.x;
+  const oy = cam.orientation.y;
+  const oz = cam.orientation.z;
+  const ow = cam.orientation.w;
+  // Camera looks down local -Z.
+  let fwdX = -(2 * (ox * oz + ow * oy));
+  let fwdY = -(2 * (oy * oz - ow * ox));
+  let fwdZ = -(1 - 2 * (ox * ox + oy * oy));
+  const fwdLen = Math.sqrt(fwdX * fwdX + fwdY * fwdY + fwdZ * fwdZ) || 1;
+  fwdX /= fwdLen;
+  fwdY /= fwdLen;
+  fwdZ /= fwdLen;
 
-  // The occluder is the solid planet. Terrain height and the atmosphere shell
-  // inflate each NODE's radius instead (see `horizonVisible`).
+  const camLen = Math.sqrt(camX * camX + camY * camY + camZ * camZ);
+  const near = Math.min(1000, Math.max(0.05, Math.abs(camLen - planet.radius) * 1e-4));
+  const halfV = cam.fovY / 2;
+  const halfH = Math.atan(Math.tan(cam.fovY / 2) * aspect);
+  const maxHalf = Math.max(halfV, halfH);
+  const sseScale = opts.viewportHeight / 2 / Math.tan(cam.fovY / 2);
+
   const occluderRadius = planet.radius;
   const nodeInflation = maxElev + budgets.QUALITY.horizonCullAtmosphereMarginM;
+  const occ2 = occluderRadius * occluderRadius;
+
+  const lodCounts = ws ? ws.lodCounts : [];
+  lodCounts.length = maxLevel + 1;
+  for (let i = 0; i <= maxLevel; i++) lodCounts[i] = 0;
 
   const stats: SelectStats = {
     nodesVisited: 0,
@@ -175,64 +213,87 @@ export function selectPatches(cam: CameraState, opts: SelectOptions): SelectResu
     maxLevelReached: 0,
     budgetPatches: budget.maxVisiblePatches,
     budgetExhausted: false,
+    lodCounts,
+    poolHits: 0,
+    poolMisses: 0,
   };
 
-  const visible: PatchNode[] = [];
+  const visible = ws ? ws.visible : [];
+  visible.length = 0;
   const split = new Set<number>();
-  const mergeThreshold = budget.screenSpaceErrorPx * budgets.QUALITY.lodHysteresis;
+  const hysteresis = budgets.QUALITY.lodHysteresis;
+  const tau = budget.screenSpaceErrorPx;
+  const cap = budget.maxVisiblePatches;
 
-  // Explicit stack, traversed in a fixed order, so the visible set is a pure
-  // function of (camera, options) — not of recursion or allocation order.
-  const stack: PatchNode[] = [...rootNodes(planet, maxElev)].reverse();
+  const stack = ws ? ws.stack : [];
+  stack.length = 0;
+  const roots = rootNodes(planet, maxElev, pool);
+  for (let i = roots.length - 1; i >= 0; i--) stack.push(roots[i] as PatchNode);
+
+  const hitsBefore = pool?.hits ?? 0;
+  const missesBefore = pool?.misses ?? 0;
 
   while (stack.length > 0) {
     const node = stack.pop() as PatchNode;
     stats.nodesVisited++;
 
-    if (
-      useHorizon &&
-      !horizonVisible(node.centre, node.radius + nodeInflation, camPos, occluderRadius)
-    ) {
-      stats.culledHorizon++;
-      continue;
+    const nx = node.centre.x;
+    const ny = node.centre.y;
+    const nz = node.centre.z;
+    const nr = node.radius + nodeInflation;
+
+    if (useHorizon && camLen > occluderRadius) {
+      const threshold = occ2 - nr * camLen;
+      if (nx * camX + ny * camY + nz * camZ < threshold) {
+        stats.culledHorizon++;
+        continue;
+      }
     }
-    if (useFrustum && !inFrustum(node.centre, node.radius, cam, forward, aspect, near)) {
+    if (
+      useFrustum &&
+      !inFrustum(nx, ny, nz, node.radius, camX, camY, camZ, fwdX, fwdY, fwdZ, maxHalf, near)
+    ) {
       stats.culledFrustum++;
       continue;
     }
 
-    const dist = Math.max(
-      1e-3,
-      vlen(vsub(node.centre, camPos)) - node.radius,
-    );
-    const sse = screenSpaceError(node.geometricError, dist, opts.viewportHeight, cam.fovY);
+    const dx = nx - camX;
+    const dy = ny - camY;
+    const dz = nz - camZ;
+    const dist = Math.max(1e-3, Math.sqrt(dx * dx + dy * dy + dz * dz) - node.radius);
+    const sse = (node.geometricError / dist) * sseScale;
 
-    // Hysteresis (DEC-034 rule 5): a node already split needs its error to fall
-    // below tau/hysteresis before it merges back.
     const wasSplit = opts.previouslySplit?.has(quadkey.packId(node.key)) ?? false;
-    const threshold = wasSplit ? budget.screenSpaceErrorPx / budgets.QUALITY.lodHysteresis : budget.screenSpaceErrorPx;
+    const threshold = wasSplit ? tau / hysteresis : tau;
 
+    // Reserve room for all four children as leaves. Splitting when only one
+    // slot remains, then dropping the extra children, punched holes in the
+    // mesh (parent already discarded, children not emitted).
     const canSplit =
-      node.key.level < maxLevel && visible.length + stack.length < budget.maxVisiblePatches;
+      node.key.level < maxLevel && visible.length + stack.length + 4 <= cap;
 
     if (sse > threshold && canSplit) {
       split.add(quadkey.packId(node.key));
-      const kids = childNodes(node, planet, maxElev);
-      for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i] as PatchNode);
+      const kids = childNodes(node, planet, maxElev, pool);
+      stack.push(kids[3], kids[2], kids[1], kids[0]);
       continue;
     }
 
-    if (visible.length >= budget.maxVisiblePatches) {
+    if (visible.length >= cap) {
       stats.budgetExhausted = true;
       continue;
     }
     visible.push(node);
     stats.maxLevelReached = Math.max(stats.maxLevelReached, node.key.level);
-    void mergeThreshold;
+    lodCounts[node.key.level] = (lodCounts[node.key.level] as number) + 1;
   }
 
+  if (visible.length >= cap) stats.budgetExhausted = true;
   stats.visible = visible.length;
   stats.triangles = visible.length * budget.trianglesPerPatch;
+  stats.poolHits = (pool?.hits ?? 0) - hitsBefore;
+  stats.poolMisses = (pool?.misses ?? 0) - missesBefore;
+  stats.lodCounts = lodCounts;
   return { visible, split, stats };
 }
 
@@ -241,4 +302,8 @@ export function sortVisible(nodes: readonly PatchNode[]): readonly PatchNode[] {
   return [...nodes].sort((a, b) => quadkey.compare(a.key, b.key));
 }
 
-export type { QuadKey };
+/** In-place variant: no copy. The renderer owns the array. */
+export function sortVisibleInPlace(nodes: PatchNode[]): PatchNode[] {
+  nodes.sort((a, b) => quadkey.compare(a.key, b.key));
+  return nodes;
+}

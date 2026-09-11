@@ -11,7 +11,7 @@
  * invisible (DEC-017).
  */
 
-import { v3, vlen, vnorm, vscale, type Vec3 } from '@ws/core';
+import { v3, vnorm, vscale, type Vec3 } from '@ws/core';
 import {
   cellSize,
   cubeFaceToUnit,
@@ -49,47 +49,30 @@ export function makeNode(
 ): PatchNode {
   const [u0, v0, u1, v1] = quadkey.bounds(key);
 
-  // Corners plus centre, on the unit sphere.
-  const corners: Vec3[] = [];
-  for (const [u, v] of [
-    [u0, v0],
-    [u1, v0],
-    [u0, v1],
-    [u1, v1],
-  ] as const) {
-    const p = cubeFaceToUnit({ face: key.face, u, v });
-    corners.push(v3(p.x, p.y, p.z));
-  }
+  const p00 = cubeFaceToUnit({ face: key.face, u: u0, v: v0 });
+  const p10 = cubeFaceToUnit({ face: key.face, u: u1, v: v0 });
+  const p01 = cubeFaceToUnit({ face: key.face, u: u0, v: v1 });
+  const p11 = cubeFaceToUnit({ face: key.face, u: u1, v: v1 });
+
   const c = quadkey.centerCubeFace(key);
   const cu = cubeFaceToUnit(c);
   const normal = v3(cu.x, cu.y, cu.z);
 
   const surfaceR = planet.radius + maxTerrainElevation;
 
-  // Bounding sphere: centred on the mean of the corner points lifted to the
-  // surface, radius = max corner distance. Conservative, cheap, and exact enough
-  // for culling.
-  let mx = 0;
-  let my = 0;
-  let mz = 0;
-  for (const p of corners) {
-    mx += p.x;
-    my += p.y;
-    mz += p.z;
-  }
-  const meanDir = vnorm(v3(mx / 4, my / 4, mz / 4));
+  const meanDir = vnorm(v3((p00.x + p10.x + p01.x + p11.x) / 4, (p00.y + p10.y + p01.y + p11.y) / 4, (p00.z + p10.z + p01.z + p11.z) / 4));
   const centre = vscale(meanDir, planet.radius);
 
-  let radius = 0;
-  for (const p of corners) {
-    const lifted = vscale(p, surfaceR);
-    radius = Math.max(radius, vlen(v3(lifted.x - centre.x, lifted.y - centre.y, lifted.z - centre.z)));
-  }
-  // Also account for elevation directly under the centre.
-  radius = Math.max(radius, maxTerrainElevation);
+  const d = (p: { x: number; y: number; z: number }): number => {
+    const lx = p.x * surfaceR - centre.x;
+    const ly = p.y * surfaceR - centre.y;
+    const lz = p.z * surfaceR - centre.z;
+    return Math.sqrt(lx * lx + ly * ly + lz * lz);
+  };
+  const radius = Math.max(d(p00), d(p10), d(p01), d(p11), maxTerrainElevation);
 
   // Sagitta of the node's arc: R * (1 - cos(theta/2)), theta = arc / R.
-  const arc = cellSize(key.level, planet) * 1.0;
+  const arc = cellSize(key.level, planet);
   const theta = arc / planet.radius;
   const sagitta = planet.radius * (1 - Math.cos(theta / 2));
 
@@ -102,11 +85,59 @@ export function makeNode(
   };
 }
 
+/**
+ * Persistent node cache. `makeNode` is pure but not cheap (four cube-sphere
+ * conversions, each a pair of `tan`). The selector visits the same few hundred
+ * keys every frame; the pool makes that O(1) after the first look.
+ *
+ * Not a module-level singleton — the renderer owns one. Protocol §8.
+ */
+export class NodePool {
+  private readonly map = new Map<number, PatchNode>();
+  private elev = 0;
+  hits = 0;
+  misses = 0;
+
+  get(key: QuadKey, planet: PlanetGeometry, maxTerrainElevation: number): PatchNode {
+    if (maxTerrainElevation !== this.elev) {
+      this.map.clear();
+      this.elev = maxTerrainElevation;
+      this.hits = 0;
+      this.misses = 0;
+    }
+    const id = quadkey.packId(key);
+    const cached = this.map.get(id);
+    if (cached !== undefined) {
+      this.hits++;
+      return cached;
+    }
+    this.misses++;
+    const node = makeNode(key, planet, maxTerrainElevation);
+    this.map.set(id, node);
+    return node;
+  }
+
+  get size(): number {
+    return this.map.size;
+  }
+
+  clear(): void {
+    this.map.clear();
+    this.hits = 0;
+    this.misses = 0;
+  }
+}
+
 /** The six root nodes, one per cube face, in fixed face order. */
-export function rootNodes(planet: PlanetGeometry, maxTerrainElevation = 0): readonly PatchNode[] {
+export function rootNodes(
+  planet: PlanetGeometry,
+  maxTerrainElevation = 0,
+  pool?: NodePool,
+): readonly PatchNode[] {
   const out: PatchNode[] = [];
   for (let face = 0; face < 6; face++) {
-    out.push(makeNode(quadkey.rootKey(face), planet, maxTerrainElevation));
+    const key = quadkey.rootKey(face);
+    out.push(pool ? pool.get(key, planet, maxTerrainElevation) : makeNode(key, planet, maxTerrainElevation));
   }
   return out;
 }
@@ -115,8 +146,10 @@ export function childNodes(
   node: PatchNode,
   planet: PlanetGeometry,
   maxTerrainElevation = 0,
-): readonly PatchNode[] {
-  return quadkey
-    .children(node.key)
-    .map((k) => makeNode(k, planet, maxTerrainElevation));
+  pool?: NodePool,
+): readonly [PatchNode, PatchNode, PatchNode, PatchNode] {
+  const kids = quadkey.children(node.key);
+  const get = (k: QuadKey): PatchNode =>
+    pool ? pool.get(k, planet, maxTerrainElevation) : makeNode(k, planet, maxTerrainElevation);
+  return [get(kids[0]), get(kids[1]), get(kids[2]), get(kids[3])];
 }

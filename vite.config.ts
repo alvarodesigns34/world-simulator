@@ -14,10 +14,22 @@ export default defineConfig({
   },
   define: { __WS_DEV__: 'import.meta.env.DEV' },
   server: {
+    host: '0.0.0.0',
+    port: 8080,
+    strictPort: true,
     // SharedArrayBuffer requires cross-origin isolation (DEC-020). Without
     // these headers the FieldStore silently falls back to non-shared buffers,
     // which is a supported configuration but a slower one — so the dev server
     // sets them and the HUD reports which path is live.
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 8080,
+    strictPort: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',

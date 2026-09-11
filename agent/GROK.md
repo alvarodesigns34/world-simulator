@@ -15,6 +15,94 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-11 — M1 measured, hardened, instrumented. Opus unavailable.
+
+**Branch:** `agent/grok/m1-astra-ready` · **Tasks:** T-0017 Done; T-0050/T-0013 Partial; T-0051 open
+**Commits:** `[GROK] perf: measure and harden M1 for Astra visual gate`
+**Sheet:** [`docs/M1-MEASUREMENTS.md`](../docs/M1-MEASUREMENTS.md)
+
+Opus is out of budget. This session is Grok → Astra, not Grok → Opus → Astra.
+Architecture v1 was not reopened. M2 was not started. No budget number was
+silently edited.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | M1 CPU profile | **Sound with the pool.** All eight situations < 0.4 ms against a 1.0 ms `lodTraversal` budget. GPU column empty — this host has no adapter. |
+| 2 | E1 patch size | **Keep 33×33** on CPU+arithmetic. 17 hits the 2048 cap at 1440p discrete (3.52 px/tri). 65 undershoots 1080p density. GPU half is Astra. |
+| 3 | LOD selector | **Was the hot spot Opus left.** Per-node `PatchNode` + four `tan`s. `NodePool` + `SelectWorkspace` + scalar frustum: 3–8×. Semantics unchanged. |
+| 4 | LOD / horizon / frustum | **One real bug, now fixed.** Splitting without room for 4 children punched holes (parent dropped, extra children dropped). Poles, face transitions, tight budgets, fast motion: covered. Horizon formula not refuted. |
+| 5 | Popping | **Characterised, not "solved".** Hysteresis 1.5; max disappear 57 / 100 ms sample; t=0 appear 194 is the initial set. Morph is T-0015/M2. Astra decides if this is tolerable. |
+| 6 | FieldStore | **Generation-publish holds under phase-separated workers** after a handshake. Holding `raw()` across `commit()` aliases the back buffer — tested, documented, forbidden. `consistentRead` is the seqlock. |
+| 7 | Scheduler | **Wave-Kahn is O(V+E)**, still emits A,C,B. 100 subsystems, random registration, identical order. Opus's drain-to-target bug cannot reappear from the graph. |
+| 8 | SAB vs transfer | **Rules, not dogma.** L11 SAB REQUIRED; tiles 256 KB–1 MB transfer PREFERRED; 8–64 KB UNNECESSARY; control clone UNNECESSARY. Node numbers; browser 50 MB from AUDIT-V0 still the browser figure. |
+| 9 | WebGPU | **Code audit only.** Pipeline once, depth view cached, timestamp-query optional, device-lost on the HUD, destroy on patch-size change. No device here. |
+| 10 | Telemetry | **Done.** Fixed ring, Chrome Trace, HUD, `T`/`G`/`P`/`[`/`]`/`?descent`. `core` never calls `performance`. |
+| 11 | Descent `0x51a51a51` | **Reproducible.** 60 s, 601 samples, budget never exhausted. Steady p50 0.155 ms. 16/601 > 1 ms is GC on this 2-vCPU box, not algorithmic (t=42.1: 230 visited, 0 misses, 4.2 ms). |
+| 12 | `hashFloat01x64` ÷ 2⁵³ | **Exact on this V8**, 10 000 samples. |
+| 13 | `maxJobSimYears: 5000` | **Not derived, not changed.** ADR-level. T-0053, M4. |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| F1 | BUG | LOD | Split reserved 1 slot, not 4 → holes | `lod.stress.test.ts` | **Fixed** in `select.ts` |
+| F2 | BUG | FieldStore | Two `Atomics.load`s of generation can mix front/back | reasoning + concurrency test | **Fixed**: single-load snapshot; `consistentRead` |
+| F3 | HAZARD | FieldStore | Held `raw()` aliases the back buffer after `commit` | concurrency test | Documented, not "fixed" — the API cannot copy 50 MB |
+| F4 | PERF | LOD | `makeNode` per visit ~3–6 ms high orbit | profile, descent t=0 | **Fixed**: `NodePool` |
+| F5 | PERF | Scheduler | Ready-set rescan was O(n²) per phase | `graph.ts` as written | **Fixed**: adjacency + indegree, wave-Kahn |
+| F6 | TEST | Descent | `t += 0.1` missed the last sample (600 vs 601) | popping test | **Fixed**: `descentSampleTimes` |
+| F7 | TEST | FieldStore | Reader started after 20 k commits → `stable=0` | concurrency test | **Fixed**: handshake |
+| F8 | NOTE | Renderer | Live `maxLevel` default was 10, descent uses 12 | `renderer.ts` vs `descent.ts` | **Fixed**: both 12 |
+| F9 | OPEN | GPU | E1 GPU, E2 swim, timestamps | no adapter | T-0050 Partial, T-0051 Open |
+| F10 | OPEN | Workers | No 1/4/8-worker identity; no browser transfer table | T-0013 acceptance | T-0013 Partial |
+| F11 | DEFER | Morph | No CDLOD | intentional | T-0015 |
+| F12 | DEFER | Budgets | `maxJobSimYears: 5000` is a guess | T4 arithmetic | T-0053 |
+
+### Benchmarks
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| High orbit select, pooled | 1440p discrete 33×33 | 0.366 ms / 195 patches | 1.0 ms ok |
+| Surface select, pooled | 5 m | 0.112 ms / 7 patches | ok |
+| Poles | ±90°, 200 km | 0.049 / 0.045 ms | ok |
+| Fast motion | 300 km | 0.295 ms | ok |
+| Descent 60 s pooled | seed `0x51a51a51`, 601 samples | p50 0.155, p95 0.821, max disappear 57, budget-exh. 0 | lodTraversal 1.0 ms (steady) |
+| E1 17/33/65 @1440p discrete | CPU | 0.480 / **0.429** / 0.482 ms; px/tri 3.52 / **2.00** / 2.00 | keep 33 |
+| Transfer 1 MB | Node worker_threads | clone 1.014 / xfer 0.075 / SAB 0.158 ms | tiles → transfer |
+| Transfer 50 MB | Node | clone 133 / xfer 1.014 / SAB 1.802 ms | L11 → SAB |
+| RSS during profile | Node | 100 MB, pool 2966 | MEMORY.simState not in play at M1 |
+
+### Disagreements raised
+
+None that need a new ADR. 33×33 is a confirmation of Opus's default, not a
+change. `maxJobSimYears` is a Proposed-later (T-0053), not a silent edit.
+SAB rules refine DEC-020; they do not supersede it.
+
+Not reopening: cube-sphere, WebGPU-only, no-three.js, year-split, sim/render
+boundary, morph-in-M1, budget constants.
+
+### Known problems
+
+- **No GPU in this environment.** E1 GPU, E2 vertex swim, timestamp-query, frame
+  pacing, cracks, scale perception: Astra, on a real adapter.
+- **Node ≠ browser** for transfer. AUDIT-V0 50 MB transfer 34 ms is still the
+  browser number.
+- **No CDLOD morph.** Popping is measured; it is not gone.
+- **No worker pool.** Generation-publish is tested with two threads, not 1/4/8
+  workers producing identical worlds.
+- **16/601 descent samples > 1 ms** on this host. They do not track work. Do not
+  treat them as a lodTraversal regression until Astra's HUD disagrees.
+
+### Next
+
+Handoff is **Grok → Astra**. A-0001 is a real request in `agent/ASTRA.md`.
+Do not wait for Opus. Technical bugs Astra finds come back to Grok. Architectural
+changes wait for Opus unless they are an emergency.
+
+---
+
 ## 2026-09-11 — Adversarial audit of Architecture v0
 
 **Branch:** `agent/grok/architecture-v0-audit` · **Tasks:** T-0007, T-0024 · **Commits:** `[GROK] audit: …`
@@ -97,12 +185,13 @@ I pick up T-0045, T-0046, T-0013, T-0017, T-0020, T-0021 once v1 locks.
 
 | ID | Task | Priority |
 | --- | --- | --- |
-| T-0007 | Adversarial audit of Architecture v0 | **Review** |
-| T-0024 | Attack RENDERING.md §7 budgets with arithmetic | **Review** (done in the same turn) |
-| T-0045 | `hashU64` as DEC-017 already specified | P0 |
-| T-0046 | Boundary checker: sort / Map / quoted-property | P1 |
-| T-0013 | Worker pool, SAB vs transfer — 50 MB measured, tiles not | P0 |
-| T-0017 | Telemetry ring buffer + Chrome Trace export | P1 |
+| T-0007 | Adversarial audit of Architecture v0 | **Done** |
+| T-0024 | Attack RENDERING.md §7 budgets with arithmetic | **Done** |
+| T-0017 | Telemetry ring buffer + Chrome Trace export | **Done** |
+| T-0050 | E1: patch-size sweep on real GPUs | **Partial** — CPU done, GPU is Astra |
+| T-0013 | Worker pool, SAB vs transfer, tile-sized jobs | **Partial** — Node tiles + rules; browser + 1/4/8 still open |
+| T-0051 | E2: reversed-Z vertex swim | P1 |
+| T-0053 | Derive `maxJobSimYears` from T4 arithmetic | P2 (M4) |
 | T-0020 | Cube-face seam topology (include hydrology corners) | P1 |
 | T-0021 | `stableMath` — accuracy + benchmark + engine matrix | P1 |
 | T-0030 | Genesis plate simulation (M2) | P2 |

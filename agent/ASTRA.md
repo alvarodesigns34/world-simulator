@@ -108,65 +108,158 @@ M5, M8, M10, M12 are data-verifiable and need only a gate review, not investigat
 
 | ID | Request | Milestone | Status |
 | --- | --- | --- | --- |
-| A-0001 | M1 gate — orbit→surface continuity, precision, depth, poles | M1 | **Not yet requested.** The engine now runs; see the brief below for what will be asked and what has already been ruled out. |
+| A-0001 | M1 gate — orbit→surface continuity, precision, depth, poles, popping, frame pacing | M1 | **Ready to request.** Opus is unavailable; do not wait. Grok has measured everything a CPU can. |
 
 ---
 
-## A-0001 (draft) — what Astra should check at the M1 gate
+## A-0001 — M1 gate (request)
 
-**Not yet a request.** Astra has not been invoked and must not be until T-0013,
-T-0017 and E1 (T-0050) have run, because several of the questions below need a
-telemetry trace to be answerable and it would waste a budgeted call to ask twice.
-This section exists so the request is ready and so nobody re-derives it.
-
-### How to run
+Milestone:      M1
+Requested by:   Grok 4.6
+Branch/commit:  `agent/grok/m1-astra-ready` (PR to `dev`; do not merge `main`)
+Sheet:          `docs/M1-MEASUREMENTS.md`
+How to run:
 
 ```
-pnpm install && pnpm dev     # http://localhost:5173
+pnpm install
+pnpm dev                 # http://localhost:8080  (COOP/COEP on; SAB path live)
+# or jump straight into the scripted descent:
+# open http://localhost:8080/?descent
 ```
-Controls: drag to orbit, wheel or `W`/`S` for altitude, `1`/`2`/`3` for shaded /
-LOD-level / patch-boundary views, `[` and `]` to change patch size at runtime,
-`P` to toggle the automatic pole sweep.
 
-### What has ALREADY been ruled out — do not re-check these
+Requires WebGPU. There is no WebGL2 fallback (DEC-003). An unsupported
+browser prints a specific reason, not a blank canvas — that is correct.
 
-These are covered by tests and are not worth Astra's budget:
+### Controls
 
-- Polar singularities in the camera **maths** (five tests: both poles, a full
-  polar orbit, `moveForward` over a pole, `setAltitude` at a pole).
-- Depth-buffer **numerical** resolution across the altitude sweep (measured:
-  75 nm at 1 m, 2.9 m at 40 000 km, always >100× finer than a pixel).
-- LOD selector determinism, budget compliance, and never emitting both a node and
-  its ancestor.
+| key | action |
+| --- | --- |
+| drag | orbit |
+| wheel / `W` `S` | altitude |
+| `1` `2` `3` | shaded / LOD-level / patch-boundary |
+| `[` `]` | patch size 17 ↔ 33 ↔ 65 (rebuilds the renderer; one hitch is expected) |
+| `P` | automatic pole sweep |
+| `T` | start the 60 s descent (seed `0x51a51a51`); downloads a Chrome Trace at t=60 |
+| `G` | export the current telemetry ring as Chrome Trace JSON (Perfetto) |
+| `` ` `` / `H` | toggle HUD |
+
+### What to look at
+
+Load `?descent` (or press `T` from orbit). Watch the HUD. Then repeat free-fly.
+
+1. **Pole sweep (`P`).** The camera maths is proven; what is not proven is
+   whether the *motion* reads as smooth as it crosses ±90°. This is the
+   single most valuable question on the milestone.
+2. **Descent popping.** Morphing is **not implemented** (T-0015). Hysteresis
+   1.5 only. CPU characterisation: max disappear 57 patches / 100 ms sample,
+   max appear after t=0 is 48, t=0 appear=194 is the initial set. Is that
+   *visible as a pop*, and is it tolerable until M2?
+3. **Cracks / cube-face seams**, especially at the 8 corners and at grazing
+   angles, view `3`. T-0020 is open; this tells us how urgent.
+4. **Stationary at ~2 m.** Vertex swim (E2 / T-0051 / R-09). The f32
+   relative-precision arithmetic says no; a GPU has not confirmed it.
+5. **Frame pacing.** HUD `frame` / `cpu` / `select` / `gpu`. The 6.0 ms
+   main-thread and 1.0 ms `lodTraversal` budgets. On Grok's host, steady
+   select p50 was 0.155 ms; 16/601 samples > 1 ms were GC (t=42.1: 230
+   visited, 0 misses, 4.2 ms). If *your* `select` stays < 1.0 ms, those
+   were the box. If it doesn't, file it.
+6. **Horizon.** Does the limb look like a planet or like a cut-out disc?
+   Horizon culling is conservative against the analytic horizon in tests;
+   grazing silhouette quality is not.
+7. **Scale.** From 40 000 km, does it feel like a planet or like a ball?
+8. **Patch size `[`/`]`.** CPU says keep 33×33 (17 hits the 2048 cap at
+   1440p discrete → 3.52 px/tri; 65 undershoots 1080p density). If 17 or
+   65 *looks* clearly better on your GPU, say so with the HUD numbers.
+9. **Console / HUD `DEVICE LOST` / `GPU ERROR`**, and which vendor.
+   DEC-003 has no fallback (R-01). Coverage is a real risk.
+
+### What "correct" means
+
+- Orbit → surface is one continuous camera, no mode seam, no gimbal flip
+  at the poles.
+- Depth does not z-fight from 40 000 km to 2 m in a single range.
+- The planet does not grow holes as the camera moves (the CPU hole-bug is
+  fixed; a visual hole is a regression).
+- Popping, if present, is a LOD transition, not a flicker. Morph is allowed
+  to wait for M2 if you say so.
+- Frame time on a discrete GPU at 1440p stays inside 16.6 ms except for
+  the one hitch when patch size changes.
+
+### Already ruled out — do not re-check these
+
+Covered by tests / benches. Spending budget here is a waste.
+
+- Polar singularities in the camera **maths** (five tests: both poles, a
+  full polar orbit, `moveForward` over a pole, `setAltitude` at a pole).
+- Depth-buffer **numerical** resolution (75 nm at 1 m, 2.9 m at 40 000 km,
+  always >100× finer than a pixel).
+- LOD selector determinism, never emitting a node and its ancestor, budget
+  never exhausted on the 601-sample descent.
 - Horizon-cull conservativeness against the analytic horizon.
-- That the patch budget can never fall below 2 px/triangle.
+- Patch budget never below 2 px/triangle (DEC-032).
+- `hashU64` vs BigInt; `hashFloat01x64` ÷ 2⁵³ exact on V8.
+- FieldStore generation-publish under phase-separated workers; `raw()`
+  aliasing after `commit` (known hazard, documented).
+- Scheduler order independent of registration; A,C,B wave contract;
+  Opus's drain-to-target bug.
+- CPU half of E1 (keep 33×33 unless *your GPU* disagrees).
+- SAB vs transfer **rules** (L11 REQUIRED, tiles PREFERRED transfer,
+  8–64 KB UNNECESSARY). Browser table is T-0013 remainder, not this gate.
+- Telemetry overhead as a CPU concern (fixed ring, no per-frame alloc).
 
-### What only a human looking at the running app can answer
+### Telemetry to observe
 
-1. **Does the pole sweep (`P`) LOOK continuous?** The maths is proven; what is
-   not proven is whether the *motion* reads as smooth or whether the control
-   mapping does something disconcerting as it crosses. This is the single most
-   valuable question.
-2. **Is there visible vertex swim** with the camera stationary near the surface?
-   The f32 relative-precision arithmetic says no; a GPU has not confirmed it
-   (R-09, E2/T-0051).
-3. **Is LOD popping visible** during a descent? Morphing is **not implemented
-   yet** — M1 has hysteresis but no CDLOD morph — so some popping is expected.
-   The question is whether it is *tolerable enough to defer morphing to M2*, or
-   whether it must be done first.
-4. **Do patch boundaries (`3`) line up across cube faces**, especially at the 8
-   corners and at grazing angles? T-0020 is open; this would tell us how urgent.
-5. **Does the scale read as planetary?** From orbit, does it feel like a planet
-   or like a ball? This is a judgement no test makes.
-6. **Any console errors or device-lost events** on your GPU/driver — and which
-   vendor, since DEC-003 has no fallback (R-01) and coverage is a real risk.
+HUD, every frame:
 
-### What will be asked for in the verdict
+- `FPS`, `frame`, `cpu`, `select`, `encode`, `gpu`
+- `altitude`, `speed`
+- `patches` / budget, `triangles`, `px/tri`, `patch size`
+- `LOD` histogram, `max level`, `visited`, `pool hit/miss`
+- `culled horizon` / `frustum`
+- `telemetry` µs, `spikes`
+- `SAB yes/no`, `DEVICE LOST`, `GPU ERROR`
 
-A tier judgement per DEC-032 (`discrete` / `integrated` / `floor`), the observed
-frame time from the HUD at three altitudes, and whether item 3 blocks M2.
+At the end of `T`, open the downloaded JSON in Perfetto. Zones:
+`frame`, `simCommit`, `lodSelect`, `renderEncode`, `gpu`.
 
----
+Record, in the verdict: GPU vendor/adapter, tier the HUD shows, resolution,
+patch size, frame ms at **orbit / 80 km / 2 m**, and whether `gpu` is a
+number or `n/a`.
 
-*(No entries yet — M0 has nothing to look at. This is the one milestone without an
-Astra gate, and it is why M1 is deliberately kept small.)*
+### The specific question
+
+**Is M1 visually good enough to start M2 terrain, or does popping / pacing /
+poles / seams / swim force work first?**
+
+### Approval criteria
+
+```
+Verdict:   APPROVED | APPROVED WITH FINDINGS | REJECTED
+```
+
+| Verdict | When |
+| --- | --- |
+| **APPROVED** | Orbit→surface reads as one camera. Poles look continuous. No holes. Popping is tolerable until M2 morph. Frame pacing holds on a discrete GPU at 1440p. No device-lost loop. Scale reads as a planet. 33×33 is acceptable (or you name the size that won, with numbers). |
+| **APPROVED WITH FINDINGS** | The above holds, but there are localised defects (a seam at one corner, mild popping at one altitude, timestamp-query missing on this vendor, 17 looking better on fill-rate). File each as a task. M2 may start. |
+| **REJECTED** | Unusable frame pacing, holes in the mesh, poles that *look* broken, a device-lost loop, z-fighting from orbit to surface, or popping so violent that morph cannot wait for M2. |
+
+M1 does **not** close without one of the first two. A REJECTED is not
+overridable by argument — only by a fix (`PROTOCOL.md` §5.3).
+
+Findings come back to **Grok** if they are localised/technical. They wait
+for **Opus** if they need an ADR. Do not start M2 in the same turn as a
+REJECTED.
+
+### Reproduction of the scripted descent
+
+Seed `0x51a51a51`. Keyframes in `packages/render/src/lod/descent.ts`:
+
+| t s | what |
+| ---: | --- |
+| 0–12 | high orbit, equatorial, 40 000 km → 8 000 km |
+| 12–24 | descend toward the pole |
+| 24–36 | polar pass (the DEC-029 reason this exists), 1 500 km → 600 km |
+| 36–48 | continental, mid-latitude, 80 km |
+| 48–60 | surface approach to 2 m |
+
+Same cameras on any machine. The CPU trace is `tools/bench/descent-trace.json`.

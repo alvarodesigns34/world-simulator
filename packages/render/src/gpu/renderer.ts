@@ -3,16 +3,14 @@
  *
  * M1 scope, deliberately small: a stable sphere, camera-relative, reversed-Z,
  * driven by the real LOD selector. No terrain generation, no 8.2 M triangles.
- * The point is to prove the selector, the precision path and the frame loop —
- * DEC-032's arithmetic says the triangle budget was fiction, so nothing here
- * chases it.
  *
  * RESOURCE LIFECYCLE. Every GPU object this creates is owned here and released
  * in `destroy()`. The instance buffer grows geometrically and never shrinks per
- * frame, so a steady state allocates nothing.
+ * frame, so a steady state allocates nothing. The depth view is cached across
+ * frames of the same size. The pipeline is created once.
  */
 
-import { budgets, vlen, vnorm, vscale, v3, vcross, type Vec3 } from '@ws/core';
+import { budgets, vnorm, vscale, v3, vcross, type Vec3 } from '@ws/core';
 import { cubeFaceToUnit, quadkey, type PlanetGeometry } from '@ws/data';
 import type { CameraState } from '../camera/state.js';
 import { derive, nearPlane } from '../camera/state.js';
@@ -21,8 +19,13 @@ import {
   perspectiveReversedZInfinite,
   viewRotationOnly,
 } from '../camera/matrices.js';
-import { selectPatches, sortVisible, type SelectStats } from '../lod/select.js';
-import type { PatchNode } from '../lod/quadtree.js';
+import {
+  createSelectWorkspace,
+  selectPatches,
+  sortVisibleInPlace,
+  type SelectStats,
+} from '../lod/select.js';
+import { NodePool, type PatchNode } from '../lod/quadtree.js';
 import { PLANET_WGSL } from '../shaders/planet.wgsl.js';
 import type { GpuContext } from './device.js';
 
@@ -47,6 +50,11 @@ export interface FrameStats extends SelectStats {
   readonly drawnPatches: number;
   readonly altitude: number;
   readonly cameraNear: number;
+  readonly cameraSpeed: number;
+  /** GPU pass time in ms if timestamp-query is available; otherwise -1. */
+  readonly gpuFrameMs: number;
+  readonly patchVerticesPerSide: number;
+  readonly pixelCount: number;
 }
 
 export class PlanetRenderer {
@@ -54,6 +62,8 @@ export class PlanetRenderer {
   private readonly planet: PlanetGeometry;
   private readonly n: number;
   private readonly maxLevel: number;
+  private readonly pool = new NodePool();
+  private readonly workspace = createSelectWorkspace();
 
   private pipeline!: GPURenderPipeline;
   private uniformBuffer!: GPUBuffer;
@@ -64,12 +74,24 @@ export class PlanetRenderer {
   private instanceCapacity = 0;
   private bindGroup: GPUBindGroup | null = null;
   private depthTexture: GPUTexture | null = null;
+  private depthView: GPUTextureView | null = null;
   private depthSize = { w: 0, h: 0 };
 
   private instanceData = new Float32Array(0);
   private readonly uniformData = new Float32Array(24); // mat4 + vec4 + vec4
   private previouslySplit: ReadonlySet<number> = new Set();
   private destroyed = false;
+
+  private querySet: GPUQuerySet | null = null;
+  private queryResolve: GPUBuffer | null = null;
+  private queryRead: GPUBuffer | null = null;
+  private gpuReadPending = false;
+  private lastGpuMs = -1;
+  private lastCamX = 0;
+  private lastCamY = 0;
+  private lastCamZ = 0;
+  private lastCamT = 0;
+  private haveLastCam = false;
 
   debugMode: DebugMode = 'shaded';
   sunDirection: Vec3 = vnorm(v3(1, 0.35, 0.25));
@@ -78,8 +100,12 @@ export class PlanetRenderer {
     this.gpu = gpu;
     this.planet = opts.planet;
     this.n = opts.patchVerticesPerSide ?? budgets.QUALITY.patchVerticesPerSide;
-    this.maxLevel = opts.maxLevel ?? 10;
+    this.maxLevel = opts.maxLevel ?? 12;
     this.createStaticResources();
+  }
+
+  get nodePool(): NodePool {
+    return this.pool;
   }
 
   private createStaticResources(): void {
@@ -105,13 +131,10 @@ export class PlanetRenderer {
       depthStencil: {
         format: DEPTH_FORMAT,
         depthWriteEnabled: true,
-        // Reversed-Z.
         depthCompare: DEPTH_COMPARE,
       },
     });
 
-    // The shared patch mesh: ONE grid, reused by every patch as an instance
-    // (DEC-010 rule 2). This is what keeps CPU draw cost flat.
     const n = this.n;
     const verts = new Float32Array(n * n * 2);
     for (let j = 0, k = 0; j < n; j++) {
@@ -152,6 +175,20 @@ export class PlanetRenderer {
       size: this.uniformData.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+
+    if (this.gpu.hasTimestampQuery) {
+      this.querySet = device.createQuerySet({ type: 'timestamp', count: 2 });
+      this.queryResolve = device.createBuffer({
+        label: 'gpu-time-resolve',
+        size: 16,
+        usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+      });
+      this.queryRead = device.createBuffer({
+        label: 'gpu-time-read',
+        size: 16,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+      });
+    }
   }
 
   private ensureInstanceCapacity(count: number): void {
@@ -185,16 +222,16 @@ export class PlanetRenderer {
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
       });
       this.depthSize = { w, h };
+      this.depthView = this.depthTexture.createView();
     }
-    return this.depthTexture.createView();
+    return this.depthView as GPUTextureView;
   }
 
   /**
    * Pack one patch into the instance buffer, CAMERA-RELATIVE.
    *
    * This is the f64 -> f32 boundary in practice: `corner - camera` is computed
-   * in f64 here, and only the small difference is written as f32. Within 100 km
-   * of the camera one f32 ulp is 7.8 mm.
+   * in f64 here, and only the small difference is written as f32.
    */
   private writeInstance(out: Float32Array, at: number, node: PatchNode, cam: CameraState): void {
     const [u0, v0, u1, v1] = quadkey.bounds(node.key);
@@ -204,7 +241,6 @@ export class PlanetRenderer {
     const cu = cubeFaceToUnit({ face: node.key.face, u: u1, v: v0 });
     const cv = cubeFaceToUnit({ face: node.key.face, u: u0, v: v1 });
 
-    // f64 differences, then f32 store.
     const ox = corner.x * R - cam.position.x;
     const oy = corner.y * R - cam.position.y;
     const oz = corner.z * R - cam.position.z;
@@ -216,14 +252,10 @@ export class PlanetRenderer {
     const tvy = (cv.y - corner.y) * R;
     const tvz = (cv.z - corner.z) * R;
 
-    // The planet centre, in camera-relative space. The shader re-projects onto
-    // the sphere from this, so it never needs a world position.
-    const centreRel = v3(-cam.position.x, -cam.position.y, -cam.position.z);
-
     let k = at * FLOATS_PER_INSTANCE;
-    out[k++] = ox; out[k++] = oy; out[k++] = oz; out[k++] = centreRel.z;
-    out[k++] = tux; out[k++] = tuy; out[k++] = tuz; out[k++] = centreRel.x;
-    out[k++] = tvx; out[k++] = tvy; out[k++] = tvz; out[k++] = centreRel.y;
+    out[k++] = ox; out[k++] = oy; out[k++] = oz; out[k++] = -cam.position.z;
+    out[k++] = tux; out[k++] = tuy; out[k++] = tuz; out[k++] = -cam.position.x;
+    out[k++] = tvx; out[k++] = tvy; out[k++] = tvz; out[k++] = -cam.position.y;
     out[k++] = node.key.level; out[k++] = 0; out[k++] = node.key.face; out[k++] = 0;
   }
 
@@ -240,9 +272,11 @@ export class PlanetRenderer {
       patchVerticesPerSide: this.n,
       maxLevel: this.maxLevel,
       previouslySplit: this.previouslySplit,
+      pool: this.pool,
+      workspace: this.workspace,
     });
     this.previouslySplit = result.split;
-    const visible = sortVisible(result.visible);
+    const visible = sortVisibleInPlace(this.workspace.visible);
     const t1 = nowMs();
 
     this.ensureInstanceCapacity(Math.max(1, visible.length));
@@ -253,7 +287,7 @@ export class PlanetRenderer {
       device.queue.writeBuffer(
         this.instanceBuffer,
         0,
-        this.instanceData.buffer,
+        this.instanceData.buffer as ArrayBuffer,
         0,
         visible.length * FLOATS_PER_INSTANCE * 4,
       );
@@ -280,6 +314,10 @@ export class PlanetRenderer {
     device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
 
     const encoder = device.createCommandEncoder({ label: 'frame' });
+    const stamp =
+      this.querySet !== null
+        ? { querySet: this.querySet, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 }
+        : undefined;
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
@@ -295,6 +333,7 @@ export class PlanetRenderer {
         depthLoadOp: 'clear',
         depthStoreOp: 'store',
       },
+      ...(stamp ? { timestampWrites: stamp } : {}),
     });
 
     if (visible.length > 0 && this.bindGroup !== null) {
@@ -305,8 +344,30 @@ export class PlanetRenderer {
       pass.drawIndexed(this.indexCount, visible.length);
     }
     pass.end();
+
+    if (this.querySet !== null && this.queryResolve !== null && this.queryRead !== null && !this.gpuReadPending) {
+      encoder.resolveQuerySet(this.querySet, 0, 2, this.queryResolve, 0);
+      encoder.copyBufferToBuffer(this.queryResolve, 0, this.queryRead, 0, 16);
+    }
+
     device.queue.submit([encoder.finish()]);
+    this.scheduleGpuRead();
     const t2 = nowMs();
+
+    const now = t2;
+    let speed = 0;
+    if (this.haveLastCam) {
+      const dt = Math.max(1e-4, (now - this.lastCamT) / 1000);
+      const dx = cam.position.x - this.lastCamX;
+      const dy = cam.position.y - this.lastCamY;
+      const dz = cam.position.z - this.lastCamZ;
+      speed = Math.sqrt(dx * dx + dy * dy + dz * dz) / dt;
+    }
+    this.lastCamX = cam.position.x;
+    this.lastCamY = cam.position.y;
+    this.lastCamZ = cam.position.z;
+    this.lastCamT = now;
+    this.haveLastCam = true;
 
     return {
       ...result.stats,
@@ -315,7 +376,30 @@ export class PlanetRenderer {
       drawnPatches: visible.length,
       altitude: d.altitude,
       cameraNear: d.cameraNear,
+      cameraSpeed: speed,
+      gpuFrameMs: this.lastGpuMs,
+      patchVerticesPerSide: this.n,
+      pixelCount: width * height,
     };
+  }
+
+  private scheduleGpuRead(): void {
+    const buf = this.queryRead;
+    if (buf === null || this.gpuReadPending) return;
+    this.gpuReadPending = true;
+    void buf.mapAsync(GPUMapMode.READ).then(
+      () => {
+        const times = new BigInt64Array(buf.getMappedRange().slice(0));
+        const a = times[0] ?? 0n;
+        const b = times[1] ?? 0n;
+        this.lastGpuMs = Number(b - a) / 1e6;
+        buf.unmap();
+        this.gpuReadPending = false;
+      },
+      () => {
+        this.gpuReadPending = false;
+      },
+    );
   }
 
   destroy(): void {
@@ -324,6 +408,10 @@ export class PlanetRenderer {
     this.uniformBuffer.destroy();
     this.gridBuffer.destroy();
     this.indexBuffer.destroy();
+    this.querySet?.destroy();
+    this.queryResolve?.destroy();
+    if (!this.gpuReadPending) this.queryRead?.destroy();
+    this.depthView = null;
     this.destroyed = true;
   }
 }
@@ -339,5 +427,3 @@ export function sunDirectionFor(cam: CameraState): Vec3 {
   const east = vnorm(vcross(v3(0, 0, 1), up));
   return vnorm(vscale(east, 1));
 }
-
-export { vlen };

@@ -6,7 +6,91 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-11 · Grok → **Astra** · M1 is ASTRA-READY WITH KNOWN ISSUES. Opus is out.
+
+**Tasks:** A-0001 (the M1 gate) · **Priority:** P0
+**Branch:** `agent/grok/m1-astra-ready` → PR to `dev`
+**Sheet:** [`docs/M1-MEASUREMENTS.md`](../docs/M1-MEASUREMENTS.md)
+**Request:** `agent/ASTRA.md` A-0001 — fill every field. Do not improvise a second one.
+
+Opus 5 is temporarily out of budget. **Do not wait for Opus.** This handoff
+replaces the Grok→Opus→Astra path. Technical / localised bugs you find come
+back to Grok. Architectural changes wait for Opus unless the running app is
+unusable without them.
+
+### What is done
+
+M1 kernel (Opus) plus measurement, stress, two bugs, and instrumentation (Grok):
+
+- LOD `NodePool` + `SelectWorkspace` + scalar frustum. Hole-fix: a split
+  reserves room for 4 children. Live `maxLevel` is 12, matching the descent.
+- Telemetry ring, Chrome Trace (`G`), HUD (`\``), descent `T` / `?descent`.
+- FieldStore `handles()` + `consistentRead` seqlock; concurrency tests with
+  a handshake. Holding `raw()` across `commit()` aliases the back buffer —
+  tested, documented, forbidden.
+- Scheduler wave-Kahn O(V+E). A,C,B contract pinned. 100-subsystem stress.
+- E1 CPU: **keep 33×33**. E3: SAB REQUIRED for L11; transfer PREFERRED for
+  tiles 256 KB–1 MB; 8–64 KB UNNECESSARY; control clone UNNECESSARY.
+- Deterministic 60 s descent, seed **`0x51a51a51`**. Budget never exhausted.
+  Popping characterised (max disappear 57 / 100 ms sample).
+- WebGPU: timestamp-query if present, cached depth view, device-lost on HUD.
+
+`pnpm test`, `pnpm run check`, `pnpm run check:sim-standalone` green on this
+branch. `pnpm dev` is `http://localhost:8080` with COOP/COEP.
+
+### What is not done — and who owns it
+
+| Item | Owner | Why it is not a blocker for A-0001 |
+| --- | --- | --- |
+| E1 GPU column (17/33/65 × 3 res × ≥2 vendors) | **You** (look at HUD `gpu` + patch `[`/`]`) | CPU says 33; GPU may disagree. Record the number. |
+| E2 vertex swim at 1 m | **You** (stationary, surface, look for crawl) | Needs a GPU. T-0051 stays open if you see it. |
+| CDLOD morph | M2 / T-0015 | Hysteresis only, on purpose. Judge popping. |
+| Worker pool 1/4/8 | Grok, T-0013 remainder | Not visible. Do not investigate. |
+| Browser SAB vs transfer | Grok, T-0013 remainder | Not visible. Do not investigate. |
+| `maxJobSimYears: 5000` | Grok, T-0053, M4 | Not visible. |
+| Field colour-ramp | T-0019, M2 | No spatial field yet. |
+| Climate / ocean / biosphere / civ | M2+ | Out of scope. |
+
+### Seams
+
+- The composition root is `packages/app/src/main.ts`. `sim` and `render` meet
+  only there. Do not couple them to "fix" a visual bug.
+- `previouslySplit` is a **fresh Set** every frame. Do not clear it in-place.
+- Patch-size change (`[`/`]`) destroys and rebuilds the renderer. A one-frame
+  hitch is expected; a leak or a device-lost is not.
+- Descent `T` downloads a Chrome Trace JSON at t=60. Open it in Perfetto if
+  the HUD is not enough. Seed is in the filename.
+
+### What I am unsure about
+
+1. Whether popping of 57 patches / 100 ms is *visible as a pop* or just a
+   number. That is the whole reason you exist on this milestone.
+2. Whether the later descent select spikes (4 ms at t=42 on this 2-vCPU box,
+   0 pool misses) appear on a real machine. If your HUD `select` stays
+   < 1.0 ms, they were GC. If it doesn't, file it at Grok.
+3. Whether 33×33 is still right once fill-rate is in the table.
+
+### Specifically check
+
+The list in A-0001. In order of value:
+
+1. Pole sweep (`P`) — does the *motion* read as continuous?
+2. Descent (`T` or `?descent`) — popping, cracks, frame pacing, HUD `select` / `gpu`.
+3. Stationary at ~2 m — vertex swim (E2).
+4. Patch boundaries (`3`) at cube-face corners.
+5. Console / HUD `DEVICE LOST` / `GPU ERROR`, and which vendor.
+
+Do **not** re-check polar camera maths, depth-buffer arithmetic, selector
+determinism, horizon conservativeness, or the 2 px/tri floor. Tests have those.
+
+Do **not** start M2. Do **not** merge `main`.
+
+— Grok
+
+---
+
 ## 2026-09-11 · Opus → **Grok 4.6** · Architecture v1 is locked; M1 runs. Break it.
+
 
 **Tasks:** T-0013, T-0017, T-0050, T-0051, T-0020, T-0021 · **Priority:** P0
 

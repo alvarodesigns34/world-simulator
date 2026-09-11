@@ -15,6 +15,11 @@
  *   - a write conflict (two subsystems writing one field — violates DEC-013)
  *   - an undeclared owner (writing a field owned by someone else)
  *   - an unknown field
+ *
+ * WAVE SEMANTICS. Ready nodes are emitted as a whole wave, sorted lexically,
+ * then new nodes are discovered. That is NOT classic one-at-a-time Kahn:
+ * if A and C are independent and B depends on A, with A < B < C lexically,
+ * the order is A, C, B — not A, B, C. A test pins this. Do not "fix" it.
  */
 
 import type { FieldId, FieldStore, SubsystemId } from '@ws/data';
@@ -131,48 +136,46 @@ export function buildSchedule(
 }
 
 /**
- * Kahn's algorithm with a lexically-ordered ready set.
+ * Wave-Kahn with a lexically-ordered ready set, O(V+E) per phase plus one
+ * sort per wave.
  *
- * The ready set is kept sorted rather than used as a queue: that is what makes
- * the result independent of the input order, which is the property DEC-031
- * actually promises and which `deterministic ordering` tests assert.
+ * The ready set is emitted as a whole wave (not one node at a time). That is
+ * what makes "A and C independent, B depends on A" produce A,C,B rather than
+ * A,B,C, and it is a contract, not an accident.
  */
 function sortPhase(subsystems: readonly Subsystem[], phase: Phase): readonly Subsystem[] {
   const byId = new Map<string, Subsystem>(subsystems.map((s) => [s.id as string, s]));
+  const ids = subsystems.map((s) => s.id as string);
 
-  // Edge writer -> reader for every field written here and read here.
-  // `readsPrev` deliberately creates no edge (DEC-031 rule 4).
   const writerOf = new Map<string, string>();
   for (const s of subsystems) for (const f of s.writes) writerOf.set(f as string, s.id as string);
 
-  const deps = new Map<string, Set<string>>();
-  for (const s of subsystems) deps.set(s.id as string, new Set());
+  const indegree = new Map<string, number>();
+  const outgoing = new Map<string, string[]>();
+  for (const id of ids) {
+    indegree.set(id, 0);
+    outgoing.set(id, []);
+  }
   for (const s of subsystems) {
+    const reader = s.id as string;
+    const seen = new Set<string>();
     for (const f of s.reads) {
       const w = writerOf.get(f as string);
-      if (w !== undefined && w !== (s.id as string)) {
-        (deps.get(s.id as string) as Set<string>).add(w);
-      }
+      if (w === undefined || w === reader || seen.has(w)) continue;
+      seen.add(w);
+      indegree.set(reader, (indegree.get(reader) as number) + 1);
+      (outgoing.get(w) as string[]).push(reader);
     }
   }
 
-  const remaining = new Set<string>(subsystems.map((s) => s.id as string));
+  const remaining = new Set<string>(ids);
   const result: Subsystem[] = [];
 
   while (remaining.size > 0) {
     const ready: string[] = [];
-    for (const s of subsystems) {
-      const id = s.id as string;
-      if (!remaining.has(id)) continue;
-      const d = deps.get(id) as Set<string>;
-      let blocked = false;
-      for (const need of d) {
-        if (remaining.has(need)) {
-          blocked = true;
-          break;
-        }
-      }
-      if (!blocked) ready.push(id);
+    // deterministic-order: remaining is scanned only to collect the ready set, which is sorted lexically before emission.
+    for (const id of remaining) {
+      if ((indegree.get(id) as number) === 0) ready.push(id);
     }
 
     if (ready.length === 0) {
@@ -184,10 +187,14 @@ function sortPhase(subsystems: readonly Subsystem[], phase: Phase): readonly Sub
       );
     }
 
-    ready.sort(cmpStr); // lexical tie-break — DEC-031 rule 2.3
+    ready.sort(cmpStr);
     for (const id of ready) {
       result.push(byId.get(id) as Subsystem);
       remaining.delete(id);
+      // deterministic-order: indegree decrement is commutative; the next wave re-collects and sorts.
+      for (const reader of outgoing.get(id) as string[]) {
+        indegree.set(reader, (indegree.get(reader) as number) - 1);
+      }
     }
   }
 

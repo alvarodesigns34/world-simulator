@@ -148,4 +148,17 @@ describe('determinism: hashU64', () => {
     // 32-bit floats would collide here; 53-bit must not.
     expect(seen.size).toBe(50_000);
   });
+
+  it('hashFloat01x64 division by 2^53 is exact on this engine', () => {
+    const TWO53 = 2 ** 53;
+    expect(TWO53).toBe(9007199254740992);
+    for (let i = 0; i < 10_000; i++) {
+      const v = hashFloat01x64(SEED, DOMAIN.TEST, i);
+      const back = v * TWO53;
+      expect(Number.isInteger(back)).toBe(true);
+      expect(back).toBeGreaterThanOrEqual(0);
+      expect(back).toBeLessThan(TWO53);
+      expect(back / TWO53).toBe(v);
+    }
+  });
 });
