@@ -10,10 +10,29 @@ import type { GeologyState } from '../geology/plates.js';
 import { chooseSeaLevel } from '../terrain/hypsometry.js';
 
 export interface OceanState {
-  readonly seaLevel: number;
+  seaLevel: number;
   readonly mask: Uint8Array;
   readonly depthM: Float32Array;
-  readonly oceanFraction: number;
+  oceanFraction: number;
+}
+
+/** Recompute the one authoritative coastline in place after geology/ice
+ * changes. Keeping object identity avoids stale renderer references. */
+export function refreshOcean(ocean: OceanState, geology: GeologyState, seaLevel: number): void {
+  ocean.seaLevel = seaLevel;
+  let wet = 0;
+  for (let i = 0; i < geology.cellCount; i++) {
+    const depth = seaLevel - (geology.elevationM[i] as number);
+    if (depth > 0) {
+      ocean.mask[i] = 1;
+      ocean.depthM[i] = depth;
+      wet++;
+    } else {
+      ocean.mask[i] = 0;
+      ocean.depthM[i] = 0;
+    }
+  }
+  ocean.oceanFraction = wet / geology.cellCount;
 }
 
 export function deriveOcean(geology: GeologyState, seaLevel?: number): OceanState {

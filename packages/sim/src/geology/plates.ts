@@ -78,7 +78,7 @@ export interface GeologyState {
   readonly elevationM: Float32Array;
 }
 
-interface Plate {
+export interface RuntimePlate {
   id: number;
   continental: boolean;
   /* Euler pole, unit. */
@@ -99,7 +99,7 @@ export function defaultGenesis(seed: Seed): GenesisConfig {
 /**
  * Rotate `v` about unit axis `u` by `ang` radians (Rodrigues).
  */
-function rotate(
+export function rotate(
   vx: number,
   vy: number,
   vz: number,
@@ -118,8 +118,8 @@ function rotate(
   return [vx * c + cx * s + ux * d * t, vy * c + cy * s + uy * d * t, vz * c + cz * s + uz * d * t];
 }
 
-function makePlates(cfg: GenesisConfig): Plate[] {
-  const plates: Plate[] = [];
+export function makePlates(cfg: GenesisConfig): RuntimePlate[] {
+  const plates: RuntimePlate[] = [];
   const n = cfg.plateCount;
   for (let i = 0; i < n; i++) {
     const z = hashFloat01x64(cfg.seed, DOMAIN.PLATES, i, 1) * 2 - 1;
@@ -157,12 +157,12 @@ function makePlates(cfg: GenesisConfig): Plate[] {
   const want = Math.max(1, Math.round(n * cfg.continentFraction));
   for (let k = 0; k < want; k++) {
     const id = order[k] as number;
-    (plates[id] as Plate).continental = true;
+    (plates[id] as RuntimePlate).continental = true;
   }
   return plates;
 }
 
-function precomputeUnits(level: number): Float64Array {
+export function precomputeUnits(level: number): Float64Array {
   const n = cubeDim(level);
   const units = new Float64Array(cellCount(level) * 3);
   for (let face = 0; face < 6; face++) {
@@ -179,7 +179,7 @@ function precomputeUnits(level: number): Float64Array {
   return units;
 }
 
-function assignVoronoi(units: Float64Array, plates: readonly Plate[], plateId: Uint8Array): void {
+export function assignVoronoi(units: Float64Array, plates: readonly RuntimePlate[], plateId: Uint8Array): void {
   const cells = plateId.length;
   for (let i = 0; i < cells; i++) {
     const x = units[i * 3] as number;
@@ -188,7 +188,7 @@ function assignVoronoi(units: Float64Array, plates: readonly Plate[], plateId: U
     let best = 0;
     let bestDot = -2;
     for (let p = 0; p < plates.length; p++) {
-      const pl = plates[p] as Plate;
+      const pl = plates[p] as RuntimePlate;
       const d = x * pl.sx + y * pl.sy + z * pl.sz;
       if (d > bestDot) {
         bestDot = d;
@@ -199,10 +199,10 @@ function assignVoronoi(units: Float64Array, plates: readonly Plate[], plateId: U
   }
 }
 
-function classifyBoundary(
+export function classifyBoundary(
   level: number,
   plateId: Uint8Array,
-  plates: readonly Plate[],
+  plates: readonly RuntimePlate[],
   units: Float64Array,
   boundary: Uint8Array,
 ): void {
@@ -214,7 +214,7 @@ function classifyBoundary(
       for (let x = 0; x < n; x++) {
         const i = cubeIndex(face, level, x, y);
         const pid = plateId[i] as number;
-        const pl = plates[pid] as Plate;
+        const pl = plates[pid] as RuntimePlate;
         const ux = units[i * 3] as number;
         const uy = units[i * 3 + 1] as number;
         const uz = units[i * 3 + 2] as number;
@@ -229,7 +229,7 @@ function classifyBoundary(
           const j = cubeIndex(nb.face, level, nb.x, nb.y);
           const qid = plateId[j] as number;
           if (qid === pid) continue;
-          const ql = plates[qid] as Plate;
+          const ql = plates[qid] as RuntimePlate;
           const nx = units[j * 3] as number;
           const ny = units[j * 3 + 1] as number;
           const nz = units[j * 3 + 2] as number;
@@ -252,9 +252,9 @@ function classifyBoundary(
   }
 }
 
-function diagnose(
+export function diagnose(
   plateId: Uint8Array,
-  plates: readonly Plate[],
+  plates: readonly RuntimePlate[],
   boundary: Uint8Array,
   age: Float32Array,
   thick: Float32Array,
@@ -266,7 +266,7 @@ function diagnose(
   const cells = plateId.length;
   for (let i = 0; i < cells; i++) {
     const pid = plateId[i] as number;
-    const pl = plates[pid] as Plate;
+    const pl = plates[pid] as RuntimePlate;
     const b = boundary[i] as number;
     const continental = pl.continental;
     crust[i] = continental ? CRUST_CONTINENT : CRUST_OCEAN;

@@ -30,6 +30,7 @@ import {
   classifyRegime,
   initClimate,
   quiesceClimate,
+  refreshClimateBoundary,
   resumeClimate,
   stepClimate,
   type ClimateState,
@@ -43,8 +44,16 @@ import {
   type GenesisConfig,
   type GeologyState,
 } from './geology/plates.js';
+import {
+  initDynamicGeology,
+  refreshTerrainFromGeology,
+  stepDynamicGeology,
+  type DynamicGeologyState,
+} from './geology/dynamic.js';
+import { initHydrology, rebuildHydrologyRouting, stepHydrology, type HydrologyState } from './hydrology/system.js';
+import { initBiosphere, stepBiosphere, type BiosphereState } from './biosphere/system.js';
 import { hashWorldState } from './hash.js';
-import { deriveOcean, type OceanState } from './ocean/sea.js';
+import { deriveOcean, refreshOcean, type OceanState } from './ocean/sea.js';
 import { Scheduler } from './scheduler/scheduler.js';
 import type { Subsystem } from './scheduler/types.js';
 import { DEFAULT_EROSION, erode } from './terrain/erosion.js';
@@ -56,6 +65,8 @@ export const OWNER_TERRAIN = subsystemId('terrain');
 export const OWNER_OCEAN = subsystemId('ocean');
 export const OWNER_CLIMATE = subsystemId('climate');
 export const OWNER_ROTATION = subsystemId('planetRotation');
+export const OWNER_HYDROLOGY = subsystemId('hydrology');
+export const OWNER_BIOSPHERE = subsystemId('biosphere');
 
 export const FID = {
   elevation: fieldId('elevation'),
@@ -74,6 +85,17 @@ export const FID = {
   windU: fieldId('windU'),
   windV: fieldId('windV'),
   rotationAngle: fieldId('rotationAngle'),
+  basinId: fieldId('basinId'),
+  flowAccumulation: fieldId('flowAccumulation'),
+  runoff: fieldId('runoff'),
+  soilMoisture: fieldId('soilMoisture'),
+  riverDischarge: fieldId('riverDischarge'),
+  snowpack: fieldId('snowpack'),
+  glacier: fieldId('glacier'),
+  biome: fieldId('biome'),
+  vegetation: fieldId('vegetation'),
+  npp: fieldId('npp'),
+  population: fieldId('population'),
 } as const;
 
 export interface WorldOptions {
@@ -95,6 +117,9 @@ export interface World {
   readonly geology: GeologyState;
   readonly ocean: OceanState;
   readonly climate: ClimateState;
+  readonly hydrology: HydrologyState;
+  readonly biosphere: BiosphereState;
+  readonly dynamicGeology: DynamicGeologyState;
   readonly tiles: TileCache;
   readonly commands: CommandLog;
   readonly terrainLevel: number;
@@ -102,6 +127,17 @@ export interface World {
   visualField: string;
   apply(cmd: Command): void;
   digest(): number;
+}
+
+interface WorldRuntimeRef {
+  timeScale: number;
+  visualField: string;
+  climate: ClimateState;
+  geology: GeologyState;
+  ocean: OceanState;
+  hydrology: HydrologyState;
+  biosphere: BiosphereState;
+  dynamicGeology: DynamicGeologyState;
 }
 
 const DEFAULT_SEED = makeSeed(0x51a5, 0x1a51);
@@ -118,16 +154,21 @@ export function createWorld(opts: WorldOptions = {}): World {
     ...DEFAULT_GENESIS,
     ...opts.genesis,
   };
-  let geology = runGenesis(genesisCfg);
+  const genesis = runGenesis(genesisCfg);
   if (opts.erode !== false) {
-    erode(geology.elevationM, geology.level, DEFAULT_EROSION);
+    erode(genesis.elevationM, genesis.level, DEFAULT_EROSION);
   }
+  let geology: GeologyState = genesis;
   if (terrainLevel !== geology.level) geology = upsampleGeology(geology, terrainLevel);
   const ocean = deriveOcean(geology);
   const climate = initClimate({ n: climateN, geology, seaLevel: ocean.seaLevel, seed, orbit });
+  const hydrology = initHydrology({ geology, ocean, climate });
+  const biosphere = initBiosphere(hydrology);
+  const dynamicGeology = initDynamicGeology(genesisCfg, genesis);
 
   const cubeGrid = gridId('cubesphere', terrainLevel);
   const geoGrid = gridId('geodesic', climateN);
+  const hydroGrid = gridId('cubesphere', hydrology.level);
 
   const store = new FieldStore()
     .declare(i16(FID.elevation, cubeGrid, OWNER_GEOLOGY, 'm', [-11000, 9000], 'slow'))
@@ -146,27 +187,49 @@ export function createWorld(opts: WorldOptions = {}): World {
     .declare(f32(FID.windU, geoGrid, OWNER_CLIMATE, 'm/s', [-200, 200], 'fast'))
     .declare(f32(FID.windV, geoGrid, OWNER_CLIMATE, 'm/s', [-200, 200], 'fast'))
     .declare(i16(FID.rotationAngle, gridId('cubesphere', 6), OWNER_ROTATION, 'deg', [0, 360], 'fast'))
+    .declare(i16(FID.basinId, hydroGrid, OWNER_HYDROLOGY, 'id', [-1, 32767], 'slow'))
+    .declare(f32(FID.flowAccumulation, hydroGrid, OWNER_HYDROLOGY, 'm2', [0, 6e14], 'slow'))
+    .declare(f32(FID.runoff, hydroGrid, OWNER_HYDROLOGY, 'm/s', [0, 0.1], 'slow'))
+    .declare(f32(FID.soilMoisture, hydroGrid, OWNER_HYDROLOGY, 'm', [0, 10], 'slow'))
+    .declare(f32(FID.riverDischarge, hydroGrid, OWNER_HYDROLOGY, 'm3/s', [0, 1e9], 'slow'))
+    .declare(f32(FID.snowpack, hydroGrid, OWNER_HYDROLOGY, 'm', [0, 1000], 'slow'))
+    .declare(f32(FID.glacier, hydroGrid, OWNER_HYDROLOGY, 'm', [0, 5000], 'slow'))
+    .declare(u8(FID.biome, hydroGrid, OWNER_BIOSPHERE, 'enum', [0, 15], 'slow'))
+    .declare(f32(FID.vegetation, hydroGrid, OWNER_BIOSPHERE, 'frac', [0, 1], 'slow'))
+    .declare(f32(FID.npp, hydroGrid, OWNER_BIOSPHERE, 'kg/m2/yr', [0, 20], 'slow'))
+    .declare(f32(FID.population, hydroGrid, OWNER_BIOSPHERE, 'density', [0, 100], 'slow'))
     .seal();
 
   publishGeology(store, geology, ocean);
   publishClimate(store, climate);
+  publishHydrology(store, hydrology);
+  publishBiosphere(store, biosphere);
 
   const tiles = new TileCache({ storage: opts.tileStorage ?? new MemoryTileStore(), capacity: 2048 });
   const commands = createCommandLog();
-  const worldRef: { timeScale: number; visualField: string; climate: ClimateState } = {
+  const worldRef: WorldRuntimeRef = {
     timeScale: 1,
     visualField: 'elevation',
     climate,
+    geology,
+    ocean,
+    hydrology,
+    biosphere,
+    dynamicGeology,
   };
 
   const scheduler = new Scheduler({
     calendar,
     startTime: simTime(0, 0, calendar),
     store,
+    maxStepsPerAdvance: 8192,
   })
-    .register(makeRotation(store))
+    .register(makeGeology(store, worldRef, calendar))
+    .register(makeHydrology(store, worldRef, calendar))
     .register(makeClimate(store, worldRef, orbit, calendar))
     .register(makeOcean(store, worldRef))
+    .register(makeBiosphere(store, worldRef, calendar))
+    .register(makeRotation(store))
     .build();
 
   const world: World = {
@@ -177,6 +240,9 @@ export function createWorld(opts: WorldOptions = {}): World {
     geology,
     ocean,
     climate,
+    hydrology,
+    biosphere,
+    dynamicGeology,
     tiles,
     commands,
     terrainLevel,
@@ -211,13 +277,13 @@ export function createWorld(opts: WorldOptions = {}): World {
 
 function applyCommand(
   world: World,
-  ref: { timeScale: number; visualField: string; climate: ClimateState },
+  ref: WorldRuntimeRef,
   cmd: Command,
 ): void {
   switch (cmd.kind) {
     case 'setTimeScale':
       ref.timeScale = cmd.scale;
-      ref.climate.regime = classifyRegime(cmd.scale);
+      transitionRegime(world, ref, classifyRegime(cmd.scale));
       break;
     case 'pause':
       world.scheduler.pause();
@@ -226,7 +292,7 @@ function applyCommand(
       world.scheduler.resume();
       break;
     case 'setRegime':
-      ref.climate.regime = cmd.regime as Regime;
+      transitionRegime(world, ref, cmd.regime as Regime);
       break;
     case 'setVisualField':
       ref.visualField = cmd.field;
@@ -237,7 +303,40 @@ function applyCommand(
   }
 }
 
+/** T0..T4 transitions are explicit command-log boundaries. Fast transients
+ * quiesce, cadence windows realign deterministically, and slow geology retains
+ * its fixed 100 kyr cadence. */
+function transitionRegime(world: World, ref: WorldRuntimeRef, regime: Regime): void {
+  if (ref.climate.regime === regime) return;
+  quiesceClimate(ref.climate);
+  ref.climate.regime = regime;
+  const y = world.calendar.secondsPerYear;
+  const climateDt = regime === 'explicit' ? HOUR
+    : regime === 'synoptic' ? duration(6 * HOUR)
+    : regime === 'climatology' ? duration(30 * DAY)
+    : duration(100_000 * y);
+  const hydroDt = regime === 'explicit' ? DAY
+    : regime === 'synoptic' ? duration(7 * DAY)
+    : regime === 'climatology' ? duration(y)
+    : duration(100_000 * y);
+  const bioDt = regime === 'explicit' ? duration(30 * DAY)
+    : regime === 'synoptic' ? duration(90 * DAY)
+    : regime === 'climatology' ? duration(y)
+    : duration(100_000 * y);
+  world.scheduler.setCadence(OWNER_CLIMATE, { kind: 'every', dt: climateDt });
+  world.scheduler.setCadence(OWNER_HYDROLOGY, { kind: 'every', dt: hydroDt });
+  world.scheduler.setCadence(OWNER_BIOSPHERE, { kind: 'every', dt: bioDt });
+  world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: climateDt });
+  resumeClimate(ref.climate);
+}
+
 function publishGeology(store: FieldStore, g: GeologyState, ocean: OceanState): void {
+  publishGeologyFields(store, g);
+  fillU8(store, FID.oceanMask, OWNER_OCEAN, ocean.mask);
+  fillI16(store, FID.waterDepth, OWNER_OCEAN, ocean.depthM);
+}
+
+function publishGeologyFields(store: FieldStore, g: GeologyState): void {
   fillI16(store, FID.elevation, OWNER_GEOLOGY, g.elevationM);
   fillU8(store, FID.plateId, OWNER_GEOLOGY, g.plateId);
   fillU8(store, FID.crustType, OWNER_GEOLOGY, g.crustType);
@@ -245,8 +344,6 @@ function publishGeology(store: FieldStore, g: GeologyState, ocean: OceanState): 
   fillI16(store, FID.crustThickness, OWNER_GEOLOGY, g.crustThicknessKm);
   fillU8(store, FID.boundaryType, OWNER_GEOLOGY, g.boundaryType);
   fillI16(store, FID.uplift, OWNER_GEOLOGY, g.upliftM);
-  fillU8(store, FID.oceanMask, OWNER_OCEAN, ocean.mask);
-  fillI16(store, FID.waterDepth, OWNER_OCEAN, ocean.depthM);
 }
 
 function publishClimate(store: FieldStore, s: ClimateState): void {
@@ -256,6 +353,23 @@ function publishClimate(store: FieldStore, s: ClimateState): void {
   fillF32(store, FID.ice, OWNER_CLIMATE, s.ice);
   fillF32(store, FID.windU, OWNER_CLIMATE, s.u);
   fillF32(store, FID.windV, OWNER_CLIMATE, s.v);
+}
+
+function publishHydrology(store: FieldStore, s: HydrologyState): void {
+  fillI16(store, FID.basinId, OWNER_HYDROLOGY, s.basinId);
+  fillF32(store, FID.flowAccumulation, OWNER_HYDROLOGY, s.contributingAreaM2);
+  fillF32(store, FID.runoff, OWNER_HYDROLOGY, s.runoffMps);
+  fillF32(store, FID.soilMoisture, OWNER_HYDROLOGY, s.soilMoistureM);
+  fillF32(store, FID.riverDischarge, OWNER_HYDROLOGY, s.dischargeM3s);
+  fillF32(store, FID.snowpack, OWNER_HYDROLOGY, s.snowpackM);
+  fillF32(store, FID.glacier, OWNER_HYDROLOGY, s.glacierM);
+}
+
+function publishBiosphere(store: FieldStore, s: BiosphereState): void {
+  fillU8(store, FID.biome, OWNER_BIOSPHERE, s.biome);
+  fillF32(store, FID.vegetation, OWNER_BIOSPHERE, s.vegetationDensity);
+  fillF32(store, FID.npp, OWNER_BIOSPHERE, s.nppKgM2Yr);
+  fillF32(store, FID.population, OWNER_BIOSPHERE, s.populationDensity);
 }
 
 function fillI16(store: FieldStore, id: FieldId, owner: SubsystemId, src: ArrayLike<number>): void {
@@ -286,6 +400,66 @@ function fillF32(store: FieldStore, id: FieldId, owner: SubsystemId, src: ArrayL
   for (let i = 0; i < n; i++) raw[i] = src[i] as number;
   f.markAllDirty();
   f.commit();
+}
+
+function makeGeology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar): Subsystem {
+  return {
+    id: OWNER_GEOLOGY,
+    phase: 'Geology',
+    cadence: { kind: 'every', dt: duration(100_000 * calendar.secondsPerYear) },
+    reads: [],
+    writes: [FID.elevation, FID.plateId, FID.crustType, FID.crustAge,
+      FID.crustThickness, FID.boundaryType, FID.uplift],
+    step: (ctx) => {
+      /* Initial due tick establishes the cadence boundary; genesis already
+         represents the state at t=0. */
+      if (ctx.step === 0) return;
+      const dtMyr = (ctx.dt as number) / calendar.secondsPerYear / 1e6;
+      stepDynamicGeology(ref.dynamicGeology, dtMyr, ref.climate.precipMean, ref.hydrology.runoffMps);
+      refreshTerrainFromGeology(ref.dynamicGeology.coarse, ref.geology);
+      refreshOcean(ref.ocean, ref.geology, ref.hydrology.seaLevelM);
+      refreshClimateBoundary(ref.climate, ref.geology, ref.ocean.seaLevel);
+      rebuildHydrologyRouting(ref.hydrology, ref.geology);
+      publishGeologyFields(store, ref.geology);
+    },
+  };
+}
+
+function makeHydrology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar): Subsystem {
+  return {
+    id: OWNER_HYDROLOGY,
+    phase: 'Hydrology',
+    cadence: { kind: 'every', dt: DAY },
+    /* Climate arrays are the previous atmosphere generation: the one-step lag
+       breaks geology→hydrology→atmosphere feedback explicitly. */
+    reads: [FID.elevation],
+    writes: [FID.basinId, FID.flowAccumulation, FID.runoff, FID.soilMoisture,
+      FID.riverDischarge, FID.snowpack, FID.glacier],
+    step: (ctx) => {
+      stepHydrology(ref.hydrology, ref.climate, ctx.dt as number);
+      if (Math.abs(ref.ocean.seaLevel - ref.hydrology.seaLevelM) > 1e-6) {
+        refreshOcean(ref.ocean, ref.geology, ref.hydrology.seaLevelM);
+      }
+      publishHydrology(store, ref.hydrology);
+      void calendar;
+    },
+  };
+}
+
+function makeBiosphere(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar): Subsystem {
+  return {
+    id: OWNER_BIOSPHERE,
+    phase: 'Biosphere',
+    cadence: { kind: 'every', dt: duration(30 * DAY) },
+    reads: [FID.soilMoisture, FID.snowpack, FID.glacier, FID.runoff],
+    writes: [FID.biome, FID.vegetation, FID.npp, FID.population],
+    step: (ctx) => {
+      const years = (ctx.dt as number) / calendar.secondsPerYear;
+      const season = (ctx.time.seconds / calendar.secondsPerYear) % 1;
+      stepBiosphere(ref.biosphere, ref.hydrology, years, season);
+      publishBiosphere(store, ref.biosphere);
+    },
+  };
 }
 
 function makeRotation(store: FieldStore): Subsystem {
@@ -336,7 +510,7 @@ function makeClimate(
   };
 }
 
-function makeOcean(store: FieldStore, ref: { climate: ClimateState }): Subsystem {
+function makeOcean(store: FieldStore, ref: WorldRuntimeRef): Subsystem {
   return {
     id: OWNER_OCEAN,
     phase: 'Ocean',
@@ -347,8 +521,8 @@ function makeOcean(store: FieldStore, ref: { climate: ClimateState }): Subsystem
       /* Mask/depth are slow (terrain-derived). Ice albedo coupling lives in
          the climate step; this tick exists so M5 hydrology has an ocean owner
          already in the graph. */
-      void store;
-      void ref;
+      fillU8(store, FID.oceanMask, OWNER_OCEAN, ref.ocean.mask);
+      fillI16(store, FID.waterDepth, OWNER_OCEAN, ref.ocean.depthM);
     },
   };
 }
