@@ -17,5 +17,6 @@ export * from './tiles/storage.js';
 export * from './tiles/bake.js';
 export * from './tiles/cache.js';
 export * from './commands.js';
+export * from './coupling.js';
 export * from './hash.js';
 export * from './world.js';

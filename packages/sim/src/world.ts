@@ -263,10 +263,16 @@ export function createWorld(opts: WorldOptions = {}): World {
       applyCommand(world, worldRef, cmd);
     },
     digest(): number {
+      /* T-0082: every authoritative subsystem, not just geology + climate.
+         O(total state) — a checkpoint operation, never on the tick path. */
       return hashWorldState({
         seed,
         geology,
         climate: worldRef.climate,
+        hydrology: worldRef.hydrology,
+        biosphere: worldRef.biosphere,
+        dynamicGeology: worldRef.dynamicGeology,
+        ocean: worldRef.ocean,
         seaLevel: ocean.seaLevel,
         time: scheduler.time,
       });
@@ -415,7 +421,15 @@ function makeGeology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar
          represents the state at t=0. */
       if (ctx.step === 0) return;
       const dtMyr = (ctx.dt as number) / calendar.secondsPerYear / 1e6;
-      stepDynamicGeology(ref.dynamicGeology, dtMyr, ref.climate.precipMean, ref.hydrology.runoffMps);
+      /* Forcing arrives WITH its grid (T-0080). Precipitation is on the
+         geodesic climate grid, runoff on the hydrology cube level; neither is
+         the geology grid, and neither may be indexed proportionally. */
+      stepDynamicGeology(ref.dynamicGeology, dtMyr, {
+        precipitationAnnual: ref.climate.precipMean,
+        geodesicN: ref.climate.grid.n,
+        runoffMps: ref.hydrology.runoffMps,
+        runoffLevel: ref.hydrology.level,
+      });
       refreshTerrainFromGeology(ref.dynamicGeology.coarse, ref.geology);
       refreshOcean(ref.ocean, ref.geology, ref.hydrology.seaLevelM);
       refreshClimateBoundary(ref.climate, ref.geology, ref.ocean.seaLevel);

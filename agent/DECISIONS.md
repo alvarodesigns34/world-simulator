@@ -2429,3 +2429,151 @@ union over regimes. Results still publish in resolved subsystem order.
 - Runtime cadence mutation is restricted to positive `every(dt)` cadences and
   known built subsystems.
 - A cadence change is never inferred from wall time or worker completion.
+
+---
+
+## DEC-038 — Cross-grid coupling is coordinate-aware, never proportional
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+M5–M7 live on three discretisations: climate on the geodesic grid, hydrology on
+a cube-sphere level, geology on the coarser genesis cube level. `stepDynamicGeology`
+moved precipitation and runoff between them with `src[floor(i * srcLen / dstLen)]`.
+
+That is not a resampling, it is a reinterpret. It type-checks, produces
+finite output of the right shape, preserves the global mean approximately, and
+maps Africa's rainfall onto an arbitrary other region. Every property a shape-
+or finiteness-based test can check, it satisfies. Only a spatial test sees it.
+
+### Alternatives considered
+
+1. **Force every subsystem onto one grid.** Rejected: DEC-007/DEC-008 chose two
+   grids deliberately — the geodesic grid has no polar singularity for the
+   climate solver, the cube-sphere gives the renderer a quadtree. Collapsing
+   them to remove a coupling bug trades a real numerical advantage for an
+   implementation convenience.
+2. **Nearest-neighbour by great-circle search at each use.** Correct but
+   O(N·M) per call, and recomputed every geological step.
+3. **Cached coordinate-aware plans.** Chosen.
+
+### Decision
+
+`packages/sim/src/coupling.ts` is the only sanctioned path between grids.
+
+- geodesic → cube reuses DEC-008's `resamplePlan` + `geoToCubeIntensive`.
+- cube ↔ cube uses quadtree ancestry: a cell at the finer level is contained by
+  exactly one cell at the coarser level, so the map is `(face, x >> d, y >> d)`.
+  Finer → coarser area-means; coarser → finer injects. Direction is decided by
+  the helper, not the caller, because hydrology runs at `min(6, geology.level)`
+  and the caller does not statically know which grid is finer.
+
+Plans are cached per grid pair. Forcing crosses an API boundary WITH its grid:
+`ErosionForcing` carries `geodesicN` and `runoffLevel`, not bare arrays.
+
+### Consequences
+
+- A subsystem cannot accept a forcing without declaring the grid it is on.
+- Tests for coupling must be spatial (T-0080): a field defined as a function of
+  position must, after mapping, still equal that function at the destination
+  cell's own centre. Shape and mean tests are not evidence.
+- Coarser → finer is piecewise-constant, not interpolated. It invents no detail
+  and preserves the area-mean exactly, which is what an intensive forcing needs.
+
+---
+
+## DEC-039 — Conservation diagnostics measure, they do not assert
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+M7 reported a crust-area budget. It computed `created` from ridge cells, then
+set `consumed = created` whenever any trench cell existed. The residual was
+therefore identically zero by construction, and a test asserted it stayed below
+1e-12 — which it could not fail to do. A plate configuration with runaway
+spreading and no subduction capacity would have reported perfect balance.
+
+### Decision
+
+A quantity named as a diagnostic must be derived independently of the thing it
+is diagnosing. Crust creation and consumption are now each computed from their
+own kinematics:
+
+```
+created  = ridge  length × full spreading rate (5.0e4 m/Myr) × dt
+consumed = trench length × convergence rate    (6.0e4 m/Myr) × dt
+```
+
+Boundary *length* — not boundary-band area — sets crust flux, so a boundary
+cell contributes `sqrt(cell area)`; that converges under refinement instead of
+scaling with resolution. Per-cell areas are used, not a mean: tangent-warped
+cube cells differ by ~1.3× between face centre and corner (DEC-007).
+
+Tests assert the properties that make the number a measurement: both sides
+strictly positive, lengths planetary in scale, the residual finite, non-zero,
+and bounded well below the degenerate value of 2.
+
+### Consequences
+
+- The model's measured ridge length is ~63,700 km against Earth's ~60,000 km,
+  and converges across levels 4→5 to within 10%. Its trench length is ~87,000 km
+  against Earth's ~45,000 km, so the budget does not close: the residual sits at
+  0.3–0.85. **That is now visible, and it is a real property of the reduced
+  Voronoi/Euler-pole kernel rather than a number the code was told to report.**
+- A residual near 2 means one side of the cycle is absent. That is the signal
+  the old version could not produce.
+- Earth's own budget does not close to better than ~10% from these two mean
+  rates; a reduced model is not expected to do better.
+
+---
+
+## DEC-040 — The determinism digest covers all authoritative state
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+`hashWorldState` backs same-seed, reversed-order and 1/4/8-worker identity. It
+covered M2 geology and M4 climate, on a stride of ~4096 and ~2048 samples. All
+of M5 hydrology, M6 biosphere and M7 dynamic geology were invisible to it: a
+worker could corrupt every lake level, all soil moisture, the entire biosphere
+and the whole plate state and the digest would match.
+
+A determinism gate that cannot see two thirds of the simulation is worse than
+no gate, because it is believed.
+
+### Decision
+
+Coverage is complete — no striding over authoritative arrays. Divergence is
+usually local, which is exactly the case a stride hides. The digest folds every
+authoritative array, plus routing topology, the lake list (length first, so two
+different lake sets cannot collide by regrouping), plate Euler poles, the event
+history and the water budget. Absent subsystems fold a distinct sentinel, so
+"subsystem did not run" never reads as "subsystem ran and produced zeros".
+
+Floats are quantised per field. A quantum must satisfy
+`max_magnitude / quantum < 2^53`, or the count is not exactly representable and
+the quantisation silently degrades into f64 rounding of an arbitrary multiple —
+this is why catchment area uses 1 m² and lake volume 1 m³ rather than 1 mm.
+Non-finite values fold to distinct sentinels: two runs that both went NaN in
+different places are not the same run.
+
+The cost is O(total authoritative state). That is the honest price of the
+guarantee, and it makes the digest a **checkpoint operation**. Nothing on the
+per-tick path may call `World.digest()`.
+
+### Consequences
+
+- Coverage is enforced by test, not by review: T-0082 perturbs one cell of every
+  authoritative array and requires the digest to move. Adding a field without
+  folding it fails that test.
+- The digest still tolerates last-bit f64 noise, so worker reassociation does
+  not produce false divergence.

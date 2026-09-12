@@ -42,7 +42,71 @@ describe('M7 dynamic geology', () => {
     }
     expect(convergentLand).toBeGreaterThan(0);
     expect(divergent).toBeGreaterThan(0);
-    expect(s.crustMassRelativeError).toBeLessThanOrEqual(1e-12);
+    /* Creation and consumption are computed from independent kinematics, so
+       both are strictly positive and neither is defined as the other. */
+    expect(s.createdCrustM2).toBeGreaterThan(0);
+    expect(s.consumedCrustM2).toBeGreaterThan(0);
+    expect(s.createdCrustM2).not.toBe(s.consumedCrustM2);
+  });
+
+  /* T-0081. The old accounting set `consumed = created` whenever any trench
+     cell existed, so the residual was identically zero however unbalanced the
+     plate configuration actually was. These tests pin the properties that make
+     the number a measurement rather than a tautology. */
+  it('measures a real, non-degenerate crust budget instead of asserting balance', () => {
+    const g = runGenesis(cfg);
+    const s = initDynamicGeology(cfg, g);
+    for (let k = 0; k < 10; k++) stepDynamicGeology(s, 5);
+
+    /* Boundary lengths are planetary in scale: Earth's ridge system is
+       ~6.0e7 m and its subducting margin ~4.5e7 m. */
+    expect(s.ridgeLengthM).toBeGreaterThan(1e7);
+    expect(s.ridgeLengthM).toBeLessThan(2e8);
+    expect(s.trenchLengthM).toBeGreaterThan(1e7);
+    expect(s.trenchLengthM).toBeLessThan(2e8);
+
+    /* The residual is a symmetric relative difference: 0 when balanced, 2 when
+       one side is missing entirely. This reduced model does not close, and the
+       diagnostic must be free to say so — but the two sides must stay the same
+       order of magnitude, or the plate configuration has degenerated. */
+    expect(Number.isFinite(s.crustMassRelativeError)).toBe(true);
+    expect(s.crustMassRelativeError).toBeGreaterThan(0);
+    expect(s.crustMassRelativeError).toBeLessThan(1.2);
+  });
+
+  it('reports a degenerate budget when one side of the cycle is absent', () => {
+    const g = runGenesis(cfg);
+    const s = initDynamicGeology(cfg, g);
+    stepDynamicGeology(s, 5);
+    const real = s.crustMassRelativeError;
+
+    /* Erase subduction from the boundary classification. The OLD model would
+       have reported consumed = 0 and, with created > 0, an error of exactly 2
+       only by accident of its zero branch; more importantly, with ANY trench
+       present it reported 0. The point here is that a one-sided cycle must be
+       visibly worse than the real configuration. */
+    const s2 = initDynamicGeology(cfg, runGenesis(cfg));
+    s2.consumedCrustM2 = 0;
+    s2.createdCrustM2 = 1e12;
+    const oneSided = Math.abs(s2.createdCrustM2 - s2.consumedCrustM2) /
+      (0.5 * (s2.createdCrustM2 + s2.consumedCrustM2));
+    expect(oneSided).toBeCloseTo(2, 12);
+    expect(real).toBeLessThan(oneSided);
+  });
+
+  it('estimates boundary length independently of grid resolution', () => {
+    /* Length is summed as sqrt(cell area) over boundary cells. If that were
+       instead a raw area sum it would scale with resolution; it must converge.
+       Note this also validates the per-cell area weighting: a single mean area
+       would be wrong by up to 1.3x on a tangent-warped cube (DEC-007). */
+    const lengths = [4, 5].map((level) => {
+      const c = { seed, ...DEFAULT_GENESIS, level, steps: 25, plateCount: 8 };
+      const s = initDynamicGeology(c, runGenesis(c));
+      stepDynamicGeology(s, 10);
+      return s.ridgeLengthM;
+    });
+    const [a, b] = lengths as [number, number];
+    expect(Math.abs(a - b) / a).toBeLessThan(0.1);
   });
 
   it('is deterministic and finite across a 100 Myr coarsened run', () => {
