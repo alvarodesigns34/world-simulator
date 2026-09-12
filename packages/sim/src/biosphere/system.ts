@@ -61,6 +61,12 @@ export function initBiosphere(h: HydrologyState): BiosphereState {
     extinctions: 0,
   };
   diagnoseBiomes(s, h);
+  /* NPP before carrying capacity, because carrying capacity reads it. Without
+     this the world starts with zero primary productivity everywhere, every
+     initial biomass is set from a capacity that ignores it, and any consumer
+     of NPP at t=0 — M8 habitability, for one — sees a dead planet until the
+     biosphere's first step. */
+  diagnoseNpp(s, h, 0);
   for (let i = 0; i < N; i++) {
     if (s.biome[i] === BIOME.OCEAN || s.biome[i] === BIOME.ICE) continue;
     const k = carryingCapacity(s, h, i);
@@ -92,13 +98,12 @@ export function stepBiosphere(s: BiosphereState, h: HydrologyState, dtYears: num
     }
     const T = h.temperatureK[i] as number;
     const water = Math.min(1, (h.soilMoistureM[i] as number) / 0.25);
-    const warmth = clamp01((T - 258) / 35) * clamp01((318 - T) / 25);
     const light = clamp01(0.35 + 0.65 * seasonalLight(season, T));
-    const nutrient = clamp01(0.45 + 0.35 * water + 0.2 * (1 - Math.min(1, Math.abs(h.elevationM[i] as number) / 5000)));
-    const npp = 2.4 * water * warmth * light * nutrient;
-    s.nppKgM2Yr[i] = npp;
+    const drought0 = water < 0.2 ? (0.2 - water) * 2.5 : 0;
+    s.nppKgM2Yr[i] = nppAt(s, h, i, season);
+    const npp = s.nppKgM2Yr[i] as number;
     const snow = h.snowpackM[i] as number;
-    const drought = water < 0.2 ? (0.2 - water) * 2.5 : 0;
+    const drought = drought0;
     const targetPhenology = snow > 0.05 || T < 270 ? 0.05 : clamp01(light * water * (1 - drought));
     s.phenology[i] = approach(s.phenology[i] as number, targetPhenology, Math.min(1, dt * 0.7));
     const K = carryingCapacity(s, h, i);
@@ -129,6 +134,28 @@ export function stepBiosphere(s: BiosphereState, h: HydrologyState, dtYears: num
   }
   migrate(s, h, Math.min(0.15, dt * 0.02));
   s.steps++;
+}
+
+/**
+ * Net primary productivity for one cell, kg/m^2/yr.
+ *
+ * Pure in (biosphere biome, hydrology, season) — a diagnosis, not state, so
+ * initialisation and stepping cannot disagree about it (they used to: only the
+ * step computed it).
+ */
+function nppAt(s: BiosphereState, h: HydrologyState, i: number, season: number): number {
+  if (s.biome[i] === BIOME.OCEAN || s.biome[i] === BIOME.ICE) return 0;
+  const T = h.temperatureK[i] as number;
+  const water = Math.min(1, (h.soilMoistureM[i] as number) / 0.25);
+  const warmth = clamp01((T - 258) / 35) * clamp01((318 - T) / 25);
+  const light = clamp01(0.35 + 0.65 * seasonalLight(season, T));
+  const nutrient = clamp01(0.45 + 0.35 * water + 0.2 * (1 - Math.min(1, Math.abs(h.elevationM[i] as number) / 5000)));
+  return 2.4 * water * warmth * light * nutrient;
+}
+
+/** Refresh the NPP diagnosis over the whole grid. */
+export function diagnoseNpp(s: BiosphereState, h: HydrologyState, season: number): void {
+  for (let i = 0; i < s.cellCount; i++) s.nppKgM2Yr[i] = nppAt(s, h, i, season);
 }
 
 export function diagnoseBiomes(s: BiosphereState, h: HydrologyState): void {

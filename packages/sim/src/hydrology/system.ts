@@ -10,6 +10,7 @@
 import { RADIUS, type ClimateState } from '../climate/solver.js';
 import type { GeologyState } from '../geology/plates.js';
 import type { OceanState } from '../ocean/sea.js';
+import { exp } from '@ws/core';
 import {
   DIR,
   cubeCellSteradians,
@@ -223,17 +224,56 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
       state.snowpackM[i] = (state.snowpackM[i] as number) - compact;
       state.glacierM[i] = (state.glacierM[i] as number) + compact;
     }
+    /* SOIL WATER BALANCE, solved over the interval rather than split (T-0083).
+     *
+     * The previous form infiltrated once and then evaporated for the whole
+     * step. At an hourly cadence that is harmless. At the paleo cadence one
+     * step is 100 kyr, so the soil was recharged once and then dried for a
+     * hundred thousand years: moisture decayed monotonically, NPP followed it
+     * to zero, and the planet became uninhabitable — which M8 discovered by
+     * founding civilisations that then all starved.
+     *
+     * The physical statement is a balance, not a sequence:
+     *
+     *     dS/dt = R - (E0/C) S          S in metres, R and E0 in m/s
+     *
+     * recharge at rate R against evapotranspiration proportional to how wet
+     * the soil is. That has an exact solution over any dt,
+     *
+     *     S(t+dt) = Seq + (S - Seq) exp(-k dt),   Seq = R/k,  k = E0/C
+     *
+     * which relaxes toward the climate's equilibrium moisture instead of
+     * draining. One 100 kyr step and 10^5 one-year steps now agree, which is
+     * the path-independence DEC-030 requires of slow state.
+     */
     const capacity = 0.35;
-    const deficit = Math.max(0, capacity - (state.soilMoistureM[i] as number));
-    const infiltration = Math.min(rainM + meltM, deficit, (2e-7 + deficit * 2e-6) * dtSeconds);
-    state.soilMoistureM[i] = (state.soilMoistureM[i] as number) + infiltration;
-    const evapM = Math.min(
-      state.soilMoistureM[i] as number,
-      Math.max(0, T - 250) * 4e-11 * dtSeconds,
-    );
-    state.soilMoistureM[i] = (state.soilMoistureM[i] as number) - evapM;
+    const s0 = state.soilMoistureM[i] as number;
+    const supplyM = rainM + meltM;
+    /* Infiltration is rate-limited: a downpour runs off, it does not all soak
+       in however dry the ground is. */
+    const infiltrationRate = 2e-7 + 2e-6 * capacity;
+    const rechargeRate = Math.min(supplyM / Math.max(dtSeconds, 1), infiltrationRate);
+    const potentialEtRate = Math.max(0, T - 250) * 4e-11;
+    const k = potentialEtRate / capacity;
+
+    let sUnclamped: number;
+    if (k > 0) {
+      const sEq = rechargeRate / k;
+      sUnclamped = sEq + (s0 - sEq) * exp(-k * dtSeconds);
+    } else {
+      sUnclamped = s0 + rechargeRate * dtSeconds;
+    }
+    const sFinal = Math.min(capacity, Math.max(0, sUnclamped));
+    /* Saturation excess: water the profile could not hold becomes runoff. */
+    const saturationExcess = Math.max(0, sUnclamped - capacity);
+    const rechargeM = rechargeRate * dtSeconds;
+    const absorbed = sFinal - s0;
+    /* Closes exactly: supply = runoff + storage change + evaporation. */
+    const evapM = Math.max(0, rechargeM - absorbed - saturationExcess);
+    state.soilMoistureM[i] = sFinal;
     evaporation += evapM * area;
-    state.runoffMps[i] = Math.max(0, rainM + meltM - infiltration) / Math.max(dtSeconds, 1);
+    const runoffM = Math.max(0, supplyM - rechargeM + saturationExcess);
+    state.runoffMps[i] = runoffM / Math.max(dtSeconds, 1);
   }
   updateDischarge(state);
   let oceanOutflow = 0;

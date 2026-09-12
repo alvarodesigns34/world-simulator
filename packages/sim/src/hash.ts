@@ -39,6 +39,7 @@ import type { ClimateState } from './climate/solver.js';
 import type { HydrologyState } from './hydrology/system.js';
 import type { BiosphereState } from './biosphere/system.js';
 import type { OceanState } from './ocean/sea.js';
+import type { CivilisationState } from './civilisation/system.js';
 
 /* ---- 32-bit folding primitives -------------------------------------- */
 
@@ -248,6 +249,21 @@ function foldOcean(h: number, o: OceanState): number {
   return foldScalar(acc, o.oceanFraction, 1e-12);
 }
 
+function foldCivilisation(h: number, c: CivilisationState): number {
+  /* EntityStore folds its own LIVE SET (dead slots are not world state), so
+     the digest is invariant to which free slot a settlement happens to reuse
+     but sensitive to every value a live settlement holds. */
+  let acc = mix(mix(h, c.store.digest()), c.store.count);
+  acc = foldInts(acc, c.claim);
+  acc = foldScalar(acc, c.totalPopulation, 1e-6);
+  acc = mix(acc, c.foundedTotal);
+  acc = mix(acc, c.collapsedTotal);
+  acc = mix(acc, c.relocatedTotal);
+  acc = mix(acc, c.nextCulture);
+  acc = mix(acc, c.steps);
+  return foldScalar(acc, c.year, 1e-6);
+}
+
 /* ---- entry point ----------------------------------------------------- */
 
 export interface WorldHashInput {
@@ -258,6 +274,7 @@ export interface WorldHashInput {
   readonly biosphere?: BiosphereState;
   readonly dynamicGeology?: DynamicGeologyState;
   readonly ocean?: OceanState;
+  readonly civilisation?: CivilisationState;
   readonly seaLevel: number;
   readonly time: SimTime;
 }
@@ -285,5 +302,6 @@ export function hashWorldState(args: WorldHashInput): number {
   h = args.hydrology !== undefined ? foldHydrology(h, args.hydrology) : mix(h, 0xc3);
   h = args.biosphere !== undefined ? foldBiosphere(h, args.biosphere) : mix(h, 0xc4);
   h = args.dynamicGeology !== undefined ? foldDynamicGeology(h, args.dynamicGeology) : mix(h, 0xc5);
+  h = args.civilisation !== undefined ? foldCivilisation(h, args.civilisation) : mix(h, 0xc6);
   return h >>> 0;
 }

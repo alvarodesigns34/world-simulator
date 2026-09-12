@@ -2577,3 +2577,114 @@ per-tick path may call `World.digest()`.
   folding it fails that test.
 - The digest still tolerates last-bit f64 noise, so worker reassociation does
   not produce false divergence.
+
+---
+
+## DEC-041 — EntityStore ships; the DEC-012 ECS gate stays closed
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+**Closes:** DEC-012's "M8 exit" review gate.
+
+### Context
+
+DEC-012 deferred the entity half of world state to M8 with a condition: "If
+entity counts and archetype variety explode at M8/M10, re-evaluate against a
+real ECS with a benchmark." M8 is built, so the gate is due.
+
+### Measurement
+
+`tools/bench/entitystore.mjs`, Node 22 on this host:
+
+| case | ms/pass |
+| --- | --- |
+| SoA iterate+update, 10⁴ entities × 10 f64 | 0.095 |
+| AoS (objects) iterate+update, 10⁴ | 0.102 |
+| SoA iterate+update, 10⁵ | 0.330 |
+| AoS iterate+update, 10⁵ | 0.797 |
+| SoA churn 10% of 10⁵ | 0.418 |
+| SoA copy of 10⁵ × 10 columns | 5.4 |
+| AoS deep clone of 10⁵ objects | 151.7 |
+
+### Decision
+
+Ship `EntityStore` as specified in DEC-012; do not adopt a third-party ECS.
+
+Two of DEC-012's own justifications survive the measurement and one does not,
+and the honest report says which:
+
+- **Iteration speed did NOT decide this.** At 10⁴ entities objects are 0.102 ms
+  against 0.095 ms — a 1.06× difference, i.e. nothing. The record's "fatal at
+  10⁶" was overstated for iteration; a monomorphic object array is handled well
+  by the JIT. Only at 10⁵ does the gap open to 2.4×.
+- **Transfer decided it.** 5.4 ms to copy the columns against 151.7 ms to deep
+  clone the equivalent objects, and 5.4 ms is an upper bound because a
+  SharedArrayBuffer transfers at zero copy (DEC-020). Worker handoff is the
+  thing SoA actually buys.
+- **Archetype variety is one.** Every settlement carries every component, so
+  there is no archetype churn for an ECS to optimise. The machinery that
+  justifies a library is machinery this workload does not use.
+
+### Consequences
+
+- The gate REOPENS if M9/M10 put entities with genuinely disjoint component sets
+  (buildings vs. trade routes vs. agents) in one store. That is the condition
+  under which an ECS earns its dependency; entity count alone is not.
+- Ids pack index and generation into one f64 (`index * 2^32 + generation`),
+  capping a store at 2^21 entities. Checked at construction, not assumed.
+- Capacity is declared and never grown: reallocating columns would invalidate
+  every reference a worker holds, so exhaustion fails loudly instead.
+- `column()` returns a read-only SHAPE, not protected memory — the same honest
+  contract DEC-013's amendment records for FieldStore.
+
+---
+
+## DEC-042 — Slow state is advanced by solving the interval, not by stepping it
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+M8 founded civilisations and they all starved. The cause was not in M8: soil
+moisture decayed monotonically from 0.100 m to 0.019 m over 400 kyr, NPP
+followed it to zero, and the planet became uninhabitable.
+
+The soil balance was operator-split — infiltrate once, then evaporate for the
+whole step. At an hourly cadence that is harmless. At the paleo cadence one
+step is 100 kyr, so the soil was recharged once and then dried for a hundred
+thousand years. The same shape would have appeared in population had M8's
+demography been written as an explicit Euler step.
+
+This is the general hazard of a simulator whose time scales span seconds to
+millions of years: an integrator that is stable at one cadence is not merely
+inaccurate at another, it models a different process.
+
+### Decision
+
+Any slow-state quantity whose step may be large relative to its own time
+constant is advanced by the CLOSED-FORM solution over the interval, not by an
+explicit step. Two now do:
+
+- Soil moisture: `dS/dt = R − (E₀/C)·S` → `S(t+dt) = Seq + (S − Seq)·e^(−k·dt)`,
+  relaxing toward the climate's equilibrium moisture instead of draining.
+- Population and technology: the exact logistic
+  `P(t+dt) = K·P·e^(r·dt) / (K + P·(e^(r·dt) − 1))`, which cannot overshoot and
+  saturates at K for any dt.
+
+### Consequences
+
+- Path-independence becomes a testable property rather than an aspiration: one
+  100 kyr step and 10⁵ one-year steps agree to f64 rounding, which is what
+  DEC-030 requires of slow state. Both are asserted by test.
+- Water conservation is closed by construction in the new soil balance:
+  supply = runoff + storage change + evaporation, with saturation excess routed
+  to runoff rather than discarded.
+- Measured effect: over an 800 kyr paleo run the planet now holds ~184 living
+  settlements with population oscillating between 1.4e9 and 6.4e9 against the
+  climate, instead of a monotonic die-off to zero.
+- Remaining known drift: mean soil moisture still declines 0.100 → 0.044 over
+  800 kyr. That is far slower and no longer catastrophic, but it is a real
+  trend and is recorded rather than declared stable.

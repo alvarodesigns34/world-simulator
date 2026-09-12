@@ -57,6 +57,18 @@ import { deriveOcean, refreshOcean, type OceanState } from './ocean/sea.js';
 import { Scheduler } from './scheduler/scheduler.js';
 import type { Subsystem } from './scheduler/types.js';
 import { DEFAULT_EROSION, erode } from './terrain/erosion.js';
+import {
+  CIV,
+  OWNER_CIVILISATION,
+  initCivilisation,
+  initHabitability,
+  rebuildSiteIndex,
+  refreshHabitability,
+  stepCivilisation,
+  type CivConfig,
+  type CivilisationState,
+  type HabitabilityState,
+} from './civilisation/index.js';
 import { TileCache } from './tiles/cache.js';
 import { MemoryTileStore } from './tiles/storage.js';
 
@@ -96,6 +108,9 @@ export const FID = {
   vegetation: fieldId('vegetation'),
   npp: fieldId('npp'),
   population: fieldId('population'),
+  habitability: fieldId('habitability'),
+  settlementPop: fieldId('settlementPop'),
+  territory: fieldId('territory'),
 } as const;
 
 export interface WorldOptions {
@@ -107,6 +122,9 @@ export interface WorldOptions {
   readonly orbit?: OrbitParams;
   readonly erode?: boolean;
   readonly tileStorage?: import('./tiles/storage.js').TileStorage;
+  readonly civilisation?: Omit<CivConfig, 'seed'>;
+  /** Cube level for hydrology, biosphere and civilisation. Default min(6, genesis level). */
+  readonly hydrologyLevel?: number;
 }
 
 export interface World {
@@ -120,6 +138,8 @@ export interface World {
   readonly hydrology: HydrologyState;
   readonly biosphere: BiosphereState;
   readonly dynamicGeology: DynamicGeologyState;
+  readonly civilisation: CivilisationState;
+  readonly habitability: HabitabilityState;
   readonly tiles: TileCache;
   readonly commands: CommandLog;
   readonly terrainLevel: number;
@@ -138,6 +158,9 @@ interface WorldRuntimeRef {
   hydrology: HydrologyState;
   biosphere: BiosphereState;
   dynamicGeology: DynamicGeologyState;
+  civilisation: CivilisationState;
+  habitability: HabitabilityState;
+  civConfig: CivConfig;
 }
 
 const DEFAULT_SEED = makeSeed(0x51a5, 0x1a51);
@@ -162,9 +185,20 @@ export function createWorld(opts: WorldOptions = {}): World {
   if (terrainLevel !== geology.level) geology = upsampleGeology(geology, terrainLevel);
   const ocean = deriveOcean(geology);
   const climate = initClimate({ n: climateN, geology, seaLevel: ocean.seaLevel, seed, orbit });
-  const hydrology = initHydrology({ geology, ocean, climate });
+  /* Hydrology's default level is min(6, geology.level), and biosphere and
+     civilisation inherit it. That cap is a cost choice, not a law, and it also
+     caps how many settlements the world can hold — so it is exposed rather
+     than hidden, and the M8 benchmark raises it to measure the step at scale. */
+  const hydrology = initHydrology(
+    opts.hydrologyLevel === undefined
+      ? { geology, ocean, climate }
+      : { geology, ocean, climate, level: opts.hydrologyLevel },
+  );
   const biosphere = initBiosphere(hydrology);
   const dynamicGeology = initDynamicGeology(genesisCfg, genesis);
+  const habitability = initHabitability(hydrology);
+  const civConfig: CivConfig = { seed, ...opts.civilisation };
+  const civilisation = initCivilisation(hydrology, biosphere, habitability, civConfig);
 
   const cubeGrid = gridId('cubesphere', terrainLevel);
   const geoGrid = gridId('geodesic', climateN);
@@ -198,12 +232,16 @@ export function createWorld(opts: WorldOptions = {}): World {
     .declare(f32(FID.vegetation, hydroGrid, OWNER_BIOSPHERE, 'frac', [0, 1], 'slow'))
     .declare(f32(FID.npp, hydroGrid, OWNER_BIOSPHERE, 'kg/m2/yr', [0, 20], 'slow'))
     .declare(f32(FID.population, hydroGrid, OWNER_BIOSPHERE, 'density', [0, 100], 'slow'))
+    .declare(f32(FID.habitability, hydroGrid, OWNER_CIVILISATION, 'frac', [0, 1], 'slow'))
+    .declare(f32(FID.settlementPop, hydroGrid, OWNER_CIVILISATION, 'people', [0, 5e7], 'slow'))
+    .declare(i16(FID.territory, hydroGrid, OWNER_CIVILISATION, 'id', [-1, 32767], 'slow'))
     .seal();
 
   publishGeology(store, geology, ocean);
   publishClimate(store, climate);
   publishHydrology(store, hydrology);
   publishBiosphere(store, biosphere);
+  publishCivilisation(store, civilisation);
 
   const tiles = new TileCache({ storage: opts.tileStorage ?? new MemoryTileStore(), capacity: 2048 });
   const commands = createCommandLog();
@@ -216,6 +254,9 @@ export function createWorld(opts: WorldOptions = {}): World {
     hydrology,
     biosphere,
     dynamicGeology,
+    civilisation,
+    habitability,
+    civConfig,
   };
 
   const scheduler = new Scheduler({
@@ -229,6 +270,7 @@ export function createWorld(opts: WorldOptions = {}): World {
     .register(makeClimate(store, worldRef, orbit, calendar))
     .register(makeOcean(store, worldRef))
     .register(makeBiosphere(store, worldRef, calendar))
+    .register(makeCivilisation(store, worldRef, calendar))
     .register(makeRotation(store))
     .build();
 
@@ -243,6 +285,8 @@ export function createWorld(opts: WorldOptions = {}): World {
     hydrology,
     biosphere,
     dynamicGeology,
+    civilisation,
+    habitability,
     tiles,
     commands,
     terrainLevel,
@@ -273,6 +317,7 @@ export function createWorld(opts: WorldOptions = {}): World {
         biosphere: worldRef.biosphere,
         dynamicGeology: worldRef.dynamicGeology,
         ocean: worldRef.ocean,
+        civilisation: worldRef.civilisation,
         seaLevel: ocean.seaLevel,
         time: scheduler.time,
       });
@@ -332,6 +377,20 @@ function transitionRegime(world: World, ref: WorldRuntimeRef, regime: Regime): v
   world.scheduler.setCadence(OWNER_CLIMATE, { kind: 'every', dt: climateDt });
   world.scheduler.setCadence(OWNER_HYDROLOGY, { kind: 'every', dt: hydroDt });
   world.scheduler.setCadence(OWNER_BIOSPHERE, { kind: 'every', dt: bioDt });
+  /* Civilisation coarsens with the rest, and drops to aggregate detail at
+     paleo scales: at 100 kyr per step the interesting quantity is the
+     population envelope, not which hamlet founded which (DEC-015). */
+  /* Civilisation's own time scale is years to millennia, so it does NOT
+     coarsen to the 100 kyr geological step at paleo: a 100 kyr civilisation
+     tick would skip the entire history of every society that ever existed.
+     500 years is the coarsest step at which the closed-form demography still
+     resolves a rise and a fall, and the step is O(cells), so 200 of them per
+     geological tick is affordable. */
+  const civDt = regime === 'explicit' || regime === 'synoptic' ? duration(y)
+    : regime === 'climatology' ? duration(10 * y)
+    : duration(500 * y);
+  world.scheduler.setCadence(OWNER_CIVILISATION, { kind: 'every', dt: civDt });
+  ref.civilisation.detail = regime === 'paleo' ? 'aggregate' : 'full';
   world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: climateDt });
   resumeClimate(ref.climate);
 }
@@ -434,6 +493,11 @@ function makeGeology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar
       refreshOcean(ref.ocean, ref.geology, ref.hydrology.seaLevelM);
       refreshClimateBoundary(ref.climate, ref.geology, ref.ocean.seaLevel);
       rebuildHydrologyRouting(ref.hydrology, ref.geology);
+      /* Geography moved, so where people CAN live moved with it. Refreshing
+         here rather than per-tick is what makes M8 a consequence of M2-M7
+         instead of a parallel world with its own opinions. */
+      refreshHabitability(ref.habitability, ref.hydrology, ref.biosphere);
+      rebuildSiteIndex(ref.civilisation, ref.civConfig);
       publishGeologyFields(store, ref.geology);
     },
   };
@@ -474,6 +538,69 @@ function makeBiosphere(store: FieldStore, ref: WorldRuntimeRef, calendar: Calend
       publishBiosphere(store, ref.biosphere);
     },
   };
+}
+
+function makeCivilisation(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar): Subsystem {
+  return {
+    id: OWNER_CIVILISATION,
+    phase: 'Civilisation',
+    cadence: { kind: 'every', dt: duration(calendar.secondsPerYear) },
+    /* Reads the biosphere and hydrology fields that habitability is built
+       from. It writes no field any other subsystem reads this tick, so it
+       cannot feed back into the same step — the feedback path is the next
+       one, which is what keeps the graph acyclic (DEC-031). */
+    reads: [FID.npp, FID.soilMoisture, FID.riverDischarge, FID.biome],
+    writes: [FID.habitability, FID.settlementPop, FID.territory],
+    step: (ctx) => {
+      const years = (ctx.dt as number) / calendar.secondsPerYear;
+      /* Habitability tracks the biosphere between geological refreshes: a
+         drought that kills the NPP must empty the towns, not just the fields. */
+      refreshHabitability(ref.habitability, ref.hydrology, ref.biosphere);
+      stepCivilisation(ref.civilisation, ref.hydrology, years, ref.civConfig);
+      publishCivilisation(store, ref.civilisation);
+    },
+  };
+}
+
+function publishCivilisation(store: FieldStore, c: CivilisationState): void {
+  fillF32(store, FID.habitability, OWNER_CIVILISATION, c.habitability.suitability);
+
+  /* Per-cell settlement population: a settlement's people spread over the
+     territory it holds, so the renderer and M10 see a population FIELD rather
+     than a point. Reusing the coupling scratch would alias across subsystems,
+     so this owns its own buffer. */
+  const pop = store.mut(FID.settlementPop, OWNER_CIVILISATION);
+  const rawPop = pop.rawMut() as Float32Array;
+  rawPop.fill(0);
+  const terr = store.mut(FID.territory, OWNER_CIVILISATION);
+  const rawTerr = terr.rawMut() as Int16Array;
+  rawTerr.fill(-1);
+
+  const cells = c.store.column(CIV.cell);
+  const people = c.store.column(CIV.population);
+  const held = c.store.column(CIV.territoryCells);
+  const n = Math.min(rawPop.length, c.cellCount);
+  for (let i = 0; i < n; i++) {
+    const owner = c.claim[i] as number;
+    if (owner < 0 || !c.store.aliveAt(owner)) continue;
+    rawTerr[i] = owner > 32767 ? 32767 : owner;
+    const t = held[owner] as number;
+    if (t > 0) rawPop[i] = (people[owner] as number) / t;
+  }
+  /* The settlement's own cell also carries its centre-of-population marker, so
+     a one-cell polity is still visible. */
+  for (let k = 0; k < c.store.bound; k++) {
+    if (!c.store.aliveAt(k)) continue;
+    const cellIndex = cells[k] as number;
+    if (cellIndex >= 0 && cellIndex < n) {
+      rawPop[cellIndex] = Math.max(rawPop[cellIndex] as number, (people[k] as number) / Math.max(1, held[k] as number));
+      rawTerr[cellIndex] = k > 32767 ? 32767 : k;
+    }
+  }
+  pop.markAllDirty();
+  pop.commit();
+  terr.markAllDirty();
+  terr.commit();
 }
 
 function makeRotation(store: FieldStore): Subsystem {

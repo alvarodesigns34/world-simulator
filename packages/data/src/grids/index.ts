@@ -51,7 +51,11 @@ function geodesic(n: number): GridDescriptor {
 }
 
 const GRIDS: readonly GridDescriptor[] = [
-  ...[3, 4, 5, 6, 8, 10, 11, 12].map(cubeSphere),
+  /* Every cube level from 3 to 12. 7 and 9 were absent, which was an omission
+     rather than a decision: the descriptor is pure arithmetic, and their
+     absence only surfaced when M8 tried to benchmark at L7 and hit "unknown
+     grid" for a level the rest of the system handles fine. */
+  ...[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(cubeSphere),
   ...[2, 3, 4, 5, 6, 7].map(geodesic),
 ];
 

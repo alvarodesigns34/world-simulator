@@ -23,7 +23,9 @@
     "bench:transfer": "node tools/bench/transfer.mjs",
     "bench:profile": "node tools/bench/m1-profile.mjs",
     "bench:descent": "node tools/bench/descent-trace.mjs",
-    "bench:fieldstore": "node tools/bench/fieldstore-hotpath.mjs"
+    "bench:fieldstore": "node tools/bench/fieldstore-hotpath.mjs",
+    "bench:entitystore": "node tools/bench/entitystore.mjs",
+    "bench:m8": "node tools/bench/m8-civilisation.mjs"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.72",
