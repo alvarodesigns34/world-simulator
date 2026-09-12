@@ -9,6 +9,84 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-12 — M1 final consolidation (post-redteam)
+
+**Branch:** `agent/opus/m1-final-consolidation` → PR to `dev`, stacked on #5
+**Base:** `75668ff` (Grok's structural red-team) · **Tasks:** T-0070…T-0077
+
+### Review of Grok's T-0066
+
+Everything he fixed is correct. Three were incomplete rather than wrong, and the
+incompleteness is where the interesting findings were. Full table in the PR.
+
+### The two FieldStore findings, both reproduced before fixing
+
+**Read views still handed out writable memory.** `SafeReadView` correctly removed
+the writer methods but forwarded `raw()` and `handles()`. Two hostile tests using
+only the reader's own capabilities both wrote authoritative state — no ownership
+check, no barrier, no generation bump, no dirty mark.
+
+The finding worth keeping is that **this cannot be fixed with a type.** JS has no
+zero-copy non-writable `TypedArray` view: `Readonly<T>` is erased, `Object.freeze`
+does not touch indexed elements, and a `Proxy` costs 10–100× per element on the
+exact path the raw access exists for. So I redrew the contract instead of keeping
+a promise the runtime cannot support: `view()` holds no live memory, and
+everything that does sits behind `unsafeRawAccess(id, reason)`. Enforcement is
+naming and shape, and the DEC-013 amendment says so in those words.
+
+**One dirty mask, two lifetimes.** The replication set was also the consumer
+invalidation set, so it was never cleared and grew monotonically: **820 blocks
+replicated over 40 generations that each touched one block** — N(N+1)/2, an
+O(field) memcpy reached by drift rather than by a decision. Split into a private
+per-generation replication set and a per-block generation *stamp* read through a
+per-consumer cursor. A stamp rather than a mask because a mask needs one global
+`clear()` and there is more than one consumer.
+
+### The finding I did not expect
+
+Grok found `mut()`'s ownership check running through DEV-stripped `assert()`. I
+swept for the same shape and found **ten more**, including the entire of
+`validateDescriptor` — so DEC-028's enforcement, the thing that exists to stop an
+`i16`-centimetres elevation field, **did not exist in a shipping build at all**.
+Added `invariant()` beside `assert()` with an explicit rule: if the system would
+continue with wrong state when the check is removed, it is an invariant.
+
+### Judgement calls
+
+- **`everyNOf` dt**: chose "elapsed span since the follower's own last run" over
+  "sum of leader steps" and over `lastDt × n`, because `(time, dt)` is a
+  half-open span everywhere else and follower spans must tile the leader's
+  timeline. Both alternatives break under a varying cadence, which DEC-030 exists
+  to introduce.
+- **Ordering by graph, not alphabet**: moved the leader→follower edge into the
+  topological sort. Grok validated it after the fact, which made buildability
+  depend on names.
+- **Descent harness to 1 m**: the criterion said 1 m and the harness stopped at
+  2 m. Lowered it rather than amending the criterion — there was no reason for
+  the gap and it reaches 1 m cleanly.
+- **Did not change** the seqlock ordering, the write barrier, or any of the GPU
+  hardening. All three are correct; I strengthened their tests instead.
+
+### Known problems
+
+1. **`copyRange` as the default bulk path is untested against a real GPU upload.**
+   If the renderer ends up calling `unsafeRawAccess` every frame, the boundary I
+   drew is decorative.
+2. **The `blockGeneration` stamp is `Uint32Array`** and wraps at 4.29e9
+   generations — 2.3 years at 60 commits/s. Judged acceptable, not defended.
+3. **`changedBlocksSince` scans all blocks** (6150 at L11) per call per consumer.
+4. **The write barrier still cannot see a captured `rawMut` array.** Pinned by a
+   test, not closed; JS cannot revoke a TypedArray.
+5. **`invariant()` in the FieldStore hot path is unbenchmarked.**
+
+### Next
+
+Grok first, then Astra. I changed FieldStore's public contract in two places and
+that is what M2 leans on hardest, so I would rather he broke it once before we
+spend her. Brief in `agent/HANDOFF.md` with four specific attacks.
+
+---
+
 ## 2026-09-12 — M1 GPU integration review (post-Ampere)
 
 **Branch:** `agent/opus/m1-gpu-integration-review` → PR to `dev`

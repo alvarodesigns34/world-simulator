@@ -690,6 +690,40 @@ temperature field" answerable in ten seconds.
 
 ---
 
+
+### Amendment, 2026-09-12 — read-only is a capability shape, not memory protection (T-0070)
+
+Grok's red-team closed the hole where `view()` returned the live `Field`. A
+follow-up hostile test showed the handle still forwarded `raw()` and
+`handles()`, and **both let a reader write authoritative state** with no
+ownership check, no write barrier, no generation bump and no dirty mark:
+
+```
+view(id).raw().fill(999)                            -> another reader saw 4242
+new Int16Array(view(id).handles().data)[3] = -5000  -> another reader saw -5000
+```
+
+**This cannot be fixed with a type, and DEC-013 should stop implying it can.**
+JavaScript has no zero-copy, non-writable view of a `TypedArray`:
+`Readonly<TypedArray>` is erased at compile time, `Object.freeze` does not
+constrain indexed elements, and a `Proxy` costs 10–100× per element, which
+destroys the hot path the raw access exists for.
+
+So the contract is redrawn honestly:
+
+| Surface | Guarantee |
+| --- | --- |
+| `view(id)` | Genuinely safe. `get`, `copyRange`, `changedBlocksSince`, `blockChangedAt`. **Contains no live memory**, so there is nothing to write through. |
+| `unsafeRawAccess(id, reason)` | Live memory. Can corrupt authoritative state. The mandatory `reason` makes every escape visible in a diff and greppable in review. |
+| `share(id)` | Worker handles, unchanged. |
+
+The enforcement is **naming and shape**, not memory protection. That is enough
+for the actual threat — render or UI corrupting state *by accident* — and it is
+not a defence against malicious code, which this architecture does not claim.
+
+The writer side has the same limit: a `rawMut()` array captured before a step
+evades the DEC-016 barrier. That is pinned by a test rather than left implied.
+
 ## DEC-014 — Simulation time representation
 
 **Date:** 2026-09-11
@@ -905,6 +939,32 @@ why it is mandatory rather than inferred.
   with an empty `writes` set, which keeps it out of the renderer's way.
 
 ---
+
+
+### Amendment, 2026-09-12 — `everyNOf` span semantics and the barrier's real edge (T-0072, T-0074)
+
+**1. A follower's `dt` is the elapsed span, not `leader.lastDt × n`.**
+`(time, dt)` denotes the half-open span `[time, time + dt)` for every `every`
+subsystem, and a follower's spans must **tile** its leader's timeline with no gap
+and no overlap. `lastDt × n` satisfies that only while the leader's cadence never
+varies — and DEC-030 regimes exist precisely to vary it: a leader stepping
+1 d, 1 d, 10 d has covered **12** days, not 30. It was also wrong at the boundary
+already: the first follower span began mid-timeline and left the opening interval
+uncovered. `dt` is now measured from the follower's own `coveredThrough` to its
+leader's.
+
+**2. The leader → follower edge belongs in the graph.** It was validated after the
+topological sort but never established, so the ordering fell out of the lexical
+tie-break: `leader`/`follower` failed to build while `aLeader`/`zFollower`
+succeeded — identical semantics, different names. A follower reads its leader's
+step count, which is a real dependency even though no field carries it.
+
+**3. The write barrier's limit, stated.** `beginStep`/`endStep` catches undeclared
+writes, foreign authors, and views captured before the step, and releases on
+exception. It cannot catch a `rawMut()` array captured earlier and written later:
+JavaScript cannot revoke a `TypedArray` (see the DEC-013 amendment). DEC-016's
+mitigation claim is scoped to accesses that go through the store, and the gap is
+covered by a test rather than by wording.
 
 ## DEC-017 — Determinism: stateless hashed seeds, no shared RNG streams
 
@@ -1913,6 +1973,35 @@ overruns more than halve. This is a truth-in-labelling change, not a quality
 reduction. Whether 4 px of limb deviation is acceptable is a visual question
 that is now answerable; it was not before, because the stated figure was not the
 delivered one.
+
+### Amendment, 2026-09-12 — commit stays O(dirty) only if the dirty set is scoped (T-0071)
+
+Rule 4 says a commit publishes rather than copies. Grok's ping-pong fix
+correctly replicates this generation's dirty blocks after the index flip, but
+the mask it iterates was **also** the consumer invalidation set, so it was never
+cleared — and the replication set grew monotonically. Measured, one block
+written per generation:
+
+| generations | blocks replicated per commit | total |
+| --- | --- | --- |
+| 8 | 1, 2, 3, 4, 5, 6, 7, 8 | 36 |
+| 40 | … | **820** = N(N+1)/2 |
+
+At L11 that turns an O(dirty) publish into an O(field) memcpy after enough
+activity, which is exactly what rule 4 forbids — reached by drift rather than by
+a decision.
+
+Rule 4 is therefore restated with the condition it always depended on:
+
+> A commit replicates **only the blocks written since the previous commit**, and
+> clears that set. Consumer change tracking must use a separate mechanism with
+> its own lifetime — a per-block generation **stamp**, read through a
+> per-consumer cursor — so that no consumer's bookkeeping can extend the
+> writer's copy set.
+
+A stamp rather than a mask because a mask needs one global `clear()` and there
+is more than one consumer. Cost: 4 bytes per block, 24 KB for a 50 MB L11 field.
+
 
 ---
 

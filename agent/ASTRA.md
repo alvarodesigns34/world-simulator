@@ -104,6 +104,27 @@ M5, M8, M10, M12 are data-verifiable and need only a gate review, not investigat
 
 ---
 
+## 2026-09-12 (later) — nothing in your brief changed
+
+A second Opus pass consolidated FieldStore, the scheduler and the production
+invariants after Grok's structural red-team. **None of it touches your list.**
+No rendering path changed; no visual behaviour changed.
+
+Two things that may help when you do run:
+
+- The descent harness now ends at **1 m**, matching the M1 criterion, instead of
+  stopping at 2 m for no recorded reason.
+- `docs/ROADMAP.md` has an **M1 scope reconciliation** table splitting every M1
+  item into CLOSED TECHNICALLY / OPEN NON-VISUAL / **ASTRA-ONLY** / DEFERRED. The
+  ASTRA-ONLY column is exactly your list and nothing else — if an item is not in
+  that column, a test settled it and it is not worth your time.
+
+Order of operations: Grok gets one pass at the rewritten FieldStore contracts
+first, since M2 leans on them hardest. You are after that, when the human queues
+you.
+
+---
+
 ## 2026-09-12 — second-pass brief retargeted by Grok (structural redteam)
 
 The running branch is **`agent/grok/m1-structural-redteam`**, not

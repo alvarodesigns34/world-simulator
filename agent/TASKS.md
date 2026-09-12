@@ -61,6 +61,17 @@ and confirmation that Ampere now draws a closed planet.
 | T-0064 | Spherical patch interpolation (precision-safe) | Opus | Open | P1 | **M2.** Derivation in `RENDERING.md` §4.0b. Required before terrain displacement; not justified for ≤2.9 px alone |
 | T-0065 | Graceful LOD degradation at the patch cap | **Grok** | **Partial** | P2 | Design/bench recorded (`lod.cap.test.ts`, `M1-MEASUREMENTS.md` §13). Adaptive τ near the cap beats truncation. **Not shipped:** τ=4.0 does not hit the cap. `budgets.ts` untouched |
 | **T-0066** | **M1 structural redteam of Opus GPU-integration HEAD** | **Grok** | **Done** | **P0** | CI P0 (rng timeout, `check`+build). FieldStore partial publish, capability view, write barrier. Scheduler everyNOf/resume/cross-phase. Winding three-draw. Polar `dragOrbit`. timestamp-query retry. PR to `dev` |
+| **T-0070** | **Read views handed out writable memory** | Opus | **Done** | — | Hostile tests reproduced both attacks; `view()` now holds no live memory; DEC-013 amended |
+| **T-0071** | **Dirty mask had two incompatible lifetimes** | Opus | **Done** | — | 820→40 blocks over 40 generations; replication set + generation stamp split; DEC-032 amended |
+| **T-0072** | **everyNOf dt semantics + graph ordering** | Opus | **Done** | — | Spans tile the leader timeline; leader→follower edge in the graph; DEC-016 amended |
+| **T-0073** | consistentRead vs post-publish replication | Opus | **Done** | — | Reviewed, correct, pinned by tests incl. the SAB path. No change |
+| **T-0074** | Write barrier review | Opus | **Done** | — | Correct; the captured-`rawMut` hole is now pinned by a test |
+| **T-0075** | **Production invariants stripped by `assert()`** | Opus | **Done** | — | Ten found incl. all of `validateDescriptor`; `invariant()` added and converted |
+| **T-0076** | GPU hardening code review | Opus | **Done** | — | No inconclusive path enables culling, proved over all 8 combinations. No change |
+| **T-0077** | Descent harness reaches the 1 m criterion | Opus | **Done** | — | Lowered from 2 m; no regression |
+| T-0078 | Benchmark `copyRange` against a real GPU upload | **Grok** | Open | P1 | If the renderer needs `unsafeRawAccess` every frame, the T-0070 boundary is decorative |
+| T-0079 | `blockGeneration` stamp wraps at 2^32 generations | **Grok** | Open | P3 | 2.3 years at 60 commits/s. Judged acceptable; undefended |
+
 
 
 
