@@ -28,6 +28,8 @@ struct PatchInstance {
   c11  : vec4<f32>,
   // Corner elevations in metres: x=h00 y=h10 z=h01 w=h11.
   elev : vec4<f32>,
+  // vegetation, river, lake, biome-normalised; simulation-derived only.
+  surface : vec4<f32>,
 };
 
 @group(0) @binding(1) var<storage, read> instances : array<PatchInstance>;
@@ -40,6 +42,7 @@ struct VsOut {
   @location(3)       viewDepth : f32,
   @location(4)       heightM   : f32,
   @location(5)       viewDir   : vec3<f32>,
+  @location(6)       surface   : vec4<f32>,
 };
 
 fn bilinear4(a : vec3<f32>, b : vec3<f32>, c : vec3<f32>, d : vec3<f32>, s : f32, t : f32) -> vec3<f32> {
@@ -111,6 +114,7 @@ fn vs(
   vsOut.viewDepth = length(sph);
   vsOut.heightM = h;
   vsOut.viewDir = sph;
+  vsOut.surface = p.surface;
   return vsOut;
 }
 
@@ -144,6 +148,13 @@ fn fs(frag : VsOut) -> @location(0) vec4<f32> {
   let debugMode = u.params.z;
 
   var albedo = hypsometric(frag.heightM, sl);
+
+  if (frag.heightM >= sl) {
+    let living = vec3<f32>(0.08, 0.34, 0.10);
+    albedo = mix(albedo, living, clamp(frag.surface.x * 0.62, 0.0, 0.62));
+    let inlandWater = clamp(max(frag.surface.y, frag.surface.z), 0.0, 1.0);
+    albedo = mix(albedo, vec3<f32>(0.03, 0.22, 0.38), inlandWater * 0.9);
+  }
 
   // Fresnel-ish ocean at grazing.
   if (frag.heightM < sl) {

@@ -16,7 +16,7 @@
 import { v3, type Vec3 } from '@ws/core';
 import { cubeFaceToUnit, quadkey, type QuadKey } from '@ws/data';
 
-export const FLOATS_PER_INSTANCE = 20;
+export const FLOATS_PER_INSTANCE = 24;
 
 export interface CameraPos {
   readonly x: number;
@@ -35,6 +35,8 @@ export interface PackedCorners {
   readonly h10: number;
   readonly h01: number;
   readonly h11: number;
+  /** vegetation, river intensity, lake intensity, biome/15 */
+  readonly surface?: readonly [number, number, number, number];
 }
 
 function relCorner(unit: { x: number; y: number; z: number }, radius: number, cam: CameraPos): Vec3 {
@@ -85,6 +87,11 @@ export function packPatchInstance(out: Float32Array, at: number, packed: PackedC
   out[k++] = packed.h10;
   out[k++] = packed.h01;
   out[k++] = packed.h11;
+  const surface = packed.surface ?? [0, 0, 0, 0];
+  out[k++] = surface[0];
+  out[k++] = surface[1];
+  out[k++] = surface[2];
+  out[k++] = surface[3];
 }
 
 /**

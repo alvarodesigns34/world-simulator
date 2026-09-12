@@ -35,9 +35,16 @@ import {
 } from '@ws/render';
 import { createWorld, sampleElevation, sunState } from '@ws/sim';
 import { Hud } from './hud.js';
+import { openOpfsTileStore } from './opfs.js';
+import { sampleStreamedTile, TileStreamer } from './tile-streamer.js';
 
 const PLANET = EARTH_GEOMETRY;
-const VISUAL_FIELDS = ['elevation', 'plateId', 'crustAge', 'uplift', 'temperature', 'precip', 'humidity', 'ice'] as const;
+const VISUAL_FIELDS = [
+  'elevation', 'plateId', 'boundaryType', 'crustAge', 'crustThickness', 'uplift',
+  'temperature', 'precip', 'humidity', 'wind', 'ice',
+  'basin', 'flowAccumulation', 'runoff', 'soilMoisture', 'riverDischarge', 'snowpack', 'glacier',
+  'biome', 'vegetation', 'npp', 'population',
+] as const;
 
 function fail(message: string): void {
   const el = document.createElement('div');
@@ -80,11 +87,14 @@ async function main(): Promise<void> {
   }
   context.configure({ device: gpu.device, format: gpu.format, alphaMode: 'opaque' });
 
+  const tileStorage = await openOpfsTileStore('ws-tiles-v2-integrated');
   const world = createWorld({
     climateN: 4,
     terrainLevel: 8,
     genesis: { steps: 120 },
+    tileStorage,
   });
+  const tileStreamer = new TileStreamer(world.tiles, world.geology, world.seed, world.ocean.seaLevel);
 
   const winding = await probeWindingConvention(gpu.device);
 
@@ -98,6 +108,15 @@ async function main(): Promise<void> {
     });
   let renderer = makeRenderer();
   const elevationSampler = (key: QuadKey) => {
+    const streamed = key.level >= 11 ? tileStreamer.request(key) : undefined;
+    if (streamed) {
+      return {
+        h00: sampleStreamedTile(streamed, key, 0, 0),
+        h10: sampleStreamedTile(streamed, key, 1, 0),
+        h01: sampleStreamedTile(streamed, key, 0, 1),
+        h11: sampleStreamedTile(streamed, key, 1, 1),
+      };
+    }
     const n = cubeDim(key.level);
     const h = (x: number, y: number): number => {
       const xx = x < 0 ? 0 : x >= n ? n - 1 : x;
@@ -111,6 +130,19 @@ async function main(): Promise<void> {
   };
   renderer.seaLevel = world.ocean.seaLevel;
   renderer.elevationAt = elevationSampler;
+  const surfaceSampler = (key: QuadKey): readonly [number, number, number, number] => {
+    const level = world.hydrology.level;
+    const delta = key.level - level;
+    const dim = cubeDim(level);
+    const x = delta >= 0 ? key.x >> delta : Math.min(dim - 1, (key.x << -delta) + (1 << Math.max(0, -delta - 1)));
+    const y = delta >= 0 ? key.y >> delta : Math.min(dim - 1, (key.y << -delta) + (1 << Math.max(0, -delta - 1)));
+    const i = cubeIndex(key.face, level, x, y);
+    const vegetation = world.biosphere.vegetationDensity[i] as number;
+    const river = Math.min(1, (world.hydrology.dischargeM3s[i] as number) / 5000);
+    const lake = world.hydrology.ocean[i] === 0 && (world.hydrology.filledM[i] as number) - (world.hydrology.elevationM[i] as number) > 0.5 ? 1 : 0;
+    return [vegetation, river, lake, (world.biosphere.biome[i] as number) / 15];
+  };
+  renderer.surfaceAt = surfaceSampler;
 
   const hud = new Hud(document.body);
   const overlay = new FieldOverlay(document.body);
@@ -199,6 +231,7 @@ async function main(): Promise<void> {
       renderer.debugMode = debugMode;
       renderer.seaLevel = world.ocean.seaLevel;
       renderer.elevationAt = elevationSampler;
+      renderer.surfaceAt = surfaceSampler;
     }
   });
 
@@ -213,6 +246,7 @@ async function main(): Promise<void> {
   };
   resize();
   window.addEventListener('resize', resize);
+  window.addEventListener('pagehide', () => tileStreamer.dispose());
 
   let last = performance.now();
   const frame = (): void => {
@@ -244,7 +278,9 @@ async function main(): Promise<void> {
     }
 
     renderer.debugMode = debugMode;
+    tileStreamer.beginFrame(world.dynamicGeology.generation, world.ocean.seaLevel);
     const stats = renderer.render(cam, context.getCurrentTexture().createView(), width, height);
+    tileStreamer.endFrame();
     telemetry.record(ZONE.SELECT, usFromMs(now), usFromMs(stats.cpuSelectMs));
     telemetry.record(ZONE.ENCODE, usFromMs(now), usFromMs(stats.cpuEncodeMs));
     if (stats.gpuFrameMs >= 0) {
@@ -304,9 +340,23 @@ function overlayFieldOf(world: ReturnType<typeof createWorld>): {
   if (name === 'precip') return { name, values: world.climate.precip, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
   if (name === 'humidity') return { name, values: world.climate.q, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
   if (name === 'ice') return { name, values: world.climate.ice, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
+  if (name === 'wind') return { name, values: world.climate.u, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
   if (name === 'plateId') return { name, values: world.geology.plateId, kind: 'cubesphere', level: world.geology.level };
   if (name === 'crustAge') return { name, values: world.geology.crustAgeMyr, kind: 'cubesphere', level: world.geology.level };
   if (name === 'uplift') return { name, values: world.geology.upliftM, kind: 'cubesphere', level: world.geology.level };
+  if (name === 'boundaryType') return { name, values: world.geology.boundaryType, kind: 'cubesphere', level: world.geology.level };
+  if (name === 'crustThickness') return { name, values: world.geology.crustThicknessKm, kind: 'cubesphere', level: world.geology.level };
+  if (name === 'basin') return { name, values: world.hydrology.basinId, kind: 'cubesphere', level: world.hydrology.level };
+  if (name === 'flowAccumulation') return { name, values: world.hydrology.contributingAreaM2, kind: 'cubesphere', level: world.hydrology.level };
+  if (name === 'runoff') return { name, values: world.hydrology.runoffMps, kind: 'cubesphere', level: world.hydrology.level };
+  if (name === 'soilMoisture') return { name, values: world.hydrology.soilMoistureM, kind: 'cubesphere', level: world.hydrology.level };
+  if (name === 'riverDischarge') return { name, values: world.hydrology.dischargeM3s, kind: 'cubesphere', level: world.hydrology.level };
+  if (name === 'snowpack') return { name, values: world.hydrology.snowpackM, kind: 'cubesphere', level: world.hydrology.level };
+  if (name === 'glacier') return { name, values: world.hydrology.glacierM, kind: 'cubesphere', level: world.hydrology.level };
+  if (name === 'biome') return { name, values: world.biosphere.biome, kind: 'cubesphere', level: world.biosphere.level };
+  if (name === 'vegetation') return { name, values: world.biosphere.vegetationDensity, kind: 'cubesphere', level: world.biosphere.level };
+  if (name === 'npp') return { name, values: world.biosphere.nppKgM2Yr, kind: 'cubesphere', level: world.biosphere.level };
+  if (name === 'population') return { name, values: world.biosphere.populationDensity, kind: 'cubesphere', level: world.biosphere.level };
   return { name: 'elevation', values: world.geology.elevationM, kind: 'cubesphere', level: world.geology.level };
 }
 

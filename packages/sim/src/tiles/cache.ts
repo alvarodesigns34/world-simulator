@@ -38,8 +38,36 @@ export class TileCache {
     this.cancel.cancelled = true;
   }
 
+  resetCancellation(): void {
+    this.cancel.cancelled = false;
+  }
+
   get cancelled(): boolean {
     return this.cancel.cancelled;
+  }
+
+  /** Non-blocking cache read used by the renderer streaming path. */
+  lookup(key: QuadKey, fallback = true): TileRecord | undefined {
+    const id = tileId(key);
+    const exact = this.storage.get(id);
+    if (exact) { this.touch(id); this.hits++; return exact; }
+    this.misses++;
+    if (!fallback) return undefined;
+    for (let l = key.level - 1; l >= AUTH_TILE_MIN; l--) {
+      const ancestor = this.storage.get(tileId(ancestorAt(key, l)));
+      if (ancestor) { this.touch(ancestor.id); this.hits++; return ancestor; }
+    }
+    return undefined;
+  }
+
+  /** Main-thread publication boundary for a worker-produced tile. */
+  put(tile: TileRecord): void { this.insert(tile); }
+
+  /** Geological generations invalidate derived tile content and persistence. */
+  invalidateAll(): void {
+    for (const id of this.lru) this.storage.delete(id);
+    this.lru.length = 0;
+    this.cancel.cancelled = false;
   }
 
   /**

@@ -80,7 +80,7 @@ describe('Uniforms: WGSL layout matches the CPU staging array', () => {
 });
 
 describe('PatchInstance: WGSL layout matches the CPU packer', () => {
-  it('is 80 bytes, so the storage array stride is exactly 80', () => {
+  it('matches the storage array stride after adding simulation surface state', () => {
     expect(struct('PatchInstance').size).toBe(INSTANCE_BYTES);
     expect(struct('PatchInstance').align).toBe(16);
     const s = struct('PatchInstance');
@@ -105,11 +105,11 @@ describe('PatchInstance: WGSL layout matches the CPU packer', () => {
   });
 
   it('declares its members in the order the packer writes them', () => {
-    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11', 'elev']);
+    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11', 'elev', 'surface']);
   });
 
-  it('has exactly five members — a sixth would silently shift the stride', () => {
-    expect(struct('PatchInstance').members).toHaveLength(5);
+  it('has exactly six members — another would silently shift the stride', () => {
+    expect(struct('PatchInstance').members).toHaveLength(6);
   });
 
   it('is bound where the pipeline binds it', () => {

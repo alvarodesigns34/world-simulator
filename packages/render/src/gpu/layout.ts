@@ -34,8 +34,8 @@ export const UNIFORM_OFFSET = {
   camK: 24,
 } as const;
 
-/** PatchInstance: five vec4s. Byte offset = float * 4. */
-export const INSTANCE_FLOATS = 20;
+/** PatchInstance: six vec4s. Byte offset = float * 4. */
+export const INSTANCE_FLOATS = 24;
 export const INSTANCE_BYTES = INSTANCE_FLOATS * 4;
 
 export const INSTANCE_OFFSET = {
@@ -44,6 +44,7 @@ export const INSTANCE_OFFSET = {
   c01: 8,
   c11: 12,
   elev: 16,
+  surface: 20,
 } as const;
 
 /**

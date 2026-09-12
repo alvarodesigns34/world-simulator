@@ -60,6 +60,7 @@ export interface RendererOptions {
 export type DebugMode = 'shaded' | 'lod' | 'patches' | 'height';
 
 export type ElevationSampler = (key: QuadKey) => { h00: number; h10: number; h01: number; h11: number };
+export type SurfaceSampler = (key: QuadKey) => readonly [number, number, number, number];
 
 export interface FrameStats extends SelectStats {
   readonly cpuSelectMs: number;
@@ -116,6 +117,7 @@ export class PlanetRenderer {
   sunDirection: Vec3 = vnorm(v3(1, 0.35, 0.25));
   seaLevel = 0;
   elevationAt: ElevationSampler | null = null;
+  surfaceAt: SurfaceSampler | null = null;
 
   constructor(gpu: GpuContext, opts: RendererOptions) {
     this.gpu = gpu;
@@ -271,6 +273,7 @@ export class PlanetRenderer {
       h10: h.h10,
       h01: h.h01,
       h11: h.h11,
+      surface: this.surfaceAt?.(node.key) ?? [0, 0, 0, 0],
     };
     packPatchInstance(out, at, withH);
   }
