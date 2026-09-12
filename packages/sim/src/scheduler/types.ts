@@ -43,6 +43,7 @@ export function phaseIndex(p: Phase): number {
  */
 export type Cadence =
   | { readonly kind: 'every'; readonly dt: Duration }
+  /** Every N steps of another subsystem. `n >= 1`, `of` must exist, not be onDemand, and run earlier in the resolved order. */
   | { readonly kind: 'everyNOf'; readonly n: number; readonly of: SubsystemId }
   | { readonly kind: 'onDemand' };
 

@@ -21,6 +21,7 @@
 import {
   qForward,
   qLookRotation,
+  qRight,
   qUp,
   qnorm,
   qrotate,
@@ -213,3 +214,19 @@ export function lookAtCentre(cam: CameraState): CameraState {
   const upHint = Math.abs(vnorm(p).z) > 0.99 ? v3(1, 0, 0) : v3(0, 0, 1);
   return { position: cam.position, orientation: qLookRotation(forward, upHint), fovY: cam.fovY };
 }
+
+/**
+ * Orbit the camera about the planet by yaw/pitch angles, using the camera's
+ * own qUp / qRight as axes.
+ *
+ * World-Z and `(-y, x, 0)` (world-Z × position) are degenerate at the poles —
+ * both axes have length 0 when the camera sits on ±Z, so a pointer-drag using
+ * them cannot yaw or pitch. qUp/qRight come from the quaternion and stay unit
+ * length everywhere, including the poles (DEC-029).
+ */
+export function dragOrbit(cam: CameraState, yaw: number, pitch: number): CameraState {
+  let next = moveTangential(cam, qUp(cam.orientation), yaw);
+  next = moveTangential(next, qRight(next.orientation), pitch);
+  return lookAtCentre(next);
+}
+

@@ -44,26 +44,35 @@ describe('determinism: hashU64', () => {
       st = (Math.imul(st, 1103515245) + 12345) >>> 0;
       return st;
     };
+    let mismatches = 0;
     for (let i = 0; i < 20_000; i++) {
       const hi = nextU32();
       const lo = nextU32();
       const got = splitmix64(hi, lo);
       const want = finalise((BigInt(hi) << 32n) | BigInt(lo));
-      expect(got.hi >>> 0).toBe(Number(want >> 32n));
-      expect(got.lo >>> 0).toBe(Number(want & 0xffffffffn));
+      if ((got.hi >>> 0) !== Number(want >> 32n) || (got.lo >>> 0) !== Number(want & 0xffffffffn)) {
+        mismatches++;
+      }
     }
+    expect(mismatches).toBe(0);
   });
 
   it('returns both halves inside u32', () => {
+    let bad = 0;
     for (let i = 0; i < 1000; i++) {
       const h = hashU64(SEED, DOMAIN.TERRAIN_BASE, i);
-      expect(Number.isInteger(h.hi)).toBe(true);
-      expect(Number.isInteger(h.lo)).toBe(true);
-      expect(h.hi).toBeGreaterThanOrEqual(0);
-      expect(h.hi).toBeLessThanOrEqual(0xffffffff);
-      expect(h.lo).toBeGreaterThanOrEqual(0);
-      expect(h.lo).toBeLessThanOrEqual(0xffffffff);
+      if (
+        !Number.isInteger(h.hi) ||
+        !Number.isInteger(h.lo) ||
+        h.hi < 0 ||
+        h.hi > 0xffffffff ||
+        h.lo < 0 ||
+        h.lo > 0xffffffff
+      ) {
+        bad++;
+      }
     }
+    expect(bad).toBe(0);
   });
 
   it('is order-independent, like hashU32', () => {
@@ -135,13 +144,14 @@ describe('determinism: hashU64', () => {
     const buckets = new Array<number>(10).fill(0);
     const N = 200_000;
     const seen = new Set<number>();
+    let outOfRange = 0;
     for (let i = 0; i < N; i++) {
       const v = hashFloat01x64(SEED, DOMAIN.TEST, i);
-      expect(v).toBeGreaterThanOrEqual(0);
-      expect(v).toBeLessThan(1);
+      if (!(v >= 0 && v < 1)) outOfRange++;
       buckets[Math.floor(v * 10)] = (buckets[Math.floor(v * 10)] ?? 0) + 1;
       if (i < 50_000) seen.add(v);
     }
+    expect(outOfRange).toBe(0);
     const expected = N / 10;
     const chi2 = buckets.reduce((acc, o) => acc + (o - expected) ** 2 / expected, 0);
     expect(chi2).toBeLessThan(21.67); // 1% critical value, 9 dof
@@ -152,13 +162,12 @@ describe('determinism: hashU64', () => {
   it('hashFloat01x64 division by 2^53 is exact on this engine', () => {
     const TWO53 = 2 ** 53;
     expect(TWO53).toBe(9007199254740992);
+    let bad = 0;
     for (let i = 0; i < 10_000; i++) {
       const v = hashFloat01x64(SEED, DOMAIN.TEST, i);
       const back = v * TWO53;
-      expect(Number.isInteger(back)).toBe(true);
-      expect(back).toBeGreaterThanOrEqual(0);
-      expect(back).toBeLessThan(TWO53);
-      expect(back / TWO53).toBe(v);
+      if (!Number.isInteger(back) || back < 0 || back >= TWO53 || back / TWO53 !== v) bad++;
     }
+    expect(bad).toBe(0);
   });
 });

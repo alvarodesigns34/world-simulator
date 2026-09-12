@@ -68,6 +68,12 @@ export function inferTier(adapter: GPUAdapter, info?: GPUAdapterInfo): budgets.G
   return maxBuf >= 1 << 30 ? 'integrated' : 'floor';
 }
 
+async function requestDevice(adapter: GPUAdapter, withTimestamp: boolean): Promise<GPUDevice> {
+  return adapter.requestDevice({
+    requiredFeatures: withTimestamp ? (['timestamp-query'] as GPUFeatureName[]) : [],
+  });
+}
+
 export async function acquireGpu(): Promise<GpuAcquireResult> {
   const nav = globalThis.navigator as Navigator | undefined;
   if (nav?.gpu === undefined) {
@@ -79,14 +85,23 @@ export async function acquireGpu(): Promise<GpuAcquireResult> {
     return { ok: false, reason: 'no-adapter', message: MESSAGES['no-adapter'] };
   }
 
-  const wantTimestamp = adapter.features.has('timestamp-query');
+  // timestamp-query is OPTIONAL. Advertising it on the adapter and then
+  // requiring it is how a flaky driver feature kills device creation. Try
+  // with it; if that fails, retry without. The HUD flag comes from the
+  // device that actually exists, not from the adapter's feature set.
+  const adapterHasTimestamp = adapter.features.has('timestamp-query');
   let device: GPUDevice;
   try {
-    device = await adapter.requestDevice({
-      requiredFeatures: wantTimestamp ? (['timestamp-query'] as GPUFeatureName[]) : [],
-    });
+    device = await requestDevice(adapter, adapterHasTimestamp);
   } catch {
-    return { ok: false, reason: 'no-device', message: MESSAGES['no-device'] };
+    if (!adapterHasTimestamp) {
+      return { ok: false, reason: 'no-device', message: MESSAGES['no-device'] };
+    }
+    try {
+      device = await requestDevice(adapter, false);
+    } catch {
+      return { ok: false, reason: 'no-device', message: MESSAGES['no-device'] };
+    }
   }
 
   let lost: string | null = null;
@@ -106,7 +121,7 @@ export async function acquireGpu(): Promise<GpuAcquireResult> {
     adapter,
     format: nav.gpu.getPreferredCanvasFormat(),
     tier: inferTier(adapter, info),
-    hasTimestampQuery: wantTimestamp,
+    hasTimestampQuery: device.features.has('timestamp-query'),
     adapterInfo: info
       ? `${info.vendor ?? '?'} / ${info.architecture ?? '?'} ${info.description ?? ''}`.trim()
       : 'unknown adapter',

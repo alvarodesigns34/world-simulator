@@ -6,6 +6,62 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-12 · Grok → **remaining** · M1 structural redteam. Opus is gone.
+
+**Tasks:** T-0066 Done · T-0013 Partial (Node 1/4/8) · T-0065 Partial · **Priority:** P0
+**Branch:** `agent/grok/m1-structural-redteam` → PR to `dev`
+**Base:** `agent/opus/m1-gpu-integration-review` @ `a1f3923` — **not** `889cebf`
+**Do not merge `main`.** Do not start M2. Do not silently edit Accepted ADRs or `budgets.ts`.
+
+Opus's GPU-integration HEAD was CI-red and had structural holes under the GPU
+hardening. I reproduced then fixed them, tests first. Astra's second visual pass
+is retargeted to **this** branch. Do not re-open T-0054 / DEC-033 / DEC-035.
+
+### What is done
+
+| Item | Status |
+| --- | --- |
+| CI P0 | `hashFloat01x64` no longer times out. `ci.yml` is `pnpm run check` + tests + sim-standalone + build. |
+| FieldStore | Dirty-block replicate after gen flip (`[10,20]` survives). `view()` is a capability-safe handle. `mut()` always throws (DEC-013). `share(id)`. DEC-016 write barrier during `step`. `gen & 1`. |
+| Scheduler | `everyNOf` = every N steps of X; no hang. `resume()` does not reset `due`. Earlier-phase current-gen of a later-phase writer is a startup error. |
+| Winding | Three draws + `classifyProbePixels`. Control black → UNKNOWN, cull off. Never a CW guess. |
+| Polar drag | `dragOrbit` via `qUp`/`qRight`. World-Z is degenerate at ±Z — tested. |
+| timestamp-query | Optional. Retry without it. Flag from `device.features`. |
+| T-0013 Node | 1/4/8 workers, 64 k cells, bit-identical. Browser table still open. |
+| T-0065 | Design/bench only. Adaptive τ near the cap. `budgets.ts` not edited. |
+
+`pnpm test` **300** · `pnpm run check` · sim-standalone **165** · `vite build` 51.57 kB gzip 19.70 kB.
+
+`pnpm dev` is **http://localhost:8080** (not 5173). COOP/COEP on.
+
+### What is not done
+
+| Item | Owner | Notes |
+| --- | --- | --- |
+| A-0001 second visual pass | **Astra, when queued** | Against this branch. Brief in `agent/ASTRA.md`. Do not re-check closed GPU items. |
+| T-0013 browser SAB | Grok | COOP/COEP on vs off. Node identity is done. |
+| T-0065 adaptive τ | Grok, later | Designed, not shipped. τ=4.0 does not hit the cap. |
+| E1 GPU / E2 swim | Astra / T-0050, T-0051 | No adapter here. |
+| Previous-generation **read API** | M4 | `readsPrev` is a graph declaration. `get()` still reads current front. |
+
+### Seams
+
+- Composition root still `packages/app/src/main.ts`. `sim ⇏ render`.
+- FieldStore `commit()` is still an index flip, **plus** O(dirty) replicate. Not a 50 MB memcpy.
+- `everyNOf` followers are not in the due-time scan. They run after their leader in the same inner loop.
+- Winding HUD line still tells you what happened. If it says `unknown` and the canvas is black, it is not culling.
+
+### Specifically check
+
+1. CI is green on this PR — that is the point of P0.
+2. I did not edit `budgets.ts` numbers or Accepted ADR text.
+3. I did not weaken `check:wgsl` or the boundary checker.
+4. Descent still ends at **2 m**, ROADMAP still says 1 m. Not silently moved.
+
+— Grok
+
+---
+
 ## 2026-09-12 · Opus → **Astra** (second visual pass, when the human queues her)
 
 **Do not start this until the human explicitly asks.** Grok's remaining GPU
@@ -109,7 +165,7 @@ vertices.)
 ### How to run
 
 ```
-pnpm install && pnpm dev      # http://localhost:5173
+pnpm install && pnpm dev      # http://localhost:8080
 ```
 `1`/`2`/`3` shaded / LOD level / patch boundaries · `W`/`S` or wheel altitude ·
 drag to orbit · `P` pole sweep · `[`/`]` patch size 17/33/65 at runtime ·

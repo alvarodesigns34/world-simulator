@@ -5,6 +5,7 @@ import {
   cameraAt,
   cameraFromGeodetic,
   derive,
+  dragOrbit,
   lookAtCentre,
   moveForward,
   moveTangential,
@@ -162,6 +163,39 @@ describe('camera: polar crossing has no singularity', () => {
     const d = derive(cam, P);
     expect(d.altitude).toBeCloseTo(500, 6);
     expect(Math.abs(d.latitude)).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it('world-Z and (-y,x,0) ARE degenerate at the poles — the reason dragOrbit exists', () => {
+    for (const lat of [Math.PI / 2, -Math.PI / 2]) {
+      const cam = lookAtCentre(cameraFromGeodetic({ lat, lon: 0, altitude: 1_000_000 }, P));
+      expect(vlen(v3(-cam.position.y, cam.position.x, 0))).toBeLessThan(1e-6);
+      expect(vlen(qUp(cam.orientation))).toBeCloseTo(1, 9);
+      expect(vlen(qRight(cam.orientation))).toBeCloseTo(1, 9);
+    }
+  });
+
+  it('dragOrbit at both poles moves the camera a finite, non-zero distance', () => {
+    for (const lat of [Math.PI / 2, -Math.PI / 2]) {
+      const cam = lookAtCentre(cameraFromGeodetic({ lat, lon: 0.3, altitude: 2_000_000 }, P));
+      const yawed = dragOrbit(cam, 0.05, 0);
+      const pitched = dragOrbit(cam, 0, 0.05);
+      const dYaw = Math.hypot(
+        yawed.position.x - cam.position.x,
+        yawed.position.y - cam.position.y,
+        yawed.position.z - cam.position.z,
+      );
+      const dPitch = Math.hypot(
+        pitched.position.x - cam.position.x,
+        pitched.position.y - cam.position.y,
+        pitched.position.z - cam.position.z,
+      );
+      expect(dYaw).toBeGreaterThan(1000);
+      expect(dPitch).toBeGreaterThan(1000);
+      expect(Number.isFinite(dYaw)).toBe(true);
+      expect(Number.isFinite(dPitch)).toBe(true);
+      expect(qlen(yawed.orientation)).toBeCloseTo(1, 9);
+      expect(qlen(pitched.orientation)).toBeCloseTo(1, 9);
+    }
   });
 });
 

@@ -10,6 +10,15 @@
  * the fixed subsystem order, never on arrival. A job that finishes early waits.
  * That is the price of being asynchronous and deterministic at once, and it is
  * cheap: the only cost is latency, invisible at simulation time scales.
+ *
+ * everyNOf means "every N steps of X", not "lastDt * n". Followers are not
+ * in the due-time scan; they run in the same inner loop as their leader, after
+ * it (build-time validated), when `leader.steps % n === 0`. A zero dt therefore
+ * cannot pin `due` and spin `advance()` until maxSteps (or forever — the
+ * `stepDt <= 0` continue used not to increment the guard).
+ *
+ * resume() must NOT reset `due` to now. Slow-state cadence is path-independent
+ * (DEC-030) only if quiesce/resume does not phase-shift it.
  */
 
 import {
@@ -45,6 +54,7 @@ interface Slot {
   due: SimTime;
   steps: number;
   lastDt: Duration;
+  lastRun: SimTime | null;
 }
 
 export class Scheduler {
@@ -82,7 +92,7 @@ export class Scheduler {
     assert(!this.built, 'scheduler already built');
     this.schedule = buildSchedule(this.registered, this.store);
     for (const entry of this.schedule) {
-      const slot: Slot = { entry, due: this._time, steps: 0, lastDt: duration(0) };
+      const slot: Slot = { entry, due: this._time, steps: 0, lastDt: duration(0), lastRun: null };
       this.slots.push(slot);
       this.byId.set(entry.subsystem.id as string, slot);
     }
@@ -134,9 +144,14 @@ export class Scheduler {
     let guard = 0;
     for (;;) {
       // Earliest due instant that is still within this advance.
+      // everyNOf is NOT in this scan: it follows its leader by step count.
+      // onDemand is not in this scan. A non-positive `every` dt is a build error,
+      // but is also skipped here so it cannot pin `due` and hang.
       let earliest: SimTime | null = null;
       for (const slot of this.slots) {
-        if (slot.entry.subsystem.cadence.kind === 'onDemand') continue;
+        const kind = slot.entry.subsystem.cadence.kind;
+        if (kind === 'onDemand' || kind === 'everyNOf') continue;
+        if (kind === 'every' && slot.entry.subsystem.cadence.dt <= 0) continue;
         // Strictly BEFORE the target: a step at instant T covers [T, T+dt), so
         // a subsystem due exactly at `target` belongs to the next advance. Using
         // <= here would run a 3-day advance at t=0,1,2,3 — four steps for three
@@ -147,16 +162,33 @@ export class Scheduler {
       if (earliest === null) break;
 
       for (const slot of this.slots) {
-        if (slot.entry.subsystem.cadence.kind === 'onDemand') continue;
-        if (compare(slot.due, earliest) !== 0) continue;
+        const c = slot.entry.subsystem.cadence;
+        if (c.kind === 'onDemand') continue;
 
-        const stepDt = this.cadenceDt(slot);
-        if (stepDt <= 0) continue;
-
-        slot.entry.subsystem.step({ time: slot.due, dt: stepDt, step: slot.steps });
-        slot.steps++;
-        slot.lastDt = stepDt;
-        slot.due = addDuration(slot.due, stepDt, this.calendar);
+        if (c.kind === 'every') {
+          if (compare(slot.due, earliest) !== 0) continue;
+          const stepDt = c.dt;
+          if (stepDt <= 0) continue;
+          this.runSlot(slot, stepDt, slot.due);
+        } else if (c.kind === 'everyNOf') {
+          const leader = this.byId.get(c.of as string);
+          if (leader === undefined) continue;
+          // Leader ran this instant and has just reached a multiple of n.
+          if (
+            leader.lastRun !== null &&
+            compare(leader.lastRun, earliest) === 0 &&
+            leader.steps > 0 &&
+            leader.steps % c.n === 0
+          ) {
+            const stepDt = duration(leader.lastDt * c.n);
+            if (stepDt <= 0) continue;
+            this.runSlot(slot, stepDt, leader.lastRun);
+          } else {
+            continue;
+          }
+        } else {
+          continue;
+        }
 
         if (++guard > this.maxSteps) {
           // Not silently dropped: dropping a step changes results, which is a
@@ -173,15 +205,18 @@ export class Scheduler {
     this._tick++;
   }
 
-  private cadenceDt(slot: Slot): Duration {
-    const c = slot.entry.subsystem.cadence;
-    if (c.kind === 'every') return c.dt;
-    if (c.kind === 'everyNOf') {
-      const other = this.byId.get(c.of as string);
-      assert(other !== undefined, `'${String(slot.entry.subsystem.id)}' follows unknown '${String(c.of)}'`);
-      return duration((other as Slot).lastDt * c.n);
+  private runSlot(slot: Slot, stepDt: Duration, time: SimTime): void {
+    const sys = slot.entry.subsystem;
+    if (this.store !== undefined) this.store.beginStep(sys.id, sys.writes);
+    try {
+      sys.step({ time, dt: stepDt, step: slot.steps });
+    } finally {
+      if (this.store !== undefined) this.store.endStep();
     }
-    return duration(0);
+    slot.steps++;
+    slot.lastDt = stepDt;
+    slot.lastRun = time;
+    slot.due = addDuration(time, stepDt, this.calendar);
   }
 
   pause(): void {
@@ -207,7 +242,14 @@ export class Scheduler {
     this._state = 'quiesced';
   }
 
-  /** Resume from aggregates + world seed. Pure, so replay stays stable. */
+  /**
+   * Resume from aggregates + world seed. Pure, so replay stays stable.
+   *
+   * Does NOT reset `due`. Resetting due to `_time` phase-shifts every slow
+   * cadence (DEC-030 amendment 1): a 10-year ice step that was 4 years from
+   * due would fire immediately, and two recipes that quiesced at different
+   * wall-clock moments would diverge.
+   */
   resume(): void {
     for (const slot of this.slots) {
       slot.entry.subsystem.resume?.({
@@ -215,7 +257,6 @@ export class Scheduler {
         dt: slot.lastDt,
         step: slot.steps,
       });
-      slot.due = this._time;
     }
     this._state = 'running';
   }

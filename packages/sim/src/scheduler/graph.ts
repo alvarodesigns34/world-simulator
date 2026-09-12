@@ -10,11 +10,16 @@
  *   2. topological  — within a phase, over the union read/write graph
  *   3. lexical      — ties broken by SubsystemId
  *
- * Four conditions are startup ERRORS, never warnings:
+ * Startup ERRORS, never warnings:
  *   - a cycle in the union graph
  *   - a write conflict (two subsystems writing one field — violates DEC-013)
  *   - an undeclared owner (writing a field owned by someone else)
  *   - an unknown field
+ *   - readsPrev on a field that is not double-buffered
+ *   - an earlier phase reading the CURRENT generation of a later-phase writer
+ *     (that is last tick's data, silently; declare readsPrev)
+ *   - everyNOf with n < 1, unknown `of`, `of` onDemand, or follower ordered
+ *     before its leader
  *
  * WAVE SEMANTICS. Ready nodes are emitted as a whole wave, sorted lexically,
  * then new nodes are discovered. That is NOT classic one-at-a-time Kahn:
@@ -68,6 +73,30 @@ export function buildSchedule(
     seen.add(s.id);
   }
 
+  const byId = new Map<string, Subsystem>();
+  for (const s of subsystems) byId.set(s.id as string, s);
+
+  // --- cadence (DEC-016 rule 1, everyNOf = every N steps of X) -------------
+  for (const s of subsystems) {
+    const c = s.cadence;
+    if (c.kind === 'every') {
+      if (!(c.dt > 0)) {
+        fail(`subsystem '${String(s.id)}' has non-positive cadence dt ${String(c.dt)}`);
+      }
+    } else if (c.kind === 'everyNOf') {
+      if (!Number.isInteger(c.n) || c.n < 1) {
+        fail(`subsystem '${String(s.id)}' everyNOf.n must be an integer >= 1, got ${String(c.n)}`);
+      }
+      const other = byId.get(c.of as string);
+      if (other === undefined) {
+        fail(`subsystem '${String(s.id)}' follows unknown '${String(c.of)}'`);
+      }
+      if (other.cadence.kind === 'onDemand') {
+        fail(`subsystem '${String(s.id)}' cannot follow onDemand '${String(c.of)}'`);
+      }
+    }
+  }
+
   // --- unknown fields + ownership (DEC-013) --------------------------------
   if (store !== undefined) {
     const known = new Set<string>(store.fieldIds());
@@ -99,11 +128,13 @@ export function buildSchedule(
 
   // --- write conflicts (DEC-013), independent of the store -----------------
   const writers = new Map<string, SubsystemId[]>();
+  const writerOf = new Map<string, Subsystem>();
   for (const s of subsystems) {
     for (const f of s.writes) {
       const list = writers.get(f) ?? [];
       list.push(s.id);
       writers.set(f, list);
+      writerOf.set(f as string, s);
     }
   }
   // deterministic-order: materialised then sorted by field id immediately below,
@@ -115,6 +146,24 @@ export function buildSchedule(
     const [field, ws] = conflicts[0] as [string, SubsystemId[]];
     const names = [...ws].map(String).sort(cmpStr).join(', ');
     fail(`write conflict on field '${field}': ${names} all declare writes to it (DEC-013)`);
+  }
+
+  // --- cross-phase current-gen reads (DEC-031) -----------------------------
+  // Per-phase Kahn cannot see an edge that crosses PHASES. An earlier phase
+  // reading the current generation of a later-phase writer silently gets last
+  // tick's data. That coupling must be declared as readsPrev.
+  for (const s of subsystems) {
+    for (const f of s.reads) {
+      const w = writerOf.get(f as string);
+      if (w === undefined || w.id === s.id) continue;
+      if (phaseIndex(s.phase) < phaseIndex(w.phase)) {
+        fail(
+          `subsystem '${String(s.id)}' (phase '${s.phase}') reads current generation of ` +
+            `'${String(f)}' written in later phase '${w.phase}' by '${String(w.id)}' — ` +
+            `that is last tick's data. Declare readsPrev (DEC-031)`,
+        );
+      }
+    }
   }
 
   // --- per-phase topological sort with lexical tie-break -------------------
@@ -129,6 +178,21 @@ export function buildSchedule(
 
     for (const s of sortPhase(inPhase, phase)) {
       out.push({ subsystem: s, order: order++ });
+    }
+  }
+
+  // --- everyNOf follower must run AFTER its leader in the resolved order ---
+  const pos = new Map<string, number>();
+  for (const e of out) pos.set(e.subsystem.id as string, e.order);
+  for (const e of out) {
+    const c = e.subsystem.cadence;
+    if (c.kind !== 'everyNOf') continue;
+    const leaderPos = pos.get(c.of as string);
+    if (leaderPos === undefined || e.order <= leaderPos) {
+      fail(
+        `everyNOf follower '${String(e.subsystem.id)}' must run after '${String(c.of)}' ` +
+          `in the resolved order (DEC-016)`,
+      );
     }
   }
 

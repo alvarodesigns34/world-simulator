@@ -177,7 +177,7 @@ describe('scheduler: explicit feedback lag (DEC-031 rule 4)', () => {
     const schedule = buildSchedule(
       [
         sub('ocean', { phase: 'Ocean', readsPrev: ['airT'], writes: ['seaT'] }),
-        sub('atmos', { phase: 'Atmosphere', reads: ['seaT'], writes: ['airT'] }),
+        sub('atmos', { phase: 'Atmosphere', readsPrev: ['seaT'], writes: ['airT'] }),
       ],
       store,
     );
@@ -328,5 +328,174 @@ describe('scheduler: types', () => {
     const f: FieldId = fieldId('y');
     expect(String(id)).toBe('x');
     expect(String(f)).toBe('y');
+  });
+});
+
+describe('scheduler: everyNOf is every N steps of X (DEC-016)', () => {
+  it('does not hang when the leader has not produced a dt yet', () => {
+    const log: string[] = [];
+    const s = new Scheduler({
+      calendar: CAL,
+      startTime: simTime(0, 0, CAL),
+      maxStepsPerAdvance: 64,
+    })
+      .register(sub('alpha', { dt: DAY, log }))
+      .register({
+        ...sub('zebra', { log }),
+        cadence: { kind: 'everyNOf', n: 3, of: subsystemId('alpha') },
+      })
+      .build();
+    expect(() => s.advance(duration(10 * 86400))).not.toThrow();
+    expect(log.filter((x) => x === 'alpha')).toHaveLength(10);
+    // Leader steps 1..10; follower fires when steps is a multiple of 3: 3, 6, 9.
+    expect(log.filter((x) => x === 'zebra')).toHaveLength(3);
+  });
+
+  it('runs the follower after the leader, in resolved order', () => {
+    const log: string[] = [];
+    const s = new Scheduler({ calendar: CAL, startTime: simTime(0, 0, CAL) })
+      .register({
+        ...sub('zulu', { log, writes: ['z'] }),
+        cadence: { kind: 'everyNOf', n: 1, of: subsystemId('alpha') },
+      })
+      .register(sub('alpha', { dt: DAY, log, writes: ['a'] }))
+      .build();
+    s.advance(DAY);
+    expect(log).toEqual(['alpha', 'zulu']);
+  });
+
+  it('rejects n < 1, unknown of, onDemand of, and follower-before-leader', () => {
+    expect(() =>
+      buildSchedule([
+        sub('a', { dt: DAY }),
+        { ...sub('b'), cadence: { kind: 'everyNOf', n: 0, of: subsystemId('a') } },
+      ]),
+    ).toThrow(/n must be an integer >= 1/);
+
+    expect(() =>
+      buildSchedule([{ ...sub('b'), cadence: { kind: 'everyNOf', n: 2, of: subsystemId('ghost') } }]),
+    ).toThrow(/unknown/);
+
+    expect(() =>
+      buildSchedule([
+        { ...sub('idle'), cadence: { kind: 'onDemand' } },
+        { ...sub('b'), cadence: { kind: 'everyNOf', n: 1, of: subsystemId('idle') } },
+      ]),
+    ).toThrow(/onDemand/);
+
+    expect(() =>
+      buildSchedule([
+        {
+          ...sub('early', { phase: 'Geology' }),
+          cadence: { kind: 'everyNOf', n: 1, of: subsystemId('late') },
+        },
+        sub('late', { phase: 'Terrain', dt: DAY }),
+      ]),
+    ).toThrow(/must run after/);
+  });
+});
+
+describe('scheduler: resume does not phase-shift cadence (DEC-030)', () => {
+  it('keeps the original due after quiesce/resume', () => {
+    let steps = 0;
+    const slow: Subsystem = {
+      ...sub('iceSheet', { dt: duration(10 * 86400) }),
+      step: () => {
+        steps++;
+      },
+    };
+    const s = new Scheduler({ calendar: CAL, startTime: simTime(0, 0, CAL) })
+      .register(slow)
+      .build();
+    s.advance(duration(5 * 86400));
+    // Due at t=0, so the first 10-day step has run; next due is t=10 d.
+    expect(steps).toBe(1);
+    s.quiesce();
+    s.resume();
+    s.advance(duration(4 * 86400));
+    // Resetting due to now would fire immediately. It must not.
+    expect(steps).toBe(1);
+    s.advance(duration(2 * 86400));
+    expect(steps).toBe(2);
+  });
+});
+
+describe('scheduler: cross-phase current-gen reads (DEC-031)', () => {
+  it('throws when an earlier phase reads current-gen of a later-phase writer', () => {
+    const store = new FieldStore()
+      .declare(field('airT', 'atmos', { doubleBuffered: true }))
+      .declare(field('flow', 'hydro'))
+      .seal();
+    expect(() =>
+      buildSchedule(
+        [
+          sub('hydro', { phase: 'Hydrology', reads: ['airT'], writes: ['flow'] }),
+          sub('atmos', { phase: 'Atmosphere', writes: ['airT'] }),
+        ],
+        store,
+      ),
+    ).toThrow(/later phase|readsPrev/);
+  });
+
+  it('allows the same coupling via readsPrev', () => {
+    const store = new FieldStore()
+      .declare(field('airT', 'atmos', { doubleBuffered: true }))
+      .declare(field('flow', 'hydro'))
+      .seal();
+    expect(() =>
+      buildSchedule(
+        [
+          sub('hydro', { phase: 'Hydrology', readsPrev: ['airT'], writes: ['flow'] }),
+          sub('atmos', { phase: 'Atmosphere', writes: ['airT'] }),
+        ],
+        store,
+      ),
+    ).not.toThrow();
+  });
+
+  it('allows a later phase to read current-gen of an earlier-phase writer', () => {
+    const store = new FieldStore()
+      .declare(field('flow', 'hydro'))
+      .declare(field('airT', 'atmos'))
+      .seal();
+    expect(() =>
+      buildSchedule(
+        [
+          sub('hydro', { phase: 'Hydrology', writes: ['flow'] }),
+          sub('atmos', { phase: 'Atmosphere', reads: ['flow'], writes: ['airT'] }),
+        ],
+        store,
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe('scheduler: DEC-016 write barrier', () => {
+  it('rejects a write to a field not in writes[] during step', () => {
+    const store = new FieldStore()
+      .declare(field('elevation', 'terrain'))
+      .declare(field('secret', 'terrain'))
+      .seal();
+    const sneak = store.mut(fieldId('secret'), subsystemId('terrain'));
+    let hit = false;
+    const terrain: Subsystem = {
+      ...sub('terrain', { writes: ['elevation'] }),
+      step: () => {
+        store.mut(fieldId('elevation'), subsystemId('terrain')).set(0, 1);
+        store.mut(fieldId('elevation'), subsystemId('terrain')).commit();
+        expect(() => sneak.set(0, 99)).toThrow(/write barrier|undeclared write/);
+        hit = true;
+      },
+    };
+    const s = new Scheduler({
+      calendar: CAL,
+      startTime: simTime(0, 0, CAL),
+      store,
+    })
+      .register(terrain)
+      .build();
+    s.advance(DAY);
+    expect(hit).toBe(true);
+    expect(store.view(fieldId('secret')).get(0)).toBe(0);
   });
 });

@@ -20,12 +20,11 @@ jobs:
 
       # DEC-011 / DEC-017 / DEC-027. These are errors, not warnings, and
       # weakening them to make a change pass is forbidden (PROTOCOL §0).
-      - name: Types
-        run: pnpm run check:types
-      - name: Package boundaries
-        run: pnpm run check:boundaries
-      - name: Boundary checker self-test
-        run: pnpm run check:boundaries:selftest
+      # `pnpm run check` is types + boundaries + self-test + WGSL grammar.
+      # Splitting it into a subset that omits check:wgsl is how a reserved
+      # identifier ships (T-0054 / Ampere `meta`). Do not narrow this.
+      - name: Check
+        run: pnpm run check
 
       - name: Tests
         run: pnpm test
@@ -34,3 +33,6 @@ jobs:
       # renderer present. ARCHITECTURE.md §1.1.
       - name: Simulation stands alone
         run: pnpm run check:sim-standalone
+
+      - name: Build
+        run: pnpm run build

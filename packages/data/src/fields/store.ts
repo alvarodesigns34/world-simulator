@@ -9,7 +9,13 @@
  * 1. COMMIT IS A PUBLISH, NOT A MEMCPY (DEC-032 rule 4, AUDIT-V0 M4).
  *    A double-buffered L11 field is 50 MB. Copying it would need ~25 GB/s to fit
  *    the 2.0 ms simCommit budget, which JS does not deliver. So a commit flips a
- *    generation index; readers resolve front/back from that index. Nothing moves.
+ *    generation index; readers resolve front/back from that index. Nothing of
+ *    the WHOLE field moves.
+ *
+ *    Partial writes still have to land on BOTH buffers, otherwise the next flip
+ *    republishes stale cells (write cell 0, commit, write cell 1, commit, cell 0
+ *    reads as 0). After the index flip we replicate only the dirty-this-gen
+ *    blocks from the new front into the new back — O(dirty), not O(field).
  *
  * 2. THE GENERATION INDEX IS PUBLISHED ATOMICALLY (AUDIT-V0 M4).
  *    Under SAB, a non-atomic store of the index can be observed out of order
@@ -22,6 +28,9 @@
  *    the front buffer. Two separate loads can observe N then N+1 and mix a
  *    generation with a buffer from another — that pairing is the actual race.
  *
+ *    Ping-pong indexing is `gen & 1`, not `gen % 2`. JS `%` of a negative Int32
+ *    wrap is negative; `& 1` stays a valid buffer index.
+ *
  * 3. QUANTISATION IS EXACT (DEC-028).
  *    quantum is a power of two and offset a multiple of it, so
  *    `offset + stored * quantum` is exactly representable and decodes
@@ -32,6 +41,10 @@
  * will then overwrite that buffer. `consistentRead` detects a torn generation
  * so a concurrent worker can retry. Holding the TypedArray itself across a
  * commit is still a data race — don't.
+ *
+ * CAPABILITY, NOT A TS QUALIFIER. `view()` returns a handle that does not have
+ * `rawMut` / `set` / `commit` / writable dirty at runtime. `Readonly<Field>`
+ * is a compile-time fiction and does not survive a cast.
  */
 
 import { assert, assertFinite } from '@ws/core';
@@ -46,6 +59,7 @@ import {
   type FieldId,
   type SubsystemId,
 } from './descriptor.js';
+
 
 export type TypedArray =
   | Int8Array
@@ -77,6 +91,10 @@ export function sharedMemoryAvailable(): boolean {
   return typeof SharedArrayBuffer === 'function';
 }
 
+function fail(message: string): never {
+  throw new Error(message);
+}
+
 /**
  * Dirty tracking at block granularity.
  *
@@ -87,7 +105,15 @@ export function sharedMemoryAvailable(): boolean {
  */
 export const DIRTY_BLOCK_CELLS = 4096;
 
-export class DirtyMask {
+/** Query half of a dirty mask. No mutators — this is what a read view exposes. */
+export interface DirtyQuery {
+  readonly blockCount: number;
+  readonly dirtyBlockCount: number;
+  isBlockDirty(block: number): boolean;
+  forEachDirtyBlock(fn: (block: number, startCell: number, endCell: number) => void): void;
+}
+
+export class DirtyMask implements DirtyQuery {
   private readonly words: Uint32Array;
   readonly blockCount: number;
 
@@ -135,6 +161,22 @@ export class DirtyMask {
   }
 }
 
+class DirtyQueryView implements DirtyQuery {
+  constructor(private readonly inner: DirtyMask) {}
+  get blockCount(): number {
+    return this.inner.blockCount;
+  }
+  get dirtyBlockCount(): number {
+    return this.inner.dirtyBlockCount;
+  }
+  isBlockDirty(block: number): boolean {
+    return this.inner.isBlockDirty(block);
+  }
+  forEachDirtyBlock(fn: (block: number, startCell: number, endCell: number) => void): void {
+    this.inner.forEachDirtyBlock(fn);
+  }
+}
+
 /** SAB handles a worker needs. Small, transferable as a structured object of SABs. */
 export interface FieldHandles {
   readonly data: ArrayBufferLike;
@@ -161,8 +203,8 @@ export interface ReadonlyFieldView {
   raw(): Readonly<TypedArray>;
   /** Decoded physical value: `offset + stored * quantum`. */
   get(cell: number, component?: number): number;
-  readonly dirty: DirtyMask;
-  /** Worker-shareable backing stores. */
+  readonly dirty: DirtyQuery;
+  /** Worker-shareable backing stores. Prefer `FieldStore.share(id)`. */
   handles(): FieldHandles;
   /**
    * Seqlock-style read: load generation, run `fn` on that front, load again.
@@ -172,10 +214,11 @@ export interface ReadonlyFieldView {
 }
 
 export interface FieldView extends ReadonlyFieldView {
+  readonly dirty: DirtyMask;
   /** Writable back buffer for the owning subsystem. */
   rawMut(): TypedArray;
   set(cell: number, value: number, component?: number): void;
-  /** Publish the back buffer. O(1): flips the generation index (rule 1). */
+  /** Publish the back buffer. O(1) index flip, then O(dirty) replicate. */
   commit(): void;
 }
 
@@ -183,6 +226,7 @@ class Field implements FieldView {
   readonly descriptor: FieldDescriptor;
   readonly cellCount: number;
   readonly dirty: DirtyMask;
+  readonly dirtyQuery: DirtyQuery;
 
   private readonly buffers: readonly TypedArray[];
   private readonly dataBacking: ArrayBufferLike;
@@ -190,11 +234,14 @@ class Field implements FieldView {
   private readonly control: Int32Array;
   private readonly clampLo: number;
   private readonly clampHi: number;
+  private readonly store: FieldStore;
 
-  constructor(d: FieldDescriptor, useShared: boolean) {
+  constructor(d: FieldDescriptor, useShared: boolean, store: FieldStore) {
     this.descriptor = d;
     this.cellCount = grid(d.grid).cellCount;
     this.dirty = new DirtyMask(this.cellCount);
+    this.dirtyQuery = new DirtyQueryView(this.dirty);
+    this.store = store;
 
     const elems = this.cellCount * d.components;
     const bytes = elems * DTYPE_BYTES[d.dtype];
@@ -226,14 +273,32 @@ class Field implements FieldView {
     return this.loadGeneration();
   }
 
+  /**
+   * Ping-pong: `gen & 1` stays a valid index after Int32 wrap. `gen % 2` of a
+   * negative generation is negative in JS and would index `undefined`.
+   */
   private frontAt(gen: number): TypedArray {
-    return this.buffers[gen % this.buffers.length] as TypedArray;
+    return this.buffers.length === 1
+      ? (this.buffers[0] as TypedArray)
+      : (this.buffers[gen & 1] as TypedArray);
   }
 
   private backAt(gen: number): TypedArray {
     return this.buffers.length === 1
       ? (this.buffers[0] as TypedArray)
-      : (this.buffers[(gen + 1) % 2] as TypedArray);
+      : (this.buffers[(gen + 1) & 1] as TypedArray);
+  }
+
+  private checkCell(cell: number, component: number): void {
+    if (cell < 0 || cell >= this.cellCount || (cell | 0) !== cell) {
+      fail(`${String(this.descriptor.id)} cell ${String(cell)} out of range [0, ${String(this.cellCount)})`);
+    }
+    const n = this.descriptor.components;
+    if (component < 0 || component >= n || (component | 0) !== component) {
+      fail(
+        `${String(this.descriptor.id)} component ${String(component)} out of range [0, ${String(n)})`,
+      );
+    }
   }
 
   raw(): Readonly<TypedArray> {
@@ -241,10 +306,12 @@ class Field implements FieldView {
   }
 
   rawMut(): TypedArray {
+    this.store.assertWritable(this.descriptor.id);
     return this.backAt(this.loadGeneration());
   }
 
   get(cell: number, component = 0): number {
+    this.checkCell(cell, component);
     const d = this.descriptor;
     const gen = this.loadGeneration();
     const stored = this.frontAt(gen)[cell * d.components + component] as number;
@@ -252,6 +319,8 @@ class Field implements FieldView {
   }
 
   set(cell: number, value: number, component = 0): void {
+    this.store.assertWritable(this.descriptor.id);
+    this.checkCell(cell, component);
     const d = this.descriptor;
     assertFinite(value, `${d.id}[${String(cell)}]`);
     const i = cell * d.components + component;
@@ -266,14 +335,28 @@ class Field implements FieldView {
   }
 
   /**
-   * Publish (rule 1 + rule 2). Release store of the generation index; no data
-   * moves. A single-buffered field still bumps its generation so consumers can
-   * detect change.
+   * Publish (rule 1 + rule 2). Release store of the generation index; the whole
+   * field does not move. Dirty blocks of THIS generation are then replicated
+   * from the new front into the new back so the next partial write cannot
+   * republish a stale sibling cell. The dirty mask itself is left for the
+   * consumer (renderer upload); we do not clear it here.
    */
   commit(): void {
+    this.store.assertWritable(this.descriptor.id);
     const next = this.loadGeneration() + 1;
     if (isShared(this.control.buffer)) Atomics.store(this.control, 0, next);
     else this.control[0] = next;
+
+    if (this.buffers.length === 2) {
+      const front = this.frontAt(next);
+      const back = this.backAt(next);
+      const comps = this.descriptor.components;
+      this.dirty.forEachDirtyBlock((_b, startCell, endCell) => {
+        const i0 = startCell * comps;
+        const i1 = Math.min(endCell, this.cellCount) * comps;
+        if (i1 > i0) back.set(front.subarray(i0, i1), i0);
+      });
+    }
   }
 
   handles(): FieldHandles {
@@ -295,6 +378,39 @@ class Field implements FieldView {
   }
 }
 
+/**
+ * Runtime read handle. Deliberately a different object from `Field`: it has no
+ * `set` / `rawMut` / `commit`, and its dirty mask has no mutators. A cast to
+ * `FieldView` still cannot write through it because the methods are absent.
+ */
+class SafeReadView implements ReadonlyFieldView {
+  constructor(private readonly field: Field) {}
+  get descriptor(): FieldDescriptor {
+    return this.field.descriptor;
+  }
+  get cellCount(): number {
+    return this.field.cellCount;
+  }
+  get generation(): number {
+    return this.field.generation;
+  }
+  get dirty(): DirtyQuery {
+    return this.field.dirtyQuery;
+  }
+  raw(): Readonly<TypedArray> {
+    return this.field.raw();
+  }
+  get(cell: number, component = 0): number {
+    return this.field.get(cell, component);
+  }
+  handles(): FieldHandles {
+    return this.field.handles();
+  }
+  consistentRead<T>(fn: (raw: Readonly<TypedArray>, generation: number) => T): ConsistentRead<T> {
+    return this.field.consistentRead(fn);
+  }
+}
+
 export interface FieldStoreOptions {
   /** Default true. Set false to exercise the non-SAB path (DEC-020, R-05). */
   readonly preferShared?: boolean;
@@ -308,9 +424,17 @@ export interface FieldStoreOptions {
 export class FieldStore {
   private readonly descriptors = new Map<FieldId, FieldDescriptor>();
   private readonly fields = new Map<FieldId, Field>();
+  private readonly views = new Map<FieldId, SafeReadView>();
   private readonly order: FieldId[] = [];
   private sealed = false;
   readonly usingSharedMemory: boolean;
+
+  /**
+   * DEC-016 write barrier. `null` means "no step in flight" (tests, genesis).
+   * During a subsystem step this is the declared `writes[]` of the author.
+   */
+  private stepWrites: Set<FieldId> | null = null;
+  private stepAuthor: SubsystemId | null = null;
 
   constructor(opts: FieldStoreOptions = {}) {
     this.usingSharedMemory = (opts.preferShared ?? true) && sharedMemoryAvailable();
@@ -333,7 +457,9 @@ export class FieldStore {
       validateDescriptor(this.descriptors.get(id) as FieldDescriptor, lookup);
     }
     for (const id of this.order) {
-      this.fields.set(id, new Field(this.descriptors.get(id) as FieldDescriptor, this.usingSharedMemory));
+      const f = new Field(this.descriptors.get(id) as FieldDescriptor, this.usingSharedMemory, this);
+      this.fields.set(id, f);
+      this.views.set(id, new SafeReadView(f));
     }
     this.sealed = true;
     return this;
@@ -355,22 +481,65 @@ export class FieldStore {
   }
 
   /**
+   * DEC-016 write barrier. The scheduler calls this around `subsystem.step`.
+   * While a step is in flight, `set` / `rawMut` / `commit` on any field not in
+   * `writes` throws — including through a `FieldView` obtained earlier.
+   */
+  beginStep(author: SubsystemId, writes: readonly FieldId[]): void {
+    if (this.stepWrites !== null) {
+      fail(`nested beginStep: '${String(this.stepAuthor)}' is already in flight`);
+    }
+    this.stepAuthor = author;
+    this.stepWrites = new Set(writes);
+  }
+
+  endStep(): void {
+    this.stepWrites = null;
+    this.stepAuthor = null;
+  }
+
+  /** Always throws, including in production. DEV-stripped assert is not a lock. */
+  assertWritable(id: FieldId): void {
+    if (this.stepWrites === null) return;
+    if (!this.stepWrites.has(id)) {
+      fail(
+        `undeclared write to '${String(id)}' during step of '${String(this.stepAuthor)}' ` +
+          `(DEC-016 write barrier; field is not in writes[])`,
+      );
+    }
+  }
+
+  /**
    * Mutable access, gated on ownership (DEC-013). This is the single-writer rule
-   * with teeth: asking for a field you do not own throws, here, at the call site.
+   * with teeth: asking for a field you do not own throws, here, at the call site,
+   * in production as well as in DEV. A stripped `assert` is not a lock.
    */
   mut(id: FieldId, by: SubsystemId): FieldView {
     const f = this.require(id);
-    assert(
-      f.descriptor.owner === by,
-      `'${String(by)}' may not write '${String(id)}': it is owned by ` +
-        `'${String(f.descriptor.owner)}' (DEC-013 single-writer)`,
-    );
+    if (f.descriptor.owner !== by) {
+      fail(
+        `'${String(by)}' may not write '${String(id)}': it is owned by ` +
+          `'${String(f.descriptor.owner)}' (DEC-013 single-writer)`,
+      );
+    }
+    if (this.stepWrites !== null && this.stepAuthor !== by) {
+      fail(
+        `'${String(by)}' is not the in-flight author '${String(this.stepAuthor)}' (DEC-016 write barrier)`,
+      );
+    }
+    this.assertWritable(id);
     return f;
   }
 
-  /** Read-only access. Anyone may read anything. */
+  /** Read-only access. Anyone may read anything. Capability-safe at runtime. */
   view(id: FieldId): ReadonlyFieldView {
-    return this.require(id);
+    this.require(id);
+    return this.views.get(id) as SafeReadView;
+  }
+
+  /** Worker-shareable handles without handing out a writable view. */
+  share(id: FieldId): FieldHandles {
+    return this.require(id).handles();
   }
 
   private require(id: FieldId): Field {

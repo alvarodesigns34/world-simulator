@@ -17,7 +17,6 @@ import {
   simTime,
   usFromMs,
   v3,
-  vnorm,
 } from '@ws/core';
 import { EARTH_GEOMETRY, FieldStore, fieldId, gridId, subsystemId } from '@ws/data';
 import {
@@ -28,6 +27,7 @@ import {
   cameraFromGeodetic,
   derive,
   descentCameraAt,
+  dragOrbit,
   lookAtCentre,
   moveTangential,
   setAltitude,
@@ -171,10 +171,8 @@ async function main(): Promise<void> {
     lastY = e.clientY;
     const alt = derive(cam, PLANET).altitude;
     const rate = (1e-3 * Math.min(1, alt / 1e6 + 0.02)) / 1;
-    cam = moveTangential(cam, v3(0, 0, 1), -dx * rate);
-    const axis = vnorm(v3(-cam.position.y, cam.position.x, 0));
-    cam = moveTangential(cam, axis, dy * rate);
-    cam = lookAtCentre(cam);
+    // Polar-safe: qUp / qRight, not world-Z / (-y, x, 0), which vanish at ±Z.
+    cam = dragOrbit(cam, -dx * rate, dy * rate);
   });
 
   canvas.addEventListener(

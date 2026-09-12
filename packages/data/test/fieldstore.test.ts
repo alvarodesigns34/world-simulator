@@ -252,4 +252,90 @@ describe('FieldStore: storage, ownership and commit', () => {
     f.commit();
     expect(f.get(3)).toBe(777);
   });
+
+  it('partial writes survive the next publish (dirty-block replicate, DEC-032)', () => {
+    const s = build({ doubleBuffered: true });
+    const f = s.mut(fieldId('elevation'), OWNER);
+    f.set(0, 10);
+    f.commit();
+    expect(f.get(0)).toBe(10);
+    f.set(1, 20);
+    f.commit();
+    // Without the dirty-block copy, the ping-pong republishes cell 0 as 0.
+    expect(f.get(0)).toBe(10);
+    expect(f.get(1)).toBe(20);
+    f.set(2, 30);
+    f.commit();
+    expect(f.get(0)).toBe(10);
+    expect(f.get(1)).toBe(20);
+    expect(f.get(2)).toBe(30);
+  });
+
+  it('partial writes in different dirty blocks also survive', () => {
+    const s = build({ doubleBuffered: true, grid: gridId('cubesphere', 8) });
+    const f = s.mut(fieldId('elevation'), OWNER);
+    f.set(0, 11);
+    f.commit();
+    f.set(4096, 22);
+    f.commit();
+    expect(f.get(0)).toBe(11);
+    expect(f.get(4096)).toBe(22);
+  });
+
+  it('view() is a capability-safe read handle, not a TS-only Readonly', () => {
+    const s = build({ doubleBuffered: true });
+    const v = s.view(fieldId('elevation')) as unknown as Record<string, unknown>;
+    expect(typeof v.set).not.toBe('function');
+    expect(typeof v.rawMut).not.toBe('function');
+    expect(typeof v.commit).not.toBe('function');
+    expect(typeof v.get).toBe('function');
+    const dirty = v.dirty as Record<string, unknown>;
+    expect(typeof dirty.markCell).not.toBe('function');
+    expect(typeof dirty.clear).not.toBe('function');
+    expect(typeof dirty.markAll).not.toBe('function');
+  });
+
+  it('share() exposes worker handles without a writable view', () => {
+    const s = build({ doubleBuffered: true });
+    const h = s.share(fieldId('elevation'));
+    expect(h.copies).toBe(2);
+    expect(h.elems).toBeGreaterThan(0);
+    expect(h.dtype).toBe('i16');
+  });
+
+  it('rejects out-of-range cells and components', () => {
+    const s = build();
+    const f = s.mut(fieldId('elevation'), OWNER);
+    expect(() => f.set(-1, 1)).toThrow(/out of range/);
+    expect(() => f.set(f.cellCount, 1)).toThrow(/out of range/);
+    expect(() => f.get(-1)).toThrow(/out of range/);
+    expect(() => f.set(0, 1, 1)).toThrow(/component/);
+    expect(() => f.get(0, 4)).toThrow(/component/);
+  });
+
+  it('mut() always throws on ownership, not only in DEV (DEC-013)', () => {
+    const s = build();
+    expect(() => s.mut(fieldId('elevation'), subsystemId('hydrology'))).toThrow(
+      /owned by 'terrain'/,
+    );
+  });
+
+  it('write barrier rejects undeclared writes during a step (DEC-016)', () => {
+    const s = new FieldStore()
+      .declare(desc({ id: fieldId('elevation'), grid: gridId('cubesphere', 6) }))
+      .declare(desc({ id: fieldId('secret'), grid: gridId('cubesphere', 6) }))
+      .seal();
+    const sneak = s.mut(fieldId('secret'), OWNER);
+    s.beginStep(OWNER, [fieldId('elevation')]);
+    const elev = s.mut(fieldId('elevation'), OWNER);
+    elev.set(0, 5);
+    elev.commit();
+    expect(() => sneak.set(0, 99)).toThrow(/write barrier|undeclared write/);
+    expect(() => s.mut(fieldId('secret'), OWNER)).toThrow(/write barrier|undeclared write/);
+    s.endStep();
+    // Outside a step the captured handle is writable again (genesis / tests).
+    sneak.set(0, 7);
+    sneak.commit();
+    expect(sneak.get(0)).toBe(7);
+  });
 });

@@ -104,30 +104,29 @@ M5, M8, M10, M12 are data-verifiable and need only a gate review, not investigat
 
 ---
 
-## 2026-09-12 — second-pass brief updated by Opus
+## 2026-09-12 — second-pass brief retargeted by Grok (structural redteam)
 
-The full brief now lives in `agent/HANDOFF.md` (2026-09-12, Opus → Astra),
-structured as **CLOSED STRUCTURALLY** / **STILL REQUIRES GPU / EYES** /
-**DEFERRED TO M2**.
+The running branch is **`agent/grok/m1-structural-redteam`**, not
+`m1-astra-ready` and not Opus's GPU-integration HEAD alone. Grok reproduced
+and fixed structural holes under Opus's GPU hardening (T-0066): FieldStore
+partial publish, scheduler everyNOf/resume/cross-phase, a three-draw winding
+probe that no longer guesses CW from a black pixel, polar `dragOrbit` via
+qUp/qRight, and timestamp-query as optional.
 
-Two changes since Grok's version that affect what you should measure:
+**Do not re-diagnose T-0054.** Those four Ampere findings stay closed.
+The winding HUD line now reports `unknown` rather than a CW guess when the
+probe cannot run — if the canvas is black, that line is still the first
+thing to read.
 
-- **Do not re-diagnose the four findings from your first pass.** All four are
-  fixed, reviewed, and each is now held by a gate that fails a build: WGSL is
-  parsed with a real grammar, the CPU/GPU struct layout is derived from the
-  shader, the six face orientations are specified in DEC-035, and the f32
-  magnitudes are asserted at every altitude.
-- **The front-face convention is measured on your GPU at startup.** If the canvas
-  is black, read the HUD `winding` line first — it distinguishes "culled
-  everything" from "drew nothing", which was previously a guess.
+`pnpm dev` is **http://localhost:8080**, not 5173.
 
-And one question has changed: **E1 is no longer "is 33×33 fastest".** Patch
-tessellation is geometrically inert at M1, so 17×17 delivers identical geometry
-for 3.75× fewer triangles. Please measure it seriously.
+The rest of the second-pass brief (CLOSED STRUCTURALLY / STILL REQUIRES GPU
+/ EYES / DEFERRED TO M2) in `agent/HANDOFF.md` still holds, with the winding
+probe strengthened as above.
 
-Bilinear sag is now quantified: ≤ 2.9 px, limb ≤ 1.6 px, with τ honestly at 4.0
-(it was silently 4 px while claiming 2). Whether that reads as a faceted limb is
-yours to judge.
+Opus's notes that still apply: E1 is no longer "is 33×33 fastest" (17×17
+delivers identical geometry for 3.75× fewer triangles at M1). Bilinear sag
+is ≤ 2.9 px, limb ≤ 1.6 px, τ honestly 4.0.
 
 ---
 
@@ -177,7 +176,7 @@ Check the HUD `GPU ERROR` line and the vendor string, and file it.
 
 Milestone:      M1
 Requested by:   Grok 4.6
-Branch/commit:  `agent/grok/m1-astra-ready` (PR #3 to `dev`; do not merge `main`)
+Branch/commit:  `agent/grok/m1-structural-redteam` (PR to `dev`; do not merge `main`)
 Sheet:          `docs/M1-MEASUREMENTS.md`
 How to run:
 

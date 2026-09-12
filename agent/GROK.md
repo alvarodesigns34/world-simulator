@@ -15,6 +15,78 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-12 — M1 structural redteam of Opus GPU-integration HEAD.
+
+**Branch:** `agent/grok/m1-structural-redteam` @ `a1f3923`+ · **Tasks:** T-0066 Done; T-0013 Partial (Node 1/4/8); T-0065 Partial (design/bench)
+**Commits:** `[GROK] fix: M1 structural defects from redteam`
+**Do not merge `main`.** Do not start M2. Opus is gone. Astra is not queued.
+
+Attacked `agent/opus/m1-gpu-integration-review` @ `a1f3923` (not the older Grok `889cebf`). CI was red there: `hashFloat01x64` 200 k `expect()`s in a loop timed out at 5 s, and `ci.yml` omitted `check:wgsl` and `build`.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | CI | **Flawed.** `rng64` timeout was 400 k assertions, not a hash bug. `ci.yml` ran types/boundaries/tests/sim-standalone and skipped `check:wgsl` + `build` — the Ampere `meta` class of hole. |
+| 2 | FieldStore publish | **Wrong for partial writes.** Ping-pong without a dirty-block replicate republishes stale sibling cells (`[10,20]` → `[0,20]`). `view()` was a live `Field` with `set`/`commit`. `mut()` used DEV-stripped `assert`. No DEC-016 write barrier. |
+| 3 | Scheduler | **Flawed.** `everyNOf` was `lastDt * n`; `stepDt <= 0` skipped without advancing `due` → hang. `resume()` reset `due` to now (DEC-030 phase-shift). Per-phase Kahn hid earlier-phase current-gen reads of later-phase writers. |
+| 4 | Winding probe | **Unsafe fallback.** One draw; black pixel guessed CW + cull on. A failed probe blacks the canvas. |
+| 5 | Polar drag | **Wrong at ±Z.** World-Z and `(-y,x,0)` have length 0 on the axis. |
+| 6 | timestamp-query | **Required by accident.** Adapter feature listed as `requiredFeatures`; a flaky driver kills `requestDevice`. |
+| 7 | T-0013 | **Node 1/4/8 now holds.** Browser COOP/COEP table still open. |
+| 8 | T-0065 | **Design only.** Adaptive τ near the cap beats truncation. Not shipped: τ=4.0 does not hit the 900-patch cap. `budgets.ts` untouched. |
+| 9 | Closed GPU items | **Unreopened.** T-0054 / DEC-033 / DEC-035 / `check:wgsl` left in place. |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| R1 | P0 | CI | `hashFloat01x64` 200 k expects → 5 s timeout | `rng64.test.ts:134` @ a1f3923 | **Fixed** |
+| R2 | P0 | CI | `ci.yml` omitted `check` (wgsl) and `build` | `.github/workflows/ci.yml` | **Fixed** |
+| R3 | P1 | FieldStore | Partial double-buffer publish drops unwritten cells | `fieldstore.test.ts` `[10,20]` | **Fixed** T-0066 |
+| R4 | P1 | FieldStore | `view()` is not a capability | runtime `set` on the same object | **Fixed** |
+| R5 | P1 | FieldStore | `mut()` DEV-stripped → DEC-013 unenforced in prod | `assert.ts` | **Fixed** |
+| R6 | P1 | Scheduler | `everyNOf` hang + wrong semantics | `lastDt=0` continue | **Fixed** |
+| R7 | P1 | Scheduler | `resume()` phase-shifts slow cadence | `slot.due = this._time` | **Fixed** |
+| R8 | P1 | Scheduler | Cross-phase current-gen is silent lag | per-phase Kahn | **Fixed** |
+| R9 | P1 | Scheduler | No write barrier during `step` | DEC-016 consequence | **Fixed** |
+| R10 | P1 | GPU | Probe black → CW guess | `winding.ts` | **Fixed** |
+| R11 | P1 | Camera | Polar drag degenerate | `main.ts` world-Z | **Fixed** |
+| R12 | P1 | GPU | timestamp-query as required feature | `device.ts` | **Fixed** |
+| R13 | NOTE | Descent | ROADMAP 40 000 km→1 m; live descent ends at 2 m | `descent.ts` last keyframe `Math.log(2)` | Not changed. T-0051 is 1 m. |
+
+### Benchmarks
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| Tests | vitest | **300** passed | was 232 at T-0054 |
+| sim-standalone | core+data+sim | **165** | |
+| build | vite | 51.57 kB / gzip 19.70 kB | was 44.36 / 17.55 |
+| T-0013 1/4/8 | Node SAB, 64 k cells, mix32 kernel | bit-identical digest | identity holds |
+| T-0065 cap | 256², 33×33, τ=0.25 vs 16 | visible ≤ cap (~16); τ=4.0 1440p not exhausted | budgets unchanged |
+| rng64 uniform | 200 k samples, asserts after loop | chi² < 21.67, 50 k unique | no timeout |
+
+### Disagreements raised
+
+None that need a new ADR. `everyNOf` is DEC-016's `{ everyNSteps: n, of }` under the name the types already used. Cross-phase current-gen as a startup error is DEC-031 rule 4 applied to PHASES, not a new decision. Dirty-block replicate is O(dirty), not a 50 MB memcpy — DEC-032 rule 4 intact.
+
+Not reopening: cube-sphere, WebGPU-only, no-three.js, year-split, sim/render boundary, morph-in-M1, budget constants, PHASES order, Accepted ADR text.
+
+### Known problems
+
+- **No GPU here.** Winding three-draw and timestamp retry are CPU-proven. Astra's second visual pass is still the only Ampere confirmation.
+- **T-0013 browser table** (COOP/COEP on vs off) still open.
+- **T-0065 adaptive τ** designed, not implemented.
+- **Descent floor is 2 m**, ROADMAP says 1 m. Not silently moved.
+- **readsPrev does not change which buffer `get()` reads.** It is a graph-edge declaration. The actual previous-generation read API is still missing; that is M4, not this branch.
+
+### Next
+
+Handoff is **Grok → remaining agents**. Astra when a human queues her, against **this** branch, not `m1-astra-ready`. Do not wait for Opus.
+
+---
+---
+
 ## 2026-09-12 — Ampere GPU defects reproduced and fixed. M1 drawable again.
 
 **Branch:** `agent/grok/m1-astra-ready` · **Tasks:** T-0054 Done
@@ -262,7 +334,9 @@ I pick up T-0045, T-0046, T-0013, T-0017, T-0020, T-0021 once v1 locks.
 | T-0024 | Attack RENDERING.md §7 budgets with arithmetic | **Done** |
 | T-0017 | Telemetry ring buffer + Chrome Trace export | **Done** |
 | T-0050 | E1: patch-size sweep on real GPUs | **Partial** — CPU done, GPU is Astra |
-| T-0013 | Worker pool, SAB vs transfer, tile-sized jobs | **Partial** — Node tiles + rules; browser + 1/4/8 still open |
+| T-0013 | Worker pool, SAB vs transfer, tile-sized jobs | **Partial** — Node 1/4/8 identity holds; browser COOP/COEP still open |
+| T-0065 | Graceful LOD degradation at the patch cap | **Partial** — design/bench recorded; adaptive τ not shipped |
+| T-0066 | M1 structural redteam of Opus GPU HEAD | **Done** |
 | T-0054 | Ampere GPU defects from A-0001 first pass | **Done** |
 | T-0051 | E2: reversed-Z vertex swim | P1 |
 | T-0053 | Derive `maxJobSimYears` from T4 arithmetic | P2 (M4) |

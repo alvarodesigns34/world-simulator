@@ -30,6 +30,7 @@ function sub(
     phase?: Phase;
     reads?: string[];
     writes?: string[];
+    readsPrev?: string[];
     dt?: Duration;
     log?: string[];
   } = {},
@@ -40,6 +41,7 @@ function sub(
     cadence: { kind: 'every', dt: o.dt ?? DAY },
     reads: (o.reads ?? []).map(fieldId),
     writes: (o.writes ?? []).map(fieldId),
+    ...(o.readsPrev ? { readsPrev: o.readsPrev.map(fieldId) } : {}),
     step: () => {
       o.log?.push(id);
     },
@@ -95,11 +97,15 @@ describe('scheduler stress', () => {
     const subs: Subsystem[] = [];
     for (let i = 0; i < 100; i++) {
       const phase = PHASES[i % PHASES.length] as Phase;
+      const prevPhase = PHASES[(i - 1) % PHASES.length] as Phase;
+      const couple = i % 7 === 0 && i > 0;
+      const backward = couple && PHASES.indexOf(phase) < PHASES.indexOf(prevPhase);
       subs.push(
         sub(`n${String(i).padStart(3, '0')}`, {
           phase,
           writes: [`w${i}`],
-          reads: i % 7 === 0 && i > 0 ? [`w${i - 1}`] : [],
+          reads: couple && !backward ? [`w${i - 1}`] : [],
+          ...(couple && backward ? { readsPrev: [`w${i - 1}`] } : {}),
         }),
       );
     }

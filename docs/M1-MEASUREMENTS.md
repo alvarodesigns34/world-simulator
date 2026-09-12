@@ -1,6 +1,11 @@
 # M1 measurements
 
 Grok session 2026-09-11, branch `agent/grok/m1-astra-ready`.
+**Updated 2026-09-12** on `agent/grok/m1-structural-redteam` (T-0066). Sections
+1–8 below are **historical** — they are the astra-ready number sheet and were
+not re-run this session (no GPU, and the CPU path was not the target). New
+numbers for this redteam are in **§9**. Do not mix them.
+
 This is the number sheet Astra (and anyone arguing about the 6.0 ms budget)
 should read before looking at the running app.
 
@@ -101,8 +106,10 @@ AUDIT-V0 browser number still stands for the 50 MB *browser* path:
 SAB is not a dogma. It is the only mechanism that lets two threads read a 50 MB
 field without copying it and without detaching it.
 
-T-0013 remainder: the same table in a **browser**, COOP/COEP on and off, and
-1/4/8 workers producing identical results. Not this host.
+T-0013 remainder: the same table in a **browser**, COOP/COEP on and off.
+**Node 1/4/8 worker identity now holds** (2026-09-12 redteam): 64 384 cells,
+mix32 kernel, 1 vs 4 vs 8 `worker_threads` writing disjoint ranges of one SAB,
+bit-identical digest. Browser still open. Not this host.
 
 ---
 
@@ -233,4 +240,36 @@ exhausted 0/601. Isolated p50 / p95 0.172 / 0.882 ms.
 
 Tests: **232** (was 208 at first A-0001). sim-standalone 147. build
 44.36 kB gzip 17.55 kB.
+
+---
+
+## 13. Structural redteam (T-0066, 2026-09-12) — current
+
+Branch `agent/grok/m1-structural-redteam`, based on Opus `a1f3923`.
+Sections 1–12 are historical. These are the numbers from this session.
+
+| What | Result |
+| --- | --- |
+| Tests | **300** passed |
+| sim-standalone | **165** |
+| build | 51.57 kB / gzip 19.70 kB |
+| CI | `pnpm run check` + test + sim-standalone + build. `hashFloat01x64` 200 k samples, asserts after the loop (no 5 s timeout). |
+| T-0013 Node 1/4/8 | 64 384 i32 cells, mix32 kernel, SAB. 1 vs 4 vs 8 workers bit-identical. |
+| T-0065 cap | τ=4.0 @ 1440p 33×33 discrete still under budget. Tiny 256² cap (~16 patches) is a hard ceiling. Adaptive τ **not** shipped. `budgets.ts` unchanged. |
+| Descent floor | Live path ends at **2 m** (`Math.log(2)`). ROADMAP still says 1 m. Not moved. |
+| Dev server | **http://localhost:8080**, COOP/COEP. Not 5173. |
+
+FieldStore: `commit()` still flips a generation index (DEC-032). Partial writes
+replicate dirty-this-gen blocks front→back after the flip — O(dirty), not 50 MB.
+`view()` is a capability-safe handle. `mut()` throws in production (DEC-013).
+
+Scheduler: `everyNOf` = every N steps of X. `resume()` does not reset `due`.
+Earlier-phase current-gen reads of later-phase writers are startup errors.
+
+Winding probe: three draws (control / ccw / cw). Control black → UNKNOWN, cull
+off. Never a CW guess from a failed probe.
+
+timestamp-query: optional. `requestDevice` retries without it. `hasTimestampQuery`
+comes from `device.features`.
+
 
