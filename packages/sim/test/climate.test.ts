@@ -67,7 +67,7 @@ describe('M4 climate solver', () => {
     expect(Math.abs(w1 - w0) / Math.max(Math.abs(w0), 1)).toBeLessThan(1e-6);
   });
 
-  it('records the advective leak rather than hiding it (explicit regime)', () => {
+  it('conserves atmospheric water under finite-volume advection', () => {
     const s = initClimate({ n: 3, geology, seaLevel: 0, seed: SEED });
     s.regime = 'explicit';
     const w0 = atmosWaterMass(s);
@@ -75,8 +75,7 @@ describe('M4 climate solver', () => {
     const w1 = atmosWaterMass(s);
     const rel = Math.abs(w1 - w0) / Math.max(Math.abs(w0), 1);
     expect(Number.isFinite(rel)).toBe(true);
-    /* Gradient-form advection is not flux-conservative. Finding, not a painted test. */
-    expect(rel).toBeLessThan(1);
+    expect(rel).toBeLessThan(1e-6);
   });
 
   it('same seed, two runs, identical T digest', () => {
@@ -122,7 +121,7 @@ describe('M4 climate solver', () => {
     expect(classifyRegime(1e8)).toBe('paleo');
   });
 
-  it('records climate step cost at n4 and n6 (measurement, not a painted 40 ms gate)', () => {
+  it('keeps the n6 climate step inside the 40 ms roadmap budget', () => {
     const n4 = initClimate({ n: 4, geology, seaLevel: 0, seed: SEED });
     stepClimate(n4, 3600, 0);
     const t4 = Date.now();
@@ -139,10 +138,11 @@ describe('M4 climate solver', () => {
     expect(n6.grid.cellCount).toBe(40962);
     expect(Number.isFinite(n4ms) && n4ms > 0).toBe(true);
     expect(Number.isFinite(n6ms) && n6ms > 0).toBe(true);
-    /* Honest: n6 is registered and the solver is written against n. The
-       40 ms roadmap target is not claimed. App default remains n4. */
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify({ n4ms: +n4ms.toFixed(2), n6ms: +n6ms.toFixed(2) }));
+    /* Keep measurements assertable in the pure Node TypeScript environment;
+       CI deliberately does not add DOM's global `console`. */
+    expect(+n4ms.toFixed(2)).toBeGreaterThan(0);
+    expect(+n6ms.toFixed(2)).toBeGreaterThan(0);
+    expect(n6ms).toBeLessThanOrEqual(40);
   });
 
   it('zonal mean U is finite after spin-up (circulation exists, not a painted atlas)', () => {

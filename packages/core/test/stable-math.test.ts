@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as sm from '@ws/core';
+import { EXP_GOLDEN, LOG_GOLDEN, TRIG_GOLDEN } from './stable-math-golden.js';
 
 /**
  * T-0021 — ULP envelope vs V8 Math.* and a truncated series at selected points.
@@ -52,6 +53,21 @@ function seriesExp(x: number, terms = 20): number {
 }
 
 describe('stableMath accuracy (T-0021)', () => {
+  it('matches committed 100-digit external reference vectors across difficult ranges', () => {
+    for (const [x, s, c] of TRIG_GOLDEN) {
+      expect(Math.abs(sm.sin(x) - s)).toBeLessThanOrEqual(2e-14 * Math.max(1, Math.abs(s)));
+      expect(Math.abs(sm.cos(x) - c)).toBeLessThanOrEqual(2e-14 * Math.max(1, Math.abs(c)));
+    }
+    for (const [x, ref] of EXP_GOLDEN) {
+      const got = sm.exp(x);
+      expect(Math.abs(got - ref) / ref).toBeLessThanOrEqual(3e-14);
+    }
+    for (const [x, ref] of LOG_GOLDEN) {
+      const got = sm.log(x);
+      const scale = Math.max(1, Math.abs(ref));
+      expect(Math.abs(got - ref) / scale).toBeLessThanOrEqual(3e-14);
+    }
+  });
   it('sin matches a Taylor series near 0 to < 1 ULP', () => {
     let worst = 0;
     for (const x of [0, 1e-12, 1e-8, 1e-4, 0.01, 0.1, 0.25, 0.5]) {

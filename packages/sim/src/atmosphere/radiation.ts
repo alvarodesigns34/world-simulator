@@ -9,8 +9,6 @@
  * a sea-ice fraction is provided. Lapse: T_surf − 6.5 K/km * max(0, z).
  */
 
-import { pow } from '@ws/core';
-
 export const SIGMA = 5.670374419e-8;
 export const LAPSE_K_PER_M = 0.0065;
 export const C_LAND = 1.0e7; /* J / K / m²  ~ 0.3 m equivalent water */
@@ -26,7 +24,10 @@ export function albedo(ocean: number, ice: number): number {
 }
 
 export function olr(T: number): number {
-  return EMISSIVITY * SIGMA * pow(T, 4);
+  /* Integer power in the hottest climate loop. Multiplication is exact-tier
+     arithmetic and avoids two stableMath transcendentals per cell. */
+  const t2 = T * T;
+  return EMISSIVITY * SIGMA * t2 * t2;
 }
 
 export function heatCapacity(ocean: number, ice: number): number {
@@ -37,7 +38,7 @@ export function heatCapacity(ocean: number, ice: number): number {
 export function equilibriumT(Q: number, alpha: number): number {
   const abs = (1 - alpha) * Q;
   if (abs <= 0) return 180;
-  return pow(abs / (EMISSIVITY * SIGMA), 0.25);
+  return Math.sqrt(Math.sqrt(abs / (EMISSIVITY * SIGMA)));
 }
 
 export function lapse(Ts: number, elevM: number): number {

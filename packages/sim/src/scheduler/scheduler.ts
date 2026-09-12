@@ -2,9 +2,9 @@
  * The scheduler (T-0012, DEC-016, DEC-030, DEC-031).
  *
  * Advances simulation time and runs due subsystems in the deterministic order
- * `buildSchedule` resolved. What it does NOT do yet, on purpose: regimes (M4),
- * worker dispatch (T-0013). The contract for both is present so M4 is not a
- * rewrite, which is what DEC-030's consequences require.
+ * `buildSchedule` resolved. Regime cadence changes occur only at logged command
+ * boundaries (DEC-037). Worker results still publish through the ordered main
+ * boundary rather than arrival order.
  *
  * COMMIT DISCIPLINE (DEC-016 rule 3). Results are applied at tick boundaries in
  * the fixed subsystem order, never on arrival. A job that finishes early waits.
@@ -44,7 +44,7 @@ import {
 } from '@ws/core';
 import type { FieldStore, SubsystemId } from '@ws/data';
 import { buildSchedule, type ScheduleEntry } from './graph.js';
-import type { Subsystem } from './types.js';
+import type { Cadence, Subsystem } from './types.js';
 
 export interface SchedulerOptions {
   readonly calendar: Calendar;
@@ -62,6 +62,7 @@ export type RunState = 'running' | 'paused' | 'quiesced';
 
 interface Slot {
   readonly entry: ScheduleEntry;
+  cadence: Cadence;
   /** Next simulation instant at which this subsystem is due. */
   due: SimTime;
   steps: number;
@@ -112,6 +113,7 @@ export class Scheduler {
     for (const entry of this.schedule) {
       const slot: Slot = {
         entry,
+        cadence: entry.subsystem.cadence,
         due: this._time,
         steps: 0,
         lastDt: duration(0),
@@ -174,9 +176,9 @@ export class Scheduler {
       // but is also skipped here so it cannot pin `due` and hang.
       let earliest: SimTime | null = null;
       for (const slot of this.slots) {
-        const kind = slot.entry.subsystem.cadence.kind;
+        const kind = slot.cadence.kind;
         if (kind === 'onDemand' || kind === 'everyNOf') continue;
-        if (kind === 'every' && slot.entry.subsystem.cadence.dt <= 0) continue;
+        if (kind === 'every' && slot.cadence.dt <= 0) continue;
         // Strictly BEFORE the target: a step at instant T covers [T, T+dt), so
         // a subsystem due exactly at `target` belongs to the next advance. Using
         // <= here would run a 3-day advance at t=0,1,2,3 — four steps for three
@@ -187,7 +189,7 @@ export class Scheduler {
       if (earliest === null) break;
 
       for (const slot of this.slots) {
-        const c = slot.entry.subsystem.cadence;
+        const c = slot.cadence;
         if (c.kind === 'onDemand') continue;
 
         if (c.kind === 'every') {
@@ -247,6 +249,26 @@ export class Scheduler {
     slot.lastRun = time;
     slot.due = addDuration(time, stepDt, this.calendar);
     slot.coveredThrough = slot.due;
+  }
+
+  /**
+   * Change the cadence of a regime-switched FAST subsystem at an explicit
+   * command boundary. The new regime starts a fresh half-open span at the
+   * current simulation instant; slow subsystems must never use this method.
+   */
+  setCadence(id: SubsystemId, cadence: Cadence): void {
+    invariant(this.built, 'call build() before setCadence()');
+    const slot = this.byId.get(id as string);
+    invariant(slot !== undefined, `unknown subsystem '${String(id)}'`);
+    invariant(cadence.kind === 'every' && cadence.dt > 0, 'runtime cadence must be positive every(dt)');
+    slot.cadence = cadence;
+    slot.due = this._time;
+    slot.coveredThrough = this._time;
+    slot.lastRun = null;
+  }
+
+  cadenceOf(id: SubsystemId): Cadence | undefined {
+    return this.byId.get(id as string)?.cadence;
   }
 
   pause(): void {

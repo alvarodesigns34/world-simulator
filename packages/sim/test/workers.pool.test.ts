@@ -110,13 +110,12 @@ describe('T-0013 Node worker_threads backend identity', () => {
     expect(digestI32(b)).toBe(digestI32(c));
   });
 
-  it('cancellation stops issuing remaining tiles (already-started tiles finish)', async () => {
+  it('cancellation rejects a just-issued job before publication', async () => {
     const pool = new WorkerPool({ workerCount: 4 });
     const p = pool.mapCells(1024, 1);
     pool.cancelAll();
-    /* Inline backend does not pre-empt a running kernel; cancel is a flag. */
     expect(pool.cancelled).toBe(true);
-    await p;
+    await expect(p).rejects.toThrow('worker job cancelled');
   });
 });
 

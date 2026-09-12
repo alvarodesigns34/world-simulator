@@ -106,7 +106,7 @@ export type Kernel = (cell: number, seed: number) => number;
 
 export interface PoolBackend {
   readonly name: string;
-  run(jobs: readonly Job[], kernelSource: string | Kernel): Promise<JobResult[]>;
+  run(jobs: readonly Job[], kernelSource: string | Kernel, cancel?: CancelToken): Promise<JobResult[]>;
 }
 
 /** Split [0, length) into `workers` contiguous tiles. Trailing empty tiles dropped. */
@@ -149,9 +149,12 @@ export const MIX32: Kernel = (cell, seed) => {
   return x | 0;
 };
 
-export function runKernelRange(kernel: Kernel, start: number, end: number, seed: number): Int32Array {
+export function runKernelRange(kernel: Kernel, start: number, end: number, seed: number, cancel?: CancelToken): Int32Array {
   const buf = new Int32Array(end - start);
-  for (let i = start; i < end; i++) buf[i - start] = kernel(i, seed);
+  for (let i = start; i < end; i++) {
+    if ((i & 1023) === 0 && cancel?.cancelled) throw new CancelledJobError();
+    buf[i - start] = kernel(i, seed);
+  }
   return buf;
 }
 
@@ -174,17 +177,24 @@ export function createCancelToken(): CancelToken {
   return { cancelled: false };
 }
 
+export class CancelledJobError extends Error {
+  constructor() { super('worker job cancelled'); this.name = 'CancelledJobError'; }
+}
+
 /**
  * Inline backend: partitions run on this thread. Still 1/4/8-identical because
  * the kernel is pure. Cancellation is checked between tiles, not mid-cell.
  */
 export class InlineBackend implements PoolBackend {
   readonly name = 'inline';
-  run(jobs: readonly Job[], kernel: string | Kernel): Promise<JobResult[]> {
+  async run(jobs: readonly Job[], kernel: string | Kernel, cancel?: CancelToken): Promise<JobResult[]> {
+    /* Yield before work so cancelAll() can cancel a just-issued request too. */
+    await Promise.resolve();
     const k: Kernel = typeof kernel === 'function' ? kernel : MIX32;
     const out: JobResult[] = [];
     for (const job of jobs) {
-      const buffer = runKernelRange(k, job.start, job.end, job.seed);
+      if (cancel?.cancelled) throw new CancelledJobError();
+      const buffer = runKernelRange(k, job.start, job.end, job.seed, cancel);
       out.push({
         id: job.id,
         start: job.start,
@@ -193,14 +203,15 @@ export class InlineBackend implements PoolBackend {
         buffer,
       });
     }
-    return Promise.resolve(out);
+    return out;
   }
 }
 
 export class WorkerPool {
   readonly workerCount: number;
   readonly backend: PoolBackend;
-  private readonly cancel = createCancelToken();
+  private readonly active = new Set<CancelToken>();
+  private wasCancelled = false;
 
   constructor(opts?: { workerCount?: number; backend?: PoolBackend }) {
     this.workerCount = opts?.workerCount ?? 4;
@@ -209,11 +220,12 @@ export class WorkerPool {
   }
 
   cancelAll(): void {
-    this.cancel.cancelled = true;
+    this.wasCancelled = true;
+    for (const token of this.active) token.cancelled = true;
   }
 
   get cancelled(): boolean {
-    return this.cancel.cancelled;
+    return this.wasCancelled;
   }
 
   /**
@@ -221,6 +233,8 @@ export class WorkerPool {
    * order. 1, 4 or 8 workers produce bit-identical output.
    */
   async mapCells(length: number, seed: number, kernel: Kernel = MIX32): Promise<Int32Array> {
+    const cancel = createCancelToken();
+    this.active.add(cancel);
     const parts = partitionRange(length, this.workerCount);
     const jobs: Job[] = parts.map((p, id) => ({
       id,
@@ -229,11 +243,16 @@ export class WorkerPool {
       end: p.end,
       seed,
     }));
-    const raw = await this.backend.run(jobs, kernel);
-    const ordered = applyInIdOrder(raw);
-    const out = new Int32Array(length);
-    for (const r of ordered) out.set(r.buffer, r.start);
-    return out;
+    try {
+      const raw = await this.backend.run(jobs, kernel, cancel);
+      if (cancel.cancelled) throw new CancelledJobError();
+      const ordered = applyInIdOrder(raw);
+      const out = new Int32Array(length);
+      for (const r of ordered) out.set(r.buffer, r.start);
+      return out;
+    } finally {
+      this.active.delete(cancel);
+    }
   }
 }
 

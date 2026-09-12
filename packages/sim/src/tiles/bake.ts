@@ -48,7 +48,8 @@ export function sampleElevation(
   const cx = gx < 0 ? 0 : gx >= dim ? dim - 1 : gx;
   const cy = gy < 0 ? 0 : gy >= dim ? dim - 1 : gy;
   const base = geology.elevationM[cubeIndex(face, geology.level, cx, cy)] as number;
-  const amp = 40 * Math.pow(0.55, Math.max(0, level - geology.level));
+  let amp = 40;
+  for (let l = geology.level; l < level; l++) amp *= 0.55;
   return base + detailNoise(seed, face, x, y, amp);
 }
 
@@ -64,7 +65,9 @@ export function bakeTile(input: BakeInput): TileRecord {
     for (let tx = 0; tx < nFine; tx++) {
       const x = key.x * nFine + tx;
       const y = key.y * nFine + ty;
-      const sampleLevel = key.level + Math.round(Math.log2(nFine));
+      let sampleShift = 0;
+      for (let n = nFine; n > 1; n >>= 1) sampleShift++;
+      const sampleLevel = key.level + sampleShift;
       const h = sampleElevation(input.geology, input.seed, key.face, sampleLevel, x, y);
       const q = Math.round(h);
       elev[ty * nFine + tx] = q < -32768 ? -32768 : q > 32767 ? 32767 : q;

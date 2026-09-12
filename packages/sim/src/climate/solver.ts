@@ -18,11 +18,10 @@
  * Temporal LOD shares this state. Regime only changes dt and which terms run.
  */
 
-import { DOMAIN, hashFloat01x64, type Seed, sin, cos, exp, hypot, STABLE_PI, STABLE_PI_2 } from '@ws/core';
+import { DOMAIN, hashFloat01x64, type Seed, sin, cos, acos, exp, hypot, STABLE_PI, STABLE_PI_2 } from '@ws/core';
 import {
   geodesicGrid,
   geodesicLat,
-  geodesicLon,
   resamplePlan,
   cubeToGeoIntensive,
   type GeodesicGrid,
@@ -70,6 +69,32 @@ export interface ClimateState {
   readonly Tmean: Float64Array;
   readonly precipMean: Float64Array;
   readonly qsat: Float64Array;
+  /** Cached geometry and reusable workspaces: no per-step allocation/trig. */
+  readonly lat: Float64Array;
+  readonly sinLat: Float64Array;
+  readonly cosLat: Float64Array;
+  readonly eastX: Float64Array;
+  readonly eastY: Float64Array;
+  readonly northX: Float64Array;
+  readonly northY: Float64Array;
+  readonly northZ: Float64Array;
+  readonly gradCoeffE: Float64Array;
+  readonly gradCoeffN: Float64Array;
+  readonly gradT: Float64Array;
+  readonly gradH: Float64Array;
+  readonly gradElev: Float64Array;
+  readonly edgeI: Int32Array;
+  readonly edgeJ: Int32Array;
+  readonly edgeLength: Float64Array;
+  readonly edgeUi: Float64Array;
+  readonly edgeVi: Float64Array;
+  readonly edgeUj: Float64Array;
+  readonly edgeVj: Float64Array;
+  readonly edgeFlux: Float64Array;
+  readonly outgoing: Float64Array;
+  readonly transportDelta: Float64Array;
+  readonly heightDelta: Float64Array;
+  readonly areaM2: Float64Array;
   regime: Regime;
   steps: number;
 }
@@ -118,6 +143,7 @@ export function initClimate(opts: {
     q[i] = qsatOf(t) * 0.6;
     if (t < 271.2 && oc > 0.5) ice[i] = 0.4;
   }
+  const numerics = buildNumerics(grid, elev);
   return {
     n: opts.n,
     grid,
@@ -136,8 +162,133 @@ export function initClimate(opts: {
     Tmean: T.slice(),
     precipMean: new Float64Array(N),
     qsat: new Float64Array(N),
+    ...numerics,
     regime: 'explicit',
     steps: 0,
+  };
+}
+
+/** Refresh slow terrain/coast boundary conditions without replacing climate
+ * memory. Called only at a geological commit boundary. */
+export function refreshClimateBoundary(s: ClimateState, geology: GeologyState, seaLevel: number): void {
+  const plan = resamplePlan(geology.level, s.n);
+  cubeToGeoIntensive(plan, geology.elevationM, s.elev);
+  const oceanCube = new Float64Array(plan.cubeCount);
+  for (let i = 0; i < plan.cubeCount; i++) {
+    oceanCube[i] = (geology.elevationM[i] as number) < seaLevel ? 1 : 0;
+  }
+  cubeToGeoIntensive(plan, oceanCube, s.ocean);
+  gradsCached(s.grid, s.elev, s.gradElev, s.gradCoeffE, s.gradCoeffN);
+}
+
+function buildNumerics(grid: GeodesicGrid, elev: Float64Array) {
+  const N = grid.cellCount;
+  const lat = new Float64Array(N);
+  const sinLat = new Float64Array(N);
+  const cosLat = new Float64Array(N);
+  const eastX = new Float64Array(N);
+  const eastY = new Float64Array(N);
+  const northX = new Float64Array(N);
+  const northY = new Float64Array(N);
+  const northZ = new Float64Array(N);
+  const gradCoeffE = new Float64Array(N * 6);
+  const gradCoeffN = new Float64Array(N * 6);
+  const areaM2 = new Float64Array(N);
+  let edgeCount = 0;
+  for (let i = 0; i < N; i++) {
+    const x = grid.positions[i * 3] as number;
+    const y = grid.positions[i * 3 + 1] as number;
+    const z = grid.positions[i * 3 + 2] as number;
+    lat[i] = geodesicLat(grid, i);
+    sinLat[i] = z;
+    const r = Math.sqrt(Math.max(0, x * x + y * y));
+    cosLat[i] = r;
+    if (r > 1e-14) {
+      eastX[i] = -y / r;
+      eastY[i] = x / r;
+      northX[i] = -z * x / r;
+      northY[i] = -z * y / r;
+      northZ[i] = r;
+    } else {
+      eastX[i] = 1;
+      northY[i] = z >= 0 ? 1 : -1;
+    }
+    areaM2[i] = (grid.areas[i] as number) * RADIUS * RADIUS;
+    let wsum = 0;
+    const nc = grid.neighborCount[i] as number;
+    for (let k = 0; k < nc; k++) {
+      const j = grid.neighbors[i * 6 + k] as number;
+      if (j > i) edgeCount++;
+      const dx = (grid.positions[j * 3] as number) - x;
+      const dy = (grid.positions[j * 3 + 1] as number) - y;
+      const dz = (grid.positions[j * 3 + 2] as number) - z;
+      const chord2 = dx * dx + dy * dy + dz * dz;
+      if (chord2 > 1e-18) wsum += 1 / chord2;
+    }
+    if (wsum > 0) {
+      for (let k = 0; k < nc; k++) {
+        const j = grid.neighbors[i * 6 + k] as number;
+        const dx = (grid.positions[j * 3] as number) - x;
+        const dy = (grid.positions[j * 3 + 1] as number) - y;
+        const dz = (grid.positions[j * 3 + 2] as number) - z;
+        const chord2 = dx * dx + dy * dy + dz * dz;
+        if (chord2 <= 1e-18) continue;
+        const scale = 1 / (chord2 * wsum * RADIUS);
+        gradCoeffE[i * 6 + k] = (dx * (eastX[i] as number) + dy * (eastY[i] as number)) * scale;
+        gradCoeffN[i * 6 + k] =
+          (dx * (northX[i] as number) + dy * (northY[i] as number) + dz * (northZ[i] as number)) * scale;
+      }
+    }
+  }
+  const edgeI = new Int32Array(edgeCount);
+  const edgeJ = new Int32Array(edgeCount);
+  const edgeLength = new Float64Array(edgeCount);
+  const edgeUi = new Float64Array(edgeCount);
+  const edgeVi = new Float64Array(edgeCount);
+  const edgeUj = new Float64Array(edgeCount);
+  const edgeVj = new Float64Array(edgeCount);
+  let e = 0;
+  for (let i = 0; i < N; i++) {
+    const ix = grid.positions[i * 3] as number;
+    const iy = grid.positions[i * 3 + 1] as number;
+    const iz = grid.positions[i * 3 + 2] as number;
+    const nc = grid.neighborCount[i] as number;
+    for (let k = 0; k < nc; k++) {
+      const j = grid.neighbors[i * 6 + k] as number;
+      if (j <= i) continue;
+      const jx = grid.positions[j * 3] as number;
+      const jy = grid.positions[j * 3 + 1] as number;
+      const jz = grid.positions[j * 3 + 2] as number;
+      const dot = Math.max(-1, Math.min(1, ix * jx + iy * jy + iz * jz));
+      let tix = jx - dot * ix;
+      let tiy = jy - dot * iy;
+      let tiz = jz - dot * iz;
+      let tjx = dot * jx - ix;
+      let tjy = dot * jy - iy;
+      let tjz = dot * jz - iz;
+      const il = Math.sqrt(tix * tix + tiy * tiy + tiz * tiz);
+      const jl = Math.sqrt(tjx * tjx + tjy * tjy + tjz * tjz);
+      tix /= il; tiy /= il; tiz /= il;
+      tjx /= jl; tjy /= jl; tjz /= jl;
+      edgeI[e] = i;
+      edgeJ[e] = j;
+      edgeLength[e] = RADIUS * acos(dot) / 1.7320508075688772;
+      edgeUi[e] = tix * (eastX[i] as number) + tiy * (eastY[i] as number);
+      edgeVi[e] = tix * (northX[i] as number) + tiy * (northY[i] as number) + tiz * (northZ[i] as number);
+      edgeUj[e] = tjx * (eastX[j] as number) + tjy * (eastY[j] as number);
+      edgeVj[e] = tjx * (northX[j] as number) + tjy * (northY[j] as number) + tjz * (northZ[j] as number);
+      e++;
+    }
+  }
+  const gradElev = new Float64Array(N * 2);
+  gradsCached(grid, elev, gradElev, gradCoeffE, gradCoeffN);
+  return {
+    lat, sinLat, cosLat, eastX, eastY, northX, northY, northZ,
+    gradCoeffE, gradCoeffN, gradT: new Float64Array(N * 2),
+    gradH: new Float64Array(N * 2), gradElev, edgeI, edgeJ, edgeLength,
+    edgeUi, edgeVi, edgeUj, edgeVj, edgeFlux: new Float64Array(edgeCount),
+    outgoing: new Float64Array(N), transportDelta: new Float64Array(N),
+    heightDelta: new Float64Array(N), areaM2,
   };
 }
 
@@ -172,6 +323,14 @@ export function stepClimate(
   decl: number,
   orbit: OrbitParams = EARTH_ORBIT,
 ): StepDiagnostics {
+  /* A coarse-regime call represents an equilibrated window; it is not an
+     instruction to feed 100 kyr into an explicit Euler stencil. Bounding the
+     numerical relaxation span is the actual temporal-LOD model. */
+  const maxNumericalDt = s.regime === 'explicit' ? 3600
+    : s.regime === 'synoptic' ? 21600
+    : s.regime === 'climatology' ? 5 * 86400
+    : 20 * 86400;
+  dt = Math.min(dt, maxNumericalDt);
   const g = s.grid;
   const N = g.cellCount;
   const T = s.T;
@@ -195,17 +354,24 @@ export function stepClimate(
   let maxWind = 0;
   let sumT = 0;
 
-  const gT = new Float64Array(N * 2);
-  const gH = new Float64Array(N * 2);
-  const gQ = new Float64Array(N * 2);
-  grads(g, T, gT);
-  if (doSW) grads(g, h, gH);
-  if (doAdvect) grads(g, q, gQ);
+  const gT = s.gradT;
+  const gH = s.gradH;
+  gradsCached(g, T, gT, s.gradCoeffE, s.gradCoeffN);
+  if (doSW) gradsCached(g, h, gH, s.gradCoeffE, s.gradCoeffN);
+  if (doAdvect) {
+    conservativeTransport(s, q, u, v, dt, s.transportDelta);
+    if (doSW) conservativeTransport(s, h, u, v, dt, s.heightDelta);
+  } else {
+    s.transportDelta.fill(0);
+    s.heightDelta.fill(0);
+  }
+  const sdec = sin(decl);
+  const cdec = cos(decl);
 
   for (let i = 0; i < N; i++) {
-    const lat = geodesicLat(g, i);
+    const lat = s.lat[i] as number;
     const area = g.areas[i] as number;
-    const Q = dailyMeanInsolation(lat, decl, orbit);
+    const Q = dailyMeanCached(s.sinLat[i] as number, s.cosLat[i] as number, sdec, cdec, orbit.solarConstant);
     const a = albedo(ocean[i] as number, ice[i] as number);
     const abs = (1 - a) * Q;
     const out = olr(T[i] as number);
@@ -234,16 +400,23 @@ export function stepClimate(
       (ocean[i] as number) > 0.3 && (ice[i] as number) < 0.5
         ? 1.2e-8 * (spd + 2) * (qs - (q[i] as number))
         : 0;
+    let qNext = (q[i] as number) + (s.transportDelta[i] as number) / (s.areaM2[i] as number);
+    if (qNext < 0) qNext = 0;
     let dq = evap;
-    if (doAdvect) dq -= uu * (gQ[i * 2] as number) + vv * (gQ[i * 2 + 1] as number);
     let pr = 0;
-    if ((elev[i] as number) > 800 && (q[i] as number) > qs * 0.5 && doAdvect) {
-      const extra = 3e-9 * ((elev[i] as number) / 2000) * (spd + 1);
+    const upliftVelocity = doAdvect
+      ? Math.max(0, uu * (s.gradElev[i * 2] as number) + vv * (s.gradElev[i * 2 + 1] as number))
+      : 0;
+    if (upliftVelocity > 0 && qNext > qs * 0.45) {
+      /* Directional windward condensation. Since q is transported in flux
+         form, the removed tracer reaches downwind cells depleted: a real rain
+         shadow instead of an elevation-only precipitation texture. */
+      const extra = Math.min(qNext / Math.max(dt, 1), upliftVelocity * qNext * 0.08);
       dq -= extra;
       pr += extra;
     }
-    if ((q[i] as number) + dq * dt > qs) {
-      const cond = ((q[i] as number) + dq * dt - qs) / Math.max(dt, 1);
+    if (qNext + dq * dt > qs) {
+      const cond = (qNext + dq * dt - qs) / Math.max(dt, 1);
       dq -= cond;
       pr += cond;
       dT += (cond * 8e5) / C;
@@ -261,7 +434,8 @@ export function stepClimate(
       uu += du * dt;
       vv += dv * dt;
       const href = H0 * ((T[i] as number) / 255);
-      let hh = (h[i] as number) + dt * (href - (h[i] as number)) / H_RELAX;
+      let hh = (h[i] as number) + (s.heightDelta[i] as number) / (s.areaM2[i] as number);
+      hh += dt * (href - hh) / H_RELAX;
       if (hh < HMIN) hh = HMIN;
       if (hh > HMAX) hh = HMAX;
       h[i] = hh;
@@ -283,7 +457,7 @@ export function stepClimate(
     }
 
     T[i] = (T[i] as number) + dT * dt;
-    q[i] = (q[i] as number) + dq * dt;
+    q[i] = qNext + dq * dt;
     if ((q[i] as number) < 0) {
       s.evapAcc[i] = (s.evapAcc[i] as number) - (q[i] as number);
       q[i] = 0;
@@ -330,50 +504,92 @@ export function stepClimate(
   };
 }
 
-function grads(grid: GeodesicGrid, field: Float64Array, out: Float64Array): void {
-  /* Spherical gradient in local (east, north), using neighbour chords. */
+function gradsCached(
+  grid: GeodesicGrid,
+  field: Float64Array,
+  out: Float64Array,
+  coeffE: Float64Array,
+  coeffN: Float64Array,
+): void {
+  /* Geometry is static. Coefficients include tangent projection, inverse
+     chord weighting, normalisation and 1/R, so the hot loop is multiply-add. */
   for (let i = 0; i < grid.cellCount; i++) {
-    const lat = geodesicLat(grid, i);
-    const lon = geodesicLon(grid, i);
-    const cl = cos(lat);
-    const sl = sin(lat);
-    const eastX = -sin(lon);
-    const eastY = cos(lon);
-    const northX = -sl * cos(lon);
-    const northY = -sl * sin(lon);
-    const northZ = cl;
     let ge = 0;
     let gn = 0;
-    let wsum = 0;
     const nc = grid.neighborCount[i] as number;
     const fi = field[i] as number;
-    const ix = grid.positions[i * 3] as number;
-    const iy = grid.positions[i * 3 + 1] as number;
-    const iz = grid.positions[i * 3 + 2] as number;
     for (let k = 0; k < nc; k++) {
       const j = grid.neighbors[i * 6 + k] as number;
-      const jx = grid.positions[j * 3] as number;
-      const jy = grid.positions[j * 3 + 1] as number;
-      const jz = grid.positions[j * 3 + 2] as number;
-      const dx = jx - ix;
-      const dy = jy - iy;
-      const dz = jz - iz;
-      const chord2 = dx * dx + dy * dy + dz * dz;
-      if (chord2 < 1e-18) continue;
-      const w = 1 / chord2;
       const df = (field[j] as number) - fi;
-      ge += df * (dx * eastX + dy * eastY) * w;
-      gn += df * (dx * northX + dy * northY + dz * northZ) * w;
-      wsum += w;
+      ge += df * (coeffE[i * 6 + k] as number);
+      gn += df * (coeffN[i * 6 + k] as number);
     }
-    if (wsum > 0) {
-      ge /= wsum;
-      gn /= wsum;
-    }
-    /* Convert dimensionless to 1/m. chord is on the unit sphere. */
-    out[i * 2] = ge / RADIUS;
-    out[i * 2 + 1] = gn / RADIUS;
+    out[i * 2] = ge;
+    out[i * 2 + 1] = gn;
   }
+}
+
+/**
+ * First-order upwind finite-volume transport over each shared geodesic edge.
+ * Every edge produces one antisymmetric mass exchange, so global tracer mass
+ * is conserved independently of pentagons, poles, or cell-area variation.
+ * A source-cell limiter applies the same factor to every outgoing edge and
+ * guarantees positivity without clipping mass after the update.
+ */
+function conservativeTransport(
+  s: ClimateState,
+  field: Float64Array,
+  u: Float64Array,
+  v: Float64Array,
+  dt: number,
+  delta: Float64Array,
+): void {
+  delta.fill(0);
+  s.outgoing.fill(0);
+  const E = s.edgeI.length;
+  for (let e = 0; e < E; e++) {
+    const i = s.edgeI[e] as number;
+    const j = s.edgeJ[e] as number;
+    const speed = 0.5 * (
+      (u[i] as number) * (s.edgeUi[e] as number) +
+      (v[i] as number) * (s.edgeVi[e] as number) +
+      (u[j] as number) * (s.edgeUj[e] as number) +
+      (v[j] as number) * (s.edgeVj[e] as number)
+    );
+    const source = speed >= 0 ? i : j;
+    const flux = speed * (s.edgeLength[e] as number) * (field[source] as number);
+    s.edgeFlux[e] = flux;
+    s.outgoing[source] = (s.outgoing[source] as number) + Math.abs(flux);
+  }
+  for (let e = 0; e < E; e++) {
+    const i = s.edgeI[e] as number;
+    const j = s.edgeJ[e] as number;
+    const flux = s.edgeFlux[e] as number;
+    const source = flux >= 0 ? i : j;
+    const available = Math.max(0, field[source] as number) * (s.areaM2[source] as number);
+    const wanted = (s.outgoing[source] as number) * dt;
+    const limiter = wanted > available && wanted > 0 ? available / wanted : 1;
+    const moved = flux * dt * limiter;
+    delta[i] = (delta[i] as number) - moved;
+    delta[j] = (delta[j] as number) + moved;
+  }
+}
+
+function dailyMeanCached(
+  slat: number,
+  clat: number,
+  sdec: number,
+  cdec: number,
+  solarConstant: number,
+): number {
+  const x = -slat * sdec;
+  const y = clat * cdec;
+  let h0: number;
+  if (!(y > 0) || Math.abs(x) >= y) h0 = x < 0 ? STABLE_PI : 0;
+  else h0 = acos(x / y);
+  if (h0 === 0) return 0;
+  const q = (solarConstant / STABLE_PI) * (h0 * slat * sdec + clat * cdec * sin(h0));
+  return Number.isFinite(q) && q > 0 ? q : 0;
 }
 
 export function atmosWaterMass(s: ClimateState): number {

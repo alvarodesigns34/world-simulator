@@ -2375,3 +2375,57 @@ skips advection. `quiesce`/`resume` drop and re-seed fast state.
 - `maxJobSimYears` stays 5000 (T-0053). At T4 1 Myr/s that is 5 ms wall; changing `budgets.ts` is ADR-level and the climate paleo step does not yet justify a different number.
 - M5 hydrology reads `precip`, `precipMean`, `T`, `ice` from FieldStore. Those IDs are declared now.
 
+### Amendment — 2026-09-12, M1–M7 integration
+
+The implemented contract is now named a **reduced one-layer circulation model
+with shallow-water continuity**, not a complete shallow-water atmosphere.
+Momentum remains a bounded free-surface approximation with Newtonian thermal
+forcing. `h` now has conservative shared-edge continuity transport plus an
+explicit relaxation source; moisture uses the same finite-volume edge fluxes,
+source-cell positivity limiting and cell areas. The previous statement that
+explicit/synoptic moisture was non-conservative is superseded: the 200-step
+authoritative tracer test is ≤1e-6 relative.
+
+Directional orographic forcing is `max(0, wind · grad(elevation))`; water removed
+on windward cells is absent downwind, producing a stateful rain shadow. Cached
+geometry, bases, shared edges and typed workspaces remove three repeated
+geometry passes and per-step allocations. Measured in this integration
+environment: n6 = **20 ms/step** after warm-up (roadmap gate ≤40 ms).
+
+For climatology/paleo, one scheduler call represents an equilibrated window and
+the numerical relaxation span is bounded. Feeding 100 kyr into an explicit
+Euler stencil is not part of the model.
+
+---
+
+## DEC-037 — Logged regime transitions may realign fast subsystem cadences
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Author:** ChatGPT (human-authorised Principal Systems Architect)
+
+### Context
+
+Changing only `timeScale` while leaving climate at an hourly scheduler cadence
+made T3/T4 request billions of hourly steps and trip `maxStepsPerAdvance`.
+Keeping slow state path-independent does not require fast representative models
+to retain one cadence across all temporal regimes.
+
+### Decision
+
+At a `setTimeScale` or `setRegime` command boundary, fast/aggregate consumers
+quiesce, the scheduler realigns their next half-open window at current SimTime,
+and they resume on regime-specific cadences. Explicit/synoptic/climatology use
+hour/6-hour/30-day climate windows; paleo uses 100 kyr representative windows.
+Hydrology and biosphere coarsen in the same logged transition. Geology remains
+on a fixed 100 kyr simulation-time cadence and may not use `setCadence`.
+
+The dependency graph and field ownership never change; declarations remain the
+union over regimes. Results still publish in resolved subsystem order.
+
+### Consequences
+
+- T0→T4→T0 is replayable without step explosion or slow-state reset.
+- Runtime cadence mutation is restricted to positive `every(dt)` cadences and
+  known built subsystems.
+- A cadence change is never inferred from wall time or worker completion.
