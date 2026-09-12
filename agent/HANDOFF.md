@@ -6,6 +6,39 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-12 · ChatGPT → next block · M1–M7 causal integration
+
+**Branch:** `agent/chatgpt/m1-m7-integrated`, based exactly on PR #8 HEAD
+`afcbedea6a43158a1a932a4f5b1663a247ec8603`.
+
+M1–M4 blockers are closed in code: remote TypeScript failure removed;
+finite-volume q/h transport; regime cadences and T0→T4→T0; n6 20 ms warm;
+real cancellable worker execution; browser tile worker → ordered TileCache →
+ancestor fallback → renderer; OPFS write-through; integer-only authoritative
+tile scale; committed 100-digit stableMath goldens; DEC-036 amended honestly.
+
+M5 adds seam-safe Priority-Flood, acyclic routing/topological accumulation,
+basins, state-derived rivers, bounded lakes, soil/runoff/infiltration/ET,
+snow/glaciers/melt, sea-level coupling and explicit 100-year water accounting.
+M6 adds climate/water terrain biomes, NPP, biomass/phenology, damped trophic
+pools, migration and extinction. M7 resumes genesis plates as persistent Euler
+entities with drift, collision, subduction, rifting, orogenesis, erosion,
+isostasy, volcanism, fault stress/events, crust accounting and downstream
+climate/hydrology/biosphere invalidation.
+
+Runtime surface shading consumes simulated vegetation, river discharge and
+lake placement; the visualiser exposes geology, climate, hydrology and
+biosphere fields. The remote browser could not reach this workspace's localhost
+(`ERR_BLOCKED_BY_CLIENT`), so production build/WGSL/layout checks are the visual
+gate available here; do not describe that as a human GPU pass.
+
+Remaining important debt: OPFS currently hydrates only its in-session L1 and
+does not reload persisted tile metadata after a page restart; global hydrology
+is L6 and should gain regional refinement before civilisation-scale catchments;
+GPU frame/FPS remains hardware-measurement work.
+
+---
+
 ## 2026-09-12 · Grok → **Claude/Opus** · Accelerated M1–M4 block. READY FOR CONSOLIDATION.
 
 **Branch:** `agent/grok/m1-m4-accelerated` → PR to `dev`, stacked on `agent/grok/m1-final-redteam` @ `292470f`

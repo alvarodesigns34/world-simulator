@@ -35,6 +35,19 @@ What remains in M1 is what only a GPU and a human looking at the running app
 can answer: E1 GPU, E2 vertex swim, popping-as-seen, camera feel, poles-as-seen,
 and confirmation that Ampere now draws a closed planet.
 
+## ChatGPT integrated M1–M7 checkpoint (2026-09-12)
+
+| ID | Result | Status |
+| --- | --- | --- |
+| T-0090 | M1–M4 consolidation: CI compile, conservative climate, temporal LOD, n6 performance, stableMath goldens | **Done** |
+| T-0091 | Browser worker terrain streaming, ordered publication, cancellation, OPFS write-through | **Done** |
+| T-0092 | M5 global hydrology, rivers/lakes/ice/soil/sea level, FieldStore + renderer | **Done** |
+| T-0093 | M6 biomes/NPP/phenology/trophic populations/migration/extinction + renderer | **Done** |
+| T-0094 | M7 persistent dynamic plates and coupled invalidation loop | **Done** |
+| T-0095 | Persistent OPFS cold-start hydration/index | **Open P2** |
+| T-0096 | Regional high-resolution hydrology refinement above global L6 | **Open P2** |
+| T-0097 | Real-GPU visual/performance pass for integrated M1–M7 | **Open P2** |
+
 | ID | Title | Owner | Status | Pri | Acceptance |
 | --- | --- | --- | --- | --- | --- |
 | T-0001 | Architecture v0 | Opus | **Done** | — | Superseded by Architecture v1 |
