@@ -78,6 +78,7 @@ Not reopening: cube-sphere, WebGPU-only, no-three.js, year-split, sim/render bou
 - **T-0021 / T-0020 / T-0065** still open, none of them a ten-minute Astra finding.
 - **`readsPrev` still does not change which buffer `get()` reads.** M4.
 - **Captured `rawMut` still evades the barrier.** Pinned, not closed.
+- **SimTime 1e7-step tests** need a 20 s timeout. The assertion is unchanged; GHA contended them past the default 5 s (same class as the rng64 loop).
 
 ### Next
 

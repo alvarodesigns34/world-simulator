@@ -104,7 +104,7 @@ describe('SimTime precision at deep time', () => {
     const error = Math.abs(elapsed - EXACT);
 
     expect(error).toBeLessThan(1e-3); // measured: ~1.7e-5 s
-  });
+  }, 20_000);
 
   it('beats a flat f64 seconds-since-epoch counter by more than a millionfold', () => {
     // Year-split.
@@ -125,7 +125,7 @@ describe('SimTime precision at deep time', () => {
     // magnitude and silently loses 6.25% of all elapsed time.
     expect(flatError).toBeGreaterThan(1e4); // measured: ~1.04e4 s
     expect(splitError).toBeLessThan(flatError / 1e6);
-  });
+  }, 20_000);
 
   it('keeps the year exact no matter how deep', () => {
     let t = simTime(0, 0, CAL);
