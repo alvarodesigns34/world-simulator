@@ -16,7 +16,7 @@
 import { v3, type Vec3 } from '@ws/core';
 import { cubeFaceToUnit, quadkey, type QuadKey } from '@ws/data';
 
-export const FLOATS_PER_INSTANCE = 16;
+export const FLOATS_PER_INSTANCE = 20;
 
 export interface CameraPos {
   readonly x: number;
@@ -31,6 +31,10 @@ export interface PackedCorners {
   readonly c11: Vec3;
   readonly level: number;
   readonly face: number;
+  readonly h00: number;
+  readonly h10: number;
+  readonly h01: number;
+  readonly h11: number;
 }
 
 function relCorner(unit: { x: number; y: number; z: number }, radius: number, cam: CameraPos): Vec3 {
@@ -52,6 +56,10 @@ export function patchCorners(key: QuadKey, radius: number, cam: CameraPos): Pack
     c11: relCorner(p11, radius, cam),
     level: key.level,
     face,
+    h00: 0,
+    h10: 0,
+    h01: 0,
+    h11: 0,
   };
 }
 
@@ -73,6 +81,10 @@ export function packPatchInstance(out: Float32Array, at: number, packed: PackedC
   out[k++] = packed.c11.y;
   out[k++] = packed.c11.z;
   out[k++] = 0;
+  out[k++] = packed.h00;
+  out[k++] = packed.h10;
+  out[k++] = packed.h01;
+  out[k++] = packed.h11;
 }
 
 /**

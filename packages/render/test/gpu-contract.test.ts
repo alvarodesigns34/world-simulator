@@ -52,7 +52,7 @@ describe('WGSL parses and is free of the identifier classes that broke Ampere', 
 });
 
 describe('Uniforms: WGSL layout matches the CPU staging array', () => {
-  it('is 96 bytes — mat4x4 + vec4 + vec4, no padding', () => {
+  it('is 112 bytes — mat4x4 + vec4 + vec4 + vec4, no padding', () => {
     expect(struct('Uniforms').size).toBe(UNIFORM_BYTES);
     expect(struct('Uniforms').align).toBe(16);
   });
@@ -61,6 +61,7 @@ describe('Uniforms: WGSL layout matches the CPU staging array', () => {
     ['viewProj', UNIFORM_OFFSET.viewProj, 'mat4x4'],
     ['sunDirection', UNIFORM_OFFSET.sunDirection, 'vec4'],
     ['params', UNIFORM_OFFSET.params, 'vec4'],
+    ['camK', UNIFORM_OFFSET.camK, 'vec4'],
   ])('member %s sits at CPU float offset %i and is %s', (name, floatOffset, type) => {
     const m = member('Uniforms', name);
     expect(m.offset).toBe(floatOffset * 4);
@@ -79,10 +80,9 @@ describe('Uniforms: WGSL layout matches the CPU staging array', () => {
 });
 
 describe('PatchInstance: WGSL layout matches the CPU packer', () => {
-  it('is 64 bytes, so the storage array stride is exactly 64', () => {
+  it('is 80 bytes, so the storage array stride is exactly 80', () => {
     expect(struct('PatchInstance').size).toBe(INSTANCE_BYTES);
     expect(struct('PatchInstance').align).toBe(16);
-    // roundUp(align, size) === size, so no inter-element padding.
     const s = struct('PatchInstance');
     expect(Math.ceil(s.size / s.align) * s.align).toBe(s.size);
   });
@@ -97,6 +97,7 @@ describe('PatchInstance: WGSL layout matches the CPU packer', () => {
     ['c10', INSTANCE_OFFSET.c10],
     ['c01', INSTANCE_OFFSET.c01],
     ['c11', INSTANCE_OFFSET.c11],
+    ['elev', INSTANCE_OFFSET.elev],
   ])('corner %s sits at CPU float offset %i', (name, floatOffset) => {
     const m = member('PatchInstance', name);
     expect(m.offset).toBe(floatOffset * 4);
@@ -104,11 +105,11 @@ describe('PatchInstance: WGSL layout matches the CPU packer', () => {
   });
 
   it('declares its members in the order the packer writes them', () => {
-    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11']);
+    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11', 'elev']);
   });
 
-  it('has exactly four members — a fifth would silently shift the stride', () => {
-    expect(struct('PatchInstance').members).toHaveLength(4);
+  it('has exactly five members — a sixth would silently shift the stride', () => {
+    expect(struct('PatchInstance').members).toHaveLength(5);
   });
 
   it('is bound where the pipeline binds it', () => {

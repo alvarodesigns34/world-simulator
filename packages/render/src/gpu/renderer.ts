@@ -11,7 +11,7 @@
  */
 
 import { budgets, vnorm, vscale, v3, vcross, type Vec3 } from '@ws/core';
-import { type PlanetGeometry } from '@ws/data';
+import { type PlanetGeometry, type QuadKey } from '@ws/data';
 import type { CameraState } from '../camera/state.js';
 import { derive, nearPlane } from '../camera/state.js';
 import {
@@ -28,7 +28,7 @@ import {
 import { NodePool, type PatchNode } from '../lod/quadtree.js';
 import { PLANET_WGSL } from '../shaders/planet.wgsl.js';
 import type { GpuContext } from './device.js';
-import { FLOATS_PER_INSTANCE, packPatchInstance, patchCorners, patchIndices } from './instance.js';
+import { FLOATS_PER_INSTANCE, packPatchInstance, patchCorners, patchIndices, type PackedCorners } from './instance.js';
 import {
   BINDINGS,
   ENTRY_POINTS,
@@ -57,7 +57,9 @@ export interface RendererOptions {
   readonly maxLevel?: number;
 }
 
-export type DebugMode = 'shaded' | 'lod' | 'patches';
+export type DebugMode = 'shaded' | 'lod' | 'patches' | 'height';
+
+export type ElevationSampler = (key: QuadKey) => { h00: number; h10: number; h01: number; h11: number };
 
 export interface FrameStats extends SelectStats {
   readonly cpuSelectMs: number;
@@ -112,6 +114,8 @@ export class PlanetRenderer {
 
   debugMode: DebugMode = 'shaded';
   sunDirection: Vec3 = vnorm(v3(1, 0.35, 0.25));
+  seaLevel = 0;
+  elevationAt: ElevationSampler | null = null;
 
   constructor(gpu: GpuContext, opts: RendererOptions) {
     this.gpu = gpu;
@@ -254,11 +258,21 @@ export class PlanetRenderer {
    * interpolates them — it does not reconstruct a planet-centred position.
    */
   private writeInstance(out: Float32Array, at: number, node: PatchNode, cam: CameraState): void {
-    packPatchInstance(
-      out,
-      at,
-      patchCorners(node.key, this.planet.radius, cam.position),
-    );
+    const packed = patchCorners(node.key, this.planet.radius, cam.position);
+    const h = this.elevationAt ? this.elevationAt(node.key) : { h00: 0, h10: 0, h01: 0, h11: 0 };
+    const withH: PackedCorners = {
+      c00: packed.c00,
+      c10: packed.c10,
+      c01: packed.c01,
+      c11: packed.c11,
+      level: packed.level,
+      face: packed.face,
+      h00: h.h00,
+      h10: h.h10,
+      h01: h.h01,
+      h11: h.h11,
+    };
+    packPatchInstance(out, at, withH);
   }
 
   render(cam: CameraState, target: GPUTextureView, width: number, height: number): FrameStats {
@@ -310,10 +324,14 @@ export class PlanetRenderer {
       [
         this.planet.radius,
         d.altitude,
-        this.debugMode === 'shaded' ? 0 : this.debugMode === 'lod' ? 1 : 2,
-        0,
+        this.debugMode === 'shaded' ? 0 : this.debugMode === 'lod' ? 1 : this.debugMode === 'patches' ? 2 : 3,
+        this.seaLevel,
       ],
       UNIFORM_OFFSET.params,
+    );
+    this.uniformData.set(
+      [cam.position.x, cam.position.y, cam.position.z, 0],
+      UNIFORM_OFFSET.camK,
     );
     device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
 

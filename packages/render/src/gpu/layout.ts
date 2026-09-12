@@ -22,8 +22,8 @@
  *     satisfy it.
  */
 
-/** Uniforms: mat4x4 viewProj + vec4 sunDirection + vec4 params. */
-export const UNIFORM_FLOATS = 24;
+/** Uniforms: mat4x4 viewProj + vec4 sunDirection + vec4 params + vec4 camK. */
+export const UNIFORM_FLOATS = 28;
 export const UNIFORM_BYTES = UNIFORM_FLOATS * 4;
 
 /** Float offsets into the uniform staging array. Byte offset = float * 4. */
@@ -31,10 +31,11 @@ export const UNIFORM_OFFSET = {
   viewProj: 0,
   sunDirection: 16,
   params: 20,
+  camK: 24,
 } as const;
 
-/** PatchInstance: four vec4s. Byte offset = float * 4. */
-export const INSTANCE_FLOATS = 16;
+/** PatchInstance: five vec4s. Byte offset = float * 4. */
+export const INSTANCE_FLOATS = 20;
 export const INSTANCE_BYTES = INSTANCE_FLOATS * 4;
 
 export const INSTANCE_OFFSET = {
@@ -42,6 +43,7 @@ export const INSTANCE_OFFSET = {
   c10: 4,
   c01: 8,
   c11: 12,
+  elev: 16,
 } as const;
 
 /**

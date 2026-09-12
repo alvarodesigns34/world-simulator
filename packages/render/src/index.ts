@@ -10,3 +10,6 @@ export * from './gpu/layout.js';
 export * from './gpu/winding.js';
 export * from './shaders/planet.wgsl.js';
 export * from './shaders/wgsl-reserved.js';
+export * from './terrain/spherical.js';
+export * from './visualiser/ramps.js';
+export * from './visualiser/overlay.js';
