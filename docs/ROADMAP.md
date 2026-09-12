@@ -158,8 +158,9 @@ could have settled.
 | Quadtree, horizon + frustum culling, SSE, hysteresis | `lod.*.test.ts`; budget never exceeded across 3 tiers × 3 patch sizes × 3 resolutions |
 | Bilinear sag | closed form verified to 5 s.f.; ≤ 2.9 px on screen, limb ≤ 1.6 px |
 | FieldStore: quantisation, ownership, generation publish | `fieldstore.*.test.ts`; DEC-028 validation now survives a production build |
-| FieldStore: read capability boundary | hostile reader tests; `view()` holds no live memory |
+| FieldStore: read capability boundary | hostile reader tests; `view()` holds no live memory; descriptor is a frozen copy (T-0080) |
 | FieldStore: O(dirty) commit | replication scoped per generation; 40 generations replicate 40 blocks, not 820 |
+| FieldStore: generation / dirty protocol | uint32 generation; stamp-then-publish; `requireFinite` on `set()` in production |
 | Scheduler: union graph, deterministic order, five startup errors | `scheduler.test.ts`; order independent of registration and of naming |
 | Scheduler: write barrier | `write-barrier.test.ts`, including the one hole it cannot close |
 | Production invariants | `production-invariants.test.ts` re-imports with `__WS_DEV__ = false` |

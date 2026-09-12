@@ -21,9 +21,11 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 Architecture v1 is consolidated and the M1 kernel is executable. Grok measured
 it, then reproduced and fixed the Ampere GPU defects Astra found on A-0001
 (T-0054). **Opus's GPU-integration HEAD (`a1f3923`) was then red-teamed**
-(T-0066): CI P0, FieldStore publish, scheduler, winding probe, polar drag,
-timestamp-query. **Opus is gone. Astra is not available immediately** — A-0001
-second pass waits, and is retargeted to `agent/grok/m1-structural-redteam`.
+(T-0066). **Opus rewrote two FieldStore contracts** (T-0070…T-0077, PR #6).
+**Grok's final M1 redteam** (`agent/grok/m1-final-redteam`) closed descriptor
+mutation, production NaN, generation sign/wrap, and the stamp/publish protocol.
+**READY FOR ASTRA.** A-0001 second pass waits, and is retargeted to
+`agent/grok/m1-final-redteam`.
 
 What remains in M1 is what only a GPU and a human looking at the running app
 can answer: E1 GPU, E2 vertex swim, popping-as-seen, camera feel, poles-as-seen,
@@ -69,8 +71,11 @@ and confirmation that Ampere now draws a closed planet.
 | **T-0075** | **Production invariants stripped by `assert()`** | Opus | **Done** | — | Ten found incl. all of `validateDescriptor`; `invariant()` added and converted |
 | **T-0076** | GPU hardening code review | Opus | **Done** | — | No inconclusive path enables culling, proved over all 8 combinations. No change |
 | **T-0077** | Descent harness reaches the 1 m criterion | Opus | **Done** | — | Lowered from 2 m; no regression |
-| T-0078 | Benchmark `copyRange` against a real GPU upload | **Grok** | Open | P1 | If the renderer needs `unsafeRawAccess` every frame, the T-0070 boundary is decorative |
-| T-0079 | `blockGeneration` stamp wraps at 2^32 generations | **Grok** | Open | P3 | 2.3 years at 60 commits/s. Judged acceptable; undefended |
+| T-0078 | Benchmark `copyRange` against a real GPU upload | **Grok** | **Partial** | P1 | CPU path measured (`tools/bench/fieldstore-hotpath.out.md`): 1 dirty block raw 0.53 µs, L11 scan 11 µs. Dirty-block copyRange is the default. **GPU `writeBuffer` still open** |
+| T-0079 | `blockGeneration` stamp wraps at 2^32 generations | **Grok** | **Done** | P3 | Real bug was signed Int32 at **2^31**. Public generation is uint32; 2^32 throws. ~2.3 years at 60 Hz is the documented ceiling, not silent data loss |
+| **T-0080** | **`view().descriptor` was the live registry object** | **Grok** | **Done** | **P1** | Frozen canonical copy; `owner`/`quantum`/`offset`/`tier`/`range` cannot hijack `mut()` or decode. Also `store.descriptor(id)` |
+| **T-0081** | **`set()` accepted NaN/±Inf in production** | **Grok** | **Done** | **P1** | `requireFinite` in every build. i16 used to encode NaN→0, ±Inf→dtype min/max |
+| **T-0082** | **`commit` stamp/publish ordering** | **Grok** | **Done** | **P1** | Stamp then publish then replicate. `changedBlocksSince` uses `since < stamp ≤ now`. Field API is single-threaded; `blockGeneration` is not in `share()` |
 
 
 
@@ -97,7 +102,7 @@ milestone plus the milestone gate. Requests must use the template in
 
 | ID | Request | Milestone | Status |
 | --- | --- | --- | --- |
-| A-0001 | **M1 gate** — orbit→surface continuity, precision, depth, seam quality, popping, frame pacing | M1 | **First pass on Ampere: REJECTED (black canvas, holes, f32 reconstruction). Fixed in T-0054. Second pass not queued — Astra unavailable. Brief in `agent/ASTRA.md`.** |
+| A-0001 | **M1 gate** — orbit→surface continuity, precision, depth, seam quality, popping, frame pacing | M1 | **First pass on Ampere: REJECTED (black canvas, holes, f32 reconstruction). Fixed in T-0054. Second pass not queued — Astra unavailable. Brief in `agent/ASTRA.md`. Target: `agent/grok/m1-final-redteam`.** |
 
 ---
 
@@ -125,6 +130,10 @@ milestone plus the milestone gate. Requests must use the template in
 | T-0017 | Telemetry ring buffer + Chrome Trace export | Grok | M1 — `packages/core/src/telemetry.ts` |
 | T-0054 | Ampere GPU defects from A-0001 first pass | Grok | M1 — WGSL `meta`, view convention, cube-face winding, 4-corner packing |
 | T-0066 | M1 structural redteam of Opus GPU-integration HEAD | Grok | M1 — CI, FieldStore publish, scheduler, winding, polar, timestamp-query |
+| T-0079 | Field generation is uint32; 2^32 wrap throws | Grok | M1 — the 2^31 signed mix was the real bug |
+| T-0080 | Frozen canonical FieldDescriptor | Grok | M1 |
+| T-0081 | `requireFinite` on `Field.set` | Grok | M1 |
+| T-0082 | Stamp-then-publish; `changedBlocksSince` `stamp ≤ now` | Grok | M1 |
 
 ### Deferred with a reason
 

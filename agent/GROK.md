@@ -15,6 +15,76 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-12 — M1 final redteam of Opus FieldStore consolidation.
+
+**Branch:** `agent/grok/m1-final-redteam` @ `707535e`+ · **Tasks:** T-0078 Partial (CPU); T-0079 Done; T-0080 Done; T-0081 Done; T-0082 Done
+**Commits:** `[GROK] fix: close FieldStore descriptor, NaN and generation holes`
+**Do not merge `main`.** Do not start M2. **READY FOR ASTRA.**
+
+Attacked `agent/opus/m1-final-consolidation` @ `707535e` (PR #6), stacked on T-0066. Did not reopen T-0054 / winding / polar / timestamp / τ=4.0 / WGSL `meta`.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | `view().descriptor` | **Wrong.** Live `FieldDescriptor`. `readonly` is erased. `owner = attacker` then `mut(attacker)` succeeded. Quantum 1→2 turned `get(0)` 100→200. Same object via `store.descriptor(id)`. |
+| 2 | `set()` + `assertFinite` | **Wrong in production.** `__WS_DEV__ = false`: float publishes NaN/±Inf; i16 encodes NaN→0, +Inf→32767, −Inf→−32768. Matches T-0075's own rule. |
+| 3 | `changedBlocksSince` vs `commit` | **Same-thread safe; protocol was racy.** `Field` is not shared; `blockGeneration` is not in `FieldHandles`. The ten-step interleaving cannot run on two threads against one `Field`. Publish-then-stamp still lost a reentrant commit's blocks if the cursor had advanced to the live generation; `now` was already snapshotted, so the existing code lucked out. Stamp-then-publish + `since < stamp ≤ now` makes it the contract, not luck. Data replicate stays *after* the flip (T-0073). |
+| 4 | `copyRange` | **Model A on the data plane, B on the index.** Same-thread `commit` cannot run during the copy. Generation is snapshotted; a moved index retries 3× then throws. Does not claim a snapshot against a worker writing the buffer — DEC-020 forbids that. |
+| 5 | Generation sign / wrap | **Wrong at 2^31.** Int32 control vs Uint32 stamps. After `0x80000000`, `stamp > cursor` is true for every block including never-written. Values survive; change tracking does not. Real limit was ~1.13 years at 60 Hz, not 2.3. |
+| 6 | `copyRange` vs `unsafeRawAccess` | **Boundary is not decorative.** 1 dirty block raw = 0.53 µs. L11 scan = 11 µs. A renderer that walks dirty blocks does not need the unsafe door every frame. Whole-field L11 remains a 50 MB memcpy. |
+| 7 | Closed GPU items | **Unreopened.** |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| F1 | P1 | FieldStore | Live descriptor via `view()` / `descriptor()` | `owner='attacker'` hijack; quantum 100→200 | **Fixed** T-0080 |
+| F2 | P1 | FieldStore | `assertFinite` stripped → NaN/Inf in Tier-A | `__WS_DEV__=false` i16 NaN→0 | **Fixed** T-0081 |
+| F3 | P2 | FieldStore | Publish-then-stamp window + signed generation | scan C after sign flip reported 6/6 blocks | **Fixed** T-0079, T-0082 |
+| F4 | NOTE | FieldStore | 2^32 wrap aliases stamp 0 | poke `0xffffffff` then commit | **Fixed** — throws |
+| F5 | NOTE | commit() | Comment claimed replicationDirty is not cleared | it is, since T-0071 | **Fixed** comment |
+
+No new ADR. Freeze is DEC-013's capability claim at runtime. `requireFinite` is T-0075's rule applied to `set()`. Uint32 generation is an implementation bug against the stamp T-0071 already described as unsigned.
+
+### Benchmarks
+
+Host: 2× Xeon 8481C @ 2.70 GHz, Node 22. `tools/bench/fieldstore-hotpath.out.md`.
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| Tests | vitest | **361** passed | was 346 at T-0077 |
+| sim-standalone | core+data+sim | **224** | |
+| build | vite | 54.70 kB / gzip 20.57 kB | was 51.57 / 19.70 |
+| copyRange 1 block raw | i16 L8, 8 KB | **0.53 µs** | dirty-block upload |
+| copyRange 1 block decoded | same, JS loop | 0.119 ms | don't decode for GPU |
+| copyRange L8 whole raw | 768 KB | 0.020 ms | |
+| changedBlocksSince L11 | 6144 blocks, 1 dirty | **0.011 ms** | |
+| changedBlocksSince L11 ×8 | 8 consumers | 0.091 ms | |
+| f32 `set()` ×1000 | no step | 0.127 ms | |
+| f32 `set()` ×1000 | `beginStep` (Set.has) | 0.522 ms | barrier ~0.4 µs/set |
+| `Number.isFinite` ×1e5 | | 0.197 ms | lost in `set()` noise |
+
+### Disagreements raised
+
+None that need a Proposed ADR. T-0079's "2.3 years is fine" stands for 2^32; the signed mix at 2^31 was not that judgement, it was a bug. I throw at wrap rather than inventing a wrap-safe cursor compare — infinite uptime is not worth the complexity.
+
+Not reopening: cube-sphere, WebGPU-only, no-three.js, year-split, sim/render boundary, morph-in-M1, budget constants, PHASES, Accepted ADR text, T-0054 GPU items.
+
+### Known problems
+
+- **No GPU here.** copyRange vs `writeBuffer` is not measured. CPU says dirty-block copyRange is the default; the unsafe door is for zero-copy whole-field maps.
+- **T-0013 browser table** still open. Node identity holds.
+- **T-0021 / T-0020 / T-0065** still open, none of them a ten-minute Astra finding.
+- **`readsPrev` still does not change which buffer `get()` reads.** M4.
+- **Captured `rawMut` still evades the barrier.** Pinned, not closed.
+
+### Next
+
+Astra, when a human queues her, against **this** branch. If she has ten minutes, nothing left here would have saved them.
+
+---
+
 ## 2026-09-12 — M1 structural redteam of Opus GPU-integration HEAD.
 
 **Branch:** `agent/grok/m1-structural-redteam` @ `a1f3923`+ · **Tasks:** T-0066 Done; T-0013 Partial (Node 1/4/8); T-0065 Partial (design/bench)
@@ -337,6 +407,11 @@ I pick up T-0045, T-0046, T-0013, T-0017, T-0020, T-0021 once v1 locks.
 | T-0013 | Worker pool, SAB vs transfer, tile-sized jobs | **Partial** — Node 1/4/8 identity holds; browser COOP/COEP still open |
 | T-0065 | Graceful LOD degradation at the patch cap | **Partial** — design/bench recorded; adaptive τ not shipped |
 | T-0066 | M1 structural redteam of Opus GPU HEAD | **Done** |
+| T-0078 | copyRange vs GPU upload | **Partial** — CPU dirty-block path is fast; GPU `writeBuffer` is not measured |
+| T-0079 | generation wrap | **Done** |
+| T-0080 | frozen descriptors | **Done** |
+| T-0081 | requireFinite on set() | **Done** |
+| T-0082 | stamp/publish protocol | **Done** |
 | T-0054 | Ampere GPU defects from A-0001 first pass | **Done** |
 | T-0051 | E2: reversed-Z vertex swim | P1 |
 | T-0053 | Derive `maxJobSimYears` from T4 arithmetic | P2 (M4) |

@@ -190,3 +190,51 @@ export function validateDescriptor(
     `${d.id}: tier C data is not authoritative and must not be persisted as a snapshot (DEC-018)`,
   );
 }
+
+/**
+ * Canonical, runtime-immutable descriptor (T-0080).
+ *
+ * `readonly` on `FieldDescriptor` is a TypeScript qualifier and does not exist
+ * at runtime. `view(id).descriptor` and `store.descriptor(id)` used to return
+ * the live registry object, so a reader could reassign `owner` / `quantum` /
+ * `offset` / `tier` / `doubleBuffered` and change ownership, decode, and
+ * persistence. Metadata is small: copy + `Object.freeze`, including `range`.
+ */
+export function freezeDescriptor(d: FieldDescriptor): FieldDescriptor {
+  const range = Object.freeze([d.range[0], d.range[1]] as [number, number]);
+  const copy: FieldDescriptor =
+    d.aggregate !== undefined
+      ? {
+          id: d.id,
+          grid: d.grid,
+          dtype: d.dtype,
+          components: d.components,
+          quantum: d.quantum,
+          offset: d.offset,
+          units: d.units,
+          range,
+          owner: d.owner,
+          tier: d.tier,
+          temporalClass: d.temporalClass,
+          doubleBuffered: d.doubleBuffered,
+          persist: d.persist,
+          aggregate: d.aggregate,
+        }
+      : {
+          id: d.id,
+          grid: d.grid,
+          dtype: d.dtype,
+          components: d.components,
+          quantum: d.quantum,
+          offset: d.offset,
+          units: d.units,
+          range,
+          owner: d.owner,
+          tier: d.tier,
+          temporalClass: d.temporalClass,
+          doubleBuffered: d.doubleBuffered,
+          persist: d.persist,
+        };
+  return Object.freeze(copy);
+}
+

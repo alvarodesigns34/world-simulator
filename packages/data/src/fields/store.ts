@@ -64,7 +64,10 @@
  *
  *    This does not defend against malicious code and is not trying to. It makes
  *    it hard for render/UI to corrupt authoritative state BY ACCIDENT, which is
- *    the actual threat (DEC-011, DEC-013).
+ *    the actual threat (DEC-011, DEC-013). The descriptor object handed out by
+ *    `view()` / `descriptor()` is a frozen copy of the metadata (T-0080):
+ *    TypeScript `readonly` does not stop `view(id).descriptor.owner = …` from
+ *    rewriting ownership, decode, or persistence.
  *
  * 5. TWO DIRTY LIFETIMES, TWO MECHANISMS (T-0071).
  *    A single mask cannot be both "what commit must replicate" (scoped to one
@@ -76,11 +79,12 @@
  *    forbids. See `replicationDirty` and `blockGeneration` below.
  */
 
-import { assertFinite, invariant } from '@ws/core';
+import { invariant, requireFinite } from '@ws/core';
 import { grid } from '../grids/index.js';
 import {
   DTYPE_BYTES,
   DTYPE_RANGE,
+  freezeDescriptor,
   isFloatDtype,
   validateDescriptor,
   type Dtype,
@@ -222,7 +226,11 @@ class DirtyQueryView implements DirtyQuery {
   }
 }
 
-/** SAB handles a worker needs. Small, transferable as a structured object of SABs. */
+/** SAB handles a worker needs. Small, transferable as a structured object of SABs.
+ *  Change-tracking (`blockGeneration`) is NOT included: it is main-thread
+ *  metadata. Workers publish by writing `data` and the `control` generation;
+ *  they do not call `changedBlocksSince` / `commit` on a `Field` they cannot
+ *  hold. DEC-020 phase separation is the concurrency rule, not a lock. */
 export interface FieldHandles {
   readonly data: ArrayBufferLike;
   readonly control: ArrayBufferLike;
@@ -249,9 +257,12 @@ export interface ReadonlyFieldView {
   /**
    * Copy a half-open cell range into a caller-provided array, decoded or raw.
    *
-   * This is the safe bulk path and it is fast enough for the case that matters:
-   * one dirty block is 4096 cells, so an i16 field copies 8 KB. Returns the
-   * number of elements written.
+   * Safe bulk path. One dirty block is 4096 cells (8 KB for i16). Snapshots one
+   * generation: if the published generation moves during the copy (a worker
+   * release-stored a new index), the copy retries. Same-thread `commit` cannot
+   * run during this call — the Field API is single-threaded (DEC-020). Does
+   * not protect a data-plane race on the buffer itself; that is undefined.
+   * Returns the number of elements written.
    */
   copyRange(startCell: number, endCell: number, out: TypedArray, decoded?: boolean): number;
   /**
@@ -368,9 +379,13 @@ class Field implements FieldView, UnsafeFieldAccess {
   }
 
   private loadGeneration(): number {
-    return isShared(this.control.buffer)
+    const v = isShared(this.control.buffer)
       ? Atomics.load(this.control, 0)
       : (this.control[0] as number);
+    // Int32Array / Atomics.load return signed bits. Generation, stamps and
+    // cursors are uint32. Mixing them silently inverts `stamp > cursor` at
+    // 2^31 (~1.13 years at 60 commits/s), half the wrap T-0079 documented.
+    return v >>> 0;
   }
 
   /** Acquire load of the published generation (rule 2). */
@@ -427,7 +442,7 @@ class Field implements FieldView, UnsafeFieldAccess {
     this.store.assertWritable(this.descriptor.id);
     this.checkCell(cell, component);
     const d = this.descriptor;
-    assertFinite(value, `${d.id}[${String(cell)}]`);
+    requireFinite(value, `${d.id}[${String(cell)}]`);
     const i = cell * d.components + component;
     const back = this.backAt(this.loadGeneration());
     if (isFloatDtype(d.dtype)) {
@@ -468,25 +483,41 @@ class Field implements FieldView, UnsafeFieldAccess {
     if (out.length < n) {
       fail(`${String(d.id)}: copyRange needs ${String(n)} elements, got ${String(out.length)}`);
     }
-    const src = this.frontAt(this.loadGeneration());
-    if (!decoded || isFloatDtype(d.dtype)) {
-      out.set(src.subarray(lo * comps, hi * comps) as unknown as ArrayLike<number>, 0);
-      return n;
+    const decode = decoded && !isFloatDtype(d.dtype);
+    const retries = 3;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      const g0 = this.loadGeneration();
+      const src = this.frontAt(g0);
+      if (!decode) {
+        out.set(src.subarray(lo * comps, hi * comps) as unknown as ArrayLike<number>, 0);
+      } else {
+        const base = lo * comps;
+        const q = d.quantum;
+        const off = d.offset;
+        for (let i = 0; i < n; i++) {
+          out[i] = off + (src[base + i] as number) * q;
+        }
+      }
+      if (this.loadGeneration() === g0) return n;
     }
-    for (let i = 0; i < n; i++) {
-      out[i] = d.offset + (src[lo * comps + i] as number) * d.quantum;
-    }
-    return n;
+    fail(
+      `${String(d.id)}: copyRange saw a concurrent generation change after ${String(retries)} retries`,
+    );
   }
 
   changedBlocksSince(
     cursor: ChangeCursor,
     fn: (block: number, startCell: number, endCell: number) => void,
   ): number {
-    const since = cursor.generation;
+    // `stamp <= now` is what makes stamp-before-publish safe, and what stops a
+    // reentrant commit inside `fn` from being consumed with a cursor that then
+    // skips it. Generation and stamps are uint32; `>>> 0` on the cursor so a
+    // leftover signed value from an old Int32 load cannot invert the compare.
+    const since = cursor.generation >>> 0;
     const now = this.loadGeneration();
     for (let b = 0; b < this.blockCount; b++) {
-      if ((this.blockGeneration[b] as number) > since) {
+      const stamp = this.blockGeneration[b] as number;
+      if (stamp > since && stamp <= now) {
         fn(b, b * DIRTY_BLOCK_CELLS, Math.min((b + 1) * DIRTY_BLOCK_CELLS, this.cellCount));
       }
     }
@@ -499,36 +530,49 @@ class Field implements FieldView, UnsafeFieldAccess {
   }
 
   /**
-   * Publish (rule 1 + rule 2). Release store of the generation index; the whole
-   * field does not move. Dirty blocks of THIS generation are then replicated
-   * from the new front into the new back so the next partial write cannot
-   * republish a stale sibling cell. The dirty mask itself is left for the
-   * consumer (renderer upload); we do not clear it here.
+   * Publish (rule 1 + rule 2).
+   *
+   * Order, which is load-bearing (T-0082):
+   *   1. Stamp dirty blocks with the *next* generation. Metadata only —
+   *      `blockGeneration` is not on the SAB.
+   *   2. Release-store the generation index. A reader that observes `next`
+   *      then observes stamps for this generation (`stamp <= now`).
+   *   3. Replicate this generation's dirty blocks from the new front into
+   *      the new back. O(dirty), not O(field). This writes the unpublished
+   *      buffer. Doing it *before* the flip would mutate the live front, and
+   *      a `consistentRead` finishing between replicate and publish would
+   *      return `torn: false` on corrupted data (T-0073).
+   *   4. Clear the writer replication set. Consumer cursors do not use it.
    */
   commit(): void {
     this.store.assertWritable(this.descriptor.id);
-    const next = this.loadGeneration() + 1;
-    if (isShared(this.control.buffer)) Atomics.store(this.control, 0, next);
-    else this.control[0] = next;
-
+    const prev = this.loadGeneration();
+    invariant(
+      prev !== 0xffffffff,
+      `${String(this.descriptor.id)}: generation wrapped at 2^32 ` +
+        `(~2.3 years at 60 commits/s). Restart the world.`,
+    );
+    const next = (prev + 1) >>> 0;
+    const stampGen = next;
     const comps = this.descriptor.components;
+    const twoBuffers = this.buffers.length === 2;
+
+    this.replicationDirty.forEachDirtyBlock((b) => {
+      this.blockGeneration[b] = stampGen;
+    });
+
+    if (isShared(this.control.buffer)) Atomics.store(this.control, 0, next | 0);
+    else this.control[0] = next | 0;
+
     const front = this.frontAt(next);
     const back = this.backAt(next);
-    const twoBuffers = this.buffers.length === 2;
-    const stampGen = next >>> 0;
-
-    // One pass: replicate this generation's blocks and stamp them for consumers.
-    this.replicationDirty.forEachDirtyBlock((b, startCell, endCell) => {
+    this.replicationDirty.forEachDirtyBlock((_b, startCell, endCell) => {
       if (twoBuffers) {
         const i0 = startCell * comps;
         const i1 = Math.min(endCell, this.cellCount) * comps;
         if (i1 > i0) back.set(front.subarray(i0, i1), i0);
       }
-      this.blockGeneration[b] = stampGen;
     });
-
-    // Lifetime A ends here. The consumer record (lifetime B) is untouched, so
-    // clearing costs nobody anything — which is the point of separating them.
     this.replicationDirty.clear();
   }
 
@@ -625,7 +669,7 @@ export class FieldStore {
   declare(d: FieldDescriptor): this {
     invariant(!this.sealed, `FieldStore is sealed; cannot declare '${d.id}'`);
     invariant(!this.descriptors.has(d.id), `duplicate field id '${d.id}'`);
-    this.descriptors.set(d.id, d);
+    this.descriptors.set(d.id, freezeDescriptor(d));
     this.order.push(d.id);
     return this;
   }

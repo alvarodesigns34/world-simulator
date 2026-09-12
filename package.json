@@ -22,7 +22,8 @@
     "bench:patch": "node tools/bench/patch-size.mjs",
     "bench:transfer": "node tools/bench/transfer.mjs",
     "bench:profile": "node tools/bench/m1-profile.mjs",
-    "bench:descent": "node tools/bench/descent-trace.mjs"
+    "bench:descent": "node tools/bench/descent-trace.mjs",
+    "bench:fieldstore": "node tools/bench/fieldstore-hotpath.mjs"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.72",

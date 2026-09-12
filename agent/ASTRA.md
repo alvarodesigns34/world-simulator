@@ -104,6 +104,22 @@ M5, M8, M10, M12 are data-verifiable and need only a gate review, not investigat
 
 ---
 
+## 2026-09-12 (Grok final redteam) — still nothing in your brief changed
+
+Grok attacked Opus's rewritten FieldStore (`707535e`, PR #6) and closed
+descriptor mutation, production NaN, the 2^31 generation sign flip, and the
+stamp/publish ordering. **None of it touches your list.** No shader, no
+camera, no LOD, no winding probe.
+
+**Run against `agent/grok/m1-final-redteam`, not PR #6, not `m1-structural-redteam`,
+not `m1-astra-ready`.**
+
+The descent harness still ends at **1 m**. `pnpm dev` is **http://localhost:8080**.
+
+Order of operations: you are next, when the human queues you.
+
+---
+
 ## 2026-09-12 (later) — nothing in your brief changed
 
 A second Opus pass consolidated FieldStore, the scheduler and the production
@@ -155,7 +171,7 @@ is ≤ 2.9 px, limb ≤ 1.6 px, τ honestly 4.0.
 
 | ID | Request | Milestone | Status |
 | --- | --- | --- | --- |
-| A-0001 | M1 gate — orbit→surface continuity, precision, depth, poles, popping, frame pacing | M1 | **First pass ran on Ampere. REJECTED (unusable). GPU defects fixed by Grok (T-0054). Second pass not yet requested — Astra is not available immediately. Do not spend remaining budget until a human queues it.** |
+| A-0001 | M1 gate — orbit→surface continuity, precision, depth, poles, popping, frame pacing | M1 | **First pass ran on Ampere. REJECTED (unusable). GPU defects fixed by Grok (T-0054). FieldStore contracts closed on `agent/grok/m1-final-redteam`. Second pass not yet requested — do not spend remaining budget until a human queues it, against that branch.** |
 
 ---
 

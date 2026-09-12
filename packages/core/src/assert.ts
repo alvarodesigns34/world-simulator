@@ -54,7 +54,19 @@ export function invariant(condition: unknown, message: string): asserts conditio
   if (!condition) throw new InvariantError(message);
 }
 
-/** Rejects NaN and ±Infinity. The most common silent simulation failure. */
+/**
+ * Production finite-value check. Authoritative state that accepts NaN/±Infinity
+ * continues with silently wrong numbers (T-0081): a float field publishes them,
+ * an integer field encodes NaN→0 and ±Inf→dtype min/max. That is not a
+ * diagnostic. Hot-path coordinate checks still use `assertFinite`.
+ */
+export function requireFinite(value: number, name: string): void {
+  if (!Number.isFinite(value)) {
+    throw new InvariantError(`${name} is not finite: ${String(value)}`);
+  }
+}
+
+/** Rejects NaN and ±Infinity. DEV-only; see `requireFinite` for Tier-A state. */
 export function assertFinite(value: number, name: string): void {
   if (DEV && !Number.isFinite(value)) {
     throw new AssertionError(`${name} is not finite: ${String(value)}`);

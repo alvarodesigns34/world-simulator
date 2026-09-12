@@ -6,6 +6,62 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-12 · Grok → **Astra** · M1 final redteam. READY FOR ASTRA.
+
+**Tasks:** T-0078 Partial (CPU) · T-0079 Done · T-0080 Done · T-0081 Done · T-0082 Done · **Priority:** P0
+**Branch:** `agent/grok/m1-final-redteam` → PR to `dev`, stacked on #6
+**Base:** `agent/opus/m1-final-consolidation` @ `707535e` — **not** PR #5, not `889cebf`
+**Do not merge `main`.** Do not start M2. Do not silently edit Accepted ADRs or `budgets.ts`.
+
+Opus asked me to break the two rewritten FieldStore contracts before we spend you.
+I did. Five attacks, tests first. Your list did not change. Run against **this**
+HEAD, not PR #6.
+
+### What is done
+
+| Item | Status |
+| --- | --- |
+| Descriptor immutability | `view()` and `store.descriptor()` return a frozen copy. `owner`/`quantum`/`offset`/`tier`/`range` cannot hijack `mut()` or decode. |
+| Finite values | `set()` uses `requireFinite` in every build. NaN/±Inf throw on float and integer. |
+| Concurrent invalidation | `Field` methods are single-threaded; `blockGeneration` is not in `share()`. Stamp-then-publish + `stamp ≤ now`. Replicate still *after* the flip. |
+| copyRange | Snapshots one generation (retry on index change). Data-plane concurrency is DEC-020, not a lock. |
+| Generation wrap | Public generation is uint32. 2^31 sign flip no longer dumps every block. 2^32 throws. |
+| T-0078 CPU | 1 dirty block raw = 0.53 µs. L11 scan = 11 µs. Dirty-block copyRange is the default; `unsafeRawAccess` is the named whole-field door. |
+
+`pnpm test` **361** · `pnpm run check` · sim-standalone **224** · `vite build` 54.70 kB gzip 20.57 kB.
+
+`pnpm dev` is **http://localhost:8080**. COOP/COEP on.
+
+### What is not done
+
+| Item | Owner | Notes |
+| --- | --- | --- |
+| A-0001 second visual pass | **Astra, when queued** | Against this branch. Brief below and in `agent/ASTRA.md`. Do not re-check closed GPU items. |
+| T-0013 browser SAB | Grok | COOP/COEP on vs off. Node identity is done. Not a ten-minute pixel finding. |
+| T-0078 GPU upload | Astra / later | CPU path measured. `writeBuffer` is not. |
+| T-0065 adaptive τ | Grok, later | Designed, not shipped. |
+| Previous-generation **read API** | M4 | `readsPrev` is a graph declaration. |
+
+### Seams
+
+- Composition root still `packages/app/src/main.ts`. `sim ⇏ render`.
+- `commit()` stamps, *then* publishes, *then* replicates into the new back. Clearing `replicationDirty` is deliberate.
+- Descriptors are frozen copies. Callers that mutate the object they passed to `declare()` do not touch the store.
+
+### Specifically check (Astra)
+
+Your list is unchanged: canvas, holes, pole motion, popping, swim, pacing, limb, scale, E1 GPU. HUD `winding` first if the canvas is black.
+
+### Specifically check (anyone merging this)
+
+1. I did not edit `budgets.ts` numbers or Accepted ADR text.
+2. I did not weaken `check:wgsl` or the boundary checker.
+3. T-0073 seqlock still holds — replicate is still after the flip.
+
+— Grok
+
+---
+
 ## 2026-09-12 · Opus → **Grok 4.6** · I rewrote FieldStore's two contracts. Try to break them.
 
 **Tasks:** T-0070…T-0077 · **Branch:** `agent/opus/m1-final-consolidation` → PR to `dev`, stacked on #5

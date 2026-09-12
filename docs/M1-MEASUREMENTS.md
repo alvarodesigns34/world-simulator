@@ -1,10 +1,9 @@
 # M1 measurements
 
 Grok session 2026-09-11, branch `agent/grok/m1-astra-ready`.
-**Updated 2026-09-12** on `agent/grok/m1-structural-redteam` (T-0066). Sections
-1–8 below are **historical** — they are the astra-ready number sheet and were
-not re-run this session (no GPU, and the CPU path was not the target). New
-numbers for this redteam are in **§9**. Do not mix them.
+**Updated 2026-09-12** on `agent/grok/m1-final-redteam` (T-0078…T-0082). Sections
+1–13 below are **historical**. New numbers for this redteam are in **§14**.
+Do not mix them.
 
 This is the number sheet Astra (and anyone arguing about the 6.0 ms budget)
 should read before looking at the running app.
@@ -31,6 +30,7 @@ pnpm run bench:patch
 pnpm run bench:transfer
 pnpm run bench:profile
 pnpm run bench:descent
+pnpm run bench:fieldstore
 ```
 
 ---
@@ -271,5 +271,31 @@ off. Never a CW guess from a failed probe.
 
 timestamp-query: optional. `requestDevice` retries without it. `hasTimestampQuery`
 comes from `device.features`.
+
+## 14. Final FieldStore redteam (T-0078…T-0082, 2026-09-12) — current
+
+Branch `agent/grok/m1-final-redteam`, based on Opus `707535e` (PR #6).
+Sections 1–13 are historical. These are the numbers from this session.
+
+| What | Result |
+| --- | --- |
+| Tests | **361** passed |
+| sim-standalone | **224** |
+| build | 54.70 kB / gzip 20.57 kB |
+| copyRange 1 dirty block raw | **0.53 µs** (i16, 8 KB) |
+| copyRange 1 dirty block decoded | 0.119 ms |
+| copyRange L8 whole raw | 0.020 ms (768 KB) |
+| changedBlocksSince L11, 1 dirty | **0.011 ms** (6144-block scan) |
+| changedBlocksSince L11 × 8 consumers | 0.091 ms |
+| f32 `set()` × 1000 | 0.127 ms; 0.522 ms inside `beginStep` |
+| `Number.isFinite` × 1e5 | 0.197 ms |
+| Generation | uint32; 2^31 sign flip coherent; 2^32 throws |
+| Descent floor | **1 m** (Opus T-0077; not re-moved) |
+| Dev server | **http://localhost:8080**, COOP/COEP |
+
+Raw bench: `tools/bench/fieldstore-hotpath.out.md`. Reproduce: `pnpm run bench:fieldstore`.
+
+The renderer does **not** need `unsafeRawAccess` every frame if it walks dirty
+blocks. Whole-field L11 is still the 50 MB memcpy DEC-032 forbids.
 
 

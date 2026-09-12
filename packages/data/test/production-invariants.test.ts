@@ -126,6 +126,72 @@ describe('invariants that must survive a production build', () => {
       d.quadkey.packId({ face: 0, level: d.quadkey.MAX_PACKABLE_LEVEL + 1, x: 0, y: 0 }),
     ).toThrow(/MAX_PACKABLE_LEVEL/);
   });
+
+  /**
+   * Field.set() used assertFinite(), which this suite proves is stripped.
+   * A float NaN/Inf is published as-is; an integer NaN encodes to 0 and
+   * ±Inf clamp to dtype min/max. Authoritative state continues. T-0081.
+   */
+  it('set() still rejects NaN and ±Infinity on a float field', async () => {
+    const d = await load();
+    const id = d.fieldId('f');
+    const owner = d.subsystemId('t');
+    const store = new d.FieldStore({ preferShared: false })
+      .declare({
+        id,
+        grid: d.gridId('cubesphere', 6),
+        dtype: 'f32',
+        components: 1,
+        quantum: 1,
+        offset: 0,
+        units: 'm',
+        range: [-1, 1],
+        owner,
+        tier: 'A',
+        temporalClass: 'slow',
+        doubleBuffered: false,
+        persist: 'snapshot',
+      })
+      .seal();
+    const f = store.mut(id, owner);
+    expect(() => f.set(0, NaN)).toThrow(/not finite/);
+    expect(() => f.set(0, Infinity)).toThrow(/not finite/);
+    expect(() => f.set(0, -Infinity)).toThrow(/not finite/);
+    f.set(0, 0.25);
+    f.commit();
+    expect(store.view(id).get(0)).toBeCloseTo(0.25);
+  });
+
+  it('set() still rejects NaN and ±Infinity on an integer field', async () => {
+    const d = await load();
+    const id = d.fieldId('i');
+    const owner = d.subsystemId('t');
+    const store = new d.FieldStore({ preferShared: false })
+      .declare({
+        id,
+        grid: d.gridId('cubesphere', 6),
+        dtype: 'i16',
+        components: 1,
+        quantum: 1,
+        offset: 0,
+        units: 'm',
+        range: [-100, 100],
+        owner,
+        tier: 'A',
+        temporalClass: 'slow',
+        doubleBuffered: false,
+        persist: 'snapshot',
+      })
+      .seal();
+    const f = store.mut(id, owner);
+    expect(() => f.set(0, NaN)).toThrow(/not finite/);
+    expect(() => f.set(0, Infinity)).toThrow(/not finite/);
+    expect(() => f.set(0, -Infinity)).toThrow(/not finite/);
+    f.set(0, 12);
+    f.commit();
+    expect(store.view(id).get(0)).toBe(12);
+    expect((f.raw() as Int16Array)[0]).toBe(12);
+  });
 });
 
 describe('scheduler invariants that must survive a production build', () => {
