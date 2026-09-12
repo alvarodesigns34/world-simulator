@@ -29,6 +29,14 @@ import { NodePool, type PatchNode } from '../lod/quadtree.js';
 import { PLANET_WGSL } from '../shaders/planet.wgsl.js';
 import type { GpuContext } from './device.js';
 import { FLOATS_PER_INSTANCE, packPatchInstance, patchCorners, patchIndices } from './instance.js';
+import {
+  BINDINGS,
+  ENTRY_POINTS,
+  UNIFORM_FLOATS,
+  UNIFORM_OFFSET,
+  VERTEX_ATTR,
+} from './layout.js';
+import { WINDING_UNKNOWN, type WindingProbeOutcome } from './winding.js';
 
 /** Reversed-Z (DEC-033 rule 3): near maps to 1.0, far to 0.0, clear to 0.0. */
 export const DEPTH_CLEAR_VALUE = 0.0;
@@ -37,6 +45,14 @@ export const DEPTH_FORMAT: GPUTextureFormat = 'depth32float';
 
 export interface RendererOptions {
   readonly planet: PlanetGeometry;
+  /**
+   * Result of `probeWindingConvention` (T-0062). WebGPU's NDC is y-up and its
+   * framebuffer y-down, so whether `frontFace: 'ccw'` refers to the winding
+   * before or after that flip decides whether an outward-wound sphere draws or
+   * is culled entirely. Omit it and culling is disabled, which renders
+   * correctly for a convex body at the cost of overdraw — never a black screen.
+   */
+  readonly winding?: WindingProbeOutcome;
   readonly patchVerticesPerSide?: number;
   readonly maxLevel?: number;
 }
@@ -77,7 +93,7 @@ export class PlanetRenderer {
   private depthSize = { w: 0, h: 0 };
 
   private instanceData = new Float32Array(0);
-  private readonly uniformData = new Float32Array(24); // mat4 + vec4 + vec4
+  private readonly uniformData = new Float32Array(UNIFORM_FLOATS);
   private previouslySplit: ReadonlySet<number> = new Set();
   private destroyed = false;
 
@@ -92,6 +108,8 @@ export class PlanetRenderer {
   private lastCamT = 0;
   private haveLastCam = false;
 
+  readonly winding: WindingProbeOutcome;
+
   debugMode: DebugMode = 'shaded';
   sunDirection: Vec3 = vnorm(v3(1, 0.35, 0.25));
 
@@ -100,6 +118,7 @@ export class PlanetRenderer {
     this.planet = opts.planet;
     this.n = opts.patchVerticesPerSide ?? budgets.QUALITY.patchVerticesPerSide;
     this.maxLevel = opts.maxLevel ?? 12;
+    this.winding = opts.winding ?? WINDING_UNKNOWN;
     this.createStaticResources();
   }
 
@@ -117,16 +136,29 @@ export class PlanetRenderer {
       layout: 'auto',
       vertex: {
         module,
-        entryPoint: 'vs',
+        entryPoint: ENTRY_POINTS.vertex,
         buffers: [
           {
-            arrayStride: 8,
-            attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }],
+            arrayStride: VERTEX_ATTR.arrayStride,
+            attributes: [
+              {
+                shaderLocation: VERTEX_ATTR.shaderLocation,
+                offset: VERTEX_ATTR.offset,
+                format: VERTEX_ATTR.format,
+              },
+            ],
           },
         ],
       },
-      fragment: { module, entryPoint: 'fs', targets: [{ format }] },
-      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'ccw' },
+      fragment: { module, entryPoint: ENTRY_POINTS.fragment, targets: [{ format }] },
+      primitive: {
+        topology: 'triangle-list',
+        // Measured, not assumed (T-0062). Until the probe has run, draw both
+        // faces: a convex closed body is identical with culling off, and a
+        // wrong guess here is the black screen Astra spent a session on.
+        cullMode: this.winding.fallbackNoCull ? 'none' : 'back',
+        frontFace: this.winding.frontFace,
+      },
       depthStencil: {
         format: DEPTH_FORMAT,
         depthWriteEnabled: true,
@@ -194,8 +226,8 @@ export class PlanetRenderer {
       label: 'planet-bindgroup',
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this.uniformBuffer } },
-        { binding: 1, resource: { buffer: this.instanceBuffer } },
+        { binding: BINDINGS.uniforms, resource: { buffer: this.uniformBuffer } },
+        { binding: BINDINGS.instances, resource: { buffer: this.instanceBuffer } },
       ],
     });
   }
@@ -267,10 +299,12 @@ export class PlanetRenderer {
     const proj = perspectiveReversedZInfinite(cam.fovY, width / height, nearPlane(d.altitude));
     const view = viewRotationOnly(cam);
     const viewProj = multiply(proj, view);
-    this.uniformData.set(viewProj, 0);
+    // Offsets come from layout.ts, which gpu-contract.test.ts asserts against
+    // the struct the shader actually declares.
+    this.uniformData.set(viewProj, UNIFORM_OFFSET.viewProj);
     this.uniformData.set(
       [this.sunDirection.x, this.sunDirection.y, this.sunDirection.z, 0],
-      16,
+      UNIFORM_OFFSET.sunDirection,
     );
     this.uniformData.set(
       [
@@ -279,7 +313,7 @@ export class PlanetRenderer {
         this.debugMode === 'shaded' ? 0 : this.debugMode === 'lod' ? 1 : 2,
         0,
       ],
-      20,
+      UNIFORM_OFFSET.params,
     );
     device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
 

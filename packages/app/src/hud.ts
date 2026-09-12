@@ -18,6 +18,10 @@ export interface HudInput {
   readonly patchVerticesPerSide: number;
   readonly debugMode: string;
   readonly sharedMemory: boolean;
+  /** Result of the T-0062 front-face probe. Shown so a wrong convention reads
+   *  as a line of text rather than as an unexplained black screen. */
+  readonly winding: string;
+  readonly culling: string;
   readonly simTime: string;
   readonly telemetryUs: number;
   readonly spikeCount: number;
@@ -78,6 +82,7 @@ export class Hud {
       `WORLD SIMULATOR  M1`,
       `${input.adapter}`,
       `tier ${input.gpuTier}   SAB ${input.sharedMemory ? 'yes' : 'no'}   trace ${input.tracing ? 'ON' : 'off'}`,
+      `winding    ${input.winding}   cull ${input.culling}`,
       input.deviceLost ? `DEVICE LOST  ${input.deviceLost}` : ``,
       input.lastGpuError ? `GPU ERROR    ${input.lastGpuError}` : ``,
       ``,

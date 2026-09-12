@@ -116,7 +116,18 @@ function stripComments(src) {
     .replace(/(^|[^:])\/\/.*$/gm, (m, p1) => p1 + ' '.repeat(Math.max(0, m.length - p1.length)));
 }
 
-const IMPORT_RE = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g;
+/**
+ * Import/re-export specifier matcher.
+ *
+ * The gap between the keyword and `from` excludes quotes and semicolons. A real
+ * import statement never contains a string literal before its `from`, but an
+ * array of string data can — and `wgsl-reserved.ts` legitimately contains both
+ * the words 'import' and 'from' as WGSL reserved-word entries. With a plain
+ * `[\s\S]*?` gap the checker matched across that data and reported a phantom
+ * dependency on ', '. Multi-line named imports still match, because braces and
+ * newlines are allowed in the gap.
+ */
+const IMPORT_RE = /(?:^|\n)\s*(?:import|export)[^'"`;]*?from\s*['"]([^'"]+)['"]/g;
 
 function report(file, line, message) {
   violations.push(`${relative(ROOT, file)}${line ? `:${line}` : ''}  ${message}`);

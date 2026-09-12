@@ -24,6 +24,7 @@ import {
   DESCENT,
   PlanetRenderer,
   acquireGpu,
+  probeWindingConvention,
   cameraFromGeodetic,
   derive,
   descentCameraAt,
@@ -122,12 +123,19 @@ async function main(): Promise<void> {
     .register(makeRotationSubsystem(store))
     .build();
 
+  // Ask the GPU which winding convention it applies (T-0062) before building
+  // the pipeline. WebGPU's NDC is y-up and its framebuffer y-down; whether
+  // 'ccw' is evaluated before or after that flip decides whether the planet
+  // draws or is culled to a black screen. Measured, not assumed.
+  const winding = await probeWindingConvention(gpu.device);
+
   let patchN: number = budgets.QUALITY.patchVerticesPerSide;
   const makeRenderer = (): PlanetRenderer =>
     new PlanetRenderer(gpu, {
       planet: PLANET,
       patchVerticesPerSide: patchN,
       maxLevel: DESCENT.maxLevel,
+      winding,
     });
   let renderer = makeRenderer();
   const hud = new Hud(document.body);
@@ -268,6 +276,8 @@ async function main(): Promise<void> {
       patchVerticesPerSide: patchN,
       debugMode,
       sharedMemory: store.usingSharedMemory,
+      winding: `${winding.observed} (${winding.frontFace})`,
+      culling: winding.fallbackNoCull ? 'off (probe unavailable)' : 'back',
       simTime: format(scheduler.time, EARTH_CALENDAR),
       telemetryUs: telUs,
       spikeCount: telemetry.spikeCount(),

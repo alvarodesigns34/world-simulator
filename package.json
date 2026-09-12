@@ -27,7 +27,8 @@
   "devDependencies": {
     "@webgpu/types": "^0.1.72",
     "typescript": "~5.9.0",
+    "vite": "^7.0.0",
     "vitest": "^3.2.0",
-    "vite": "^7.0.0"
+    "wgsl_reflect": "^1.6.0"
   }
 }

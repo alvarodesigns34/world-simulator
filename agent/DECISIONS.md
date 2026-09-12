@@ -58,6 +58,7 @@ Statuses: `Proposed` · `Accepted` · `Superseded by DEC-NNN` · `Rejected`
 | DEC-032 | Performance budgets restated from arithmetic | **Accepted** (amended) | M1 exit |
 | DEC-033 | Shader-side precision rules | **Accepted** | M1 exit |
 | DEC-034 | Visibility and LOD contract: horizon culling, multi-level descent | **Accepted** | M2 exit |
+| DEC-035 | Cube-face orientation and UV convention | **Accepted** | — |
 
 ### Architecture v1 — what changed and why
 
@@ -362,7 +363,7 @@ mysteriously tilted continent.
 ## DEC-007 — Planet surface representation: tangent-warped cube-sphere
 
 **Date:** 2026-09-11
-**Status:** Accepted
+**Status:** Accepted — **per-face UV orientation superseded by DEC-035.** The grid choice is unchanged.
 
 ### Context
 We need one surface parameterisation that simultaneously supports: a rendering LOD
@@ -1888,6 +1889,31 @@ Numbers stay labelled estimates until E1/E2 run on real hardware. What changes
 today is the *shape*: budgets are derived, tiers are explicit, and the small-
 triangle cliff is a rule the selector enforces rather than a fact we rediscover.
 
+### Amendment, 2026-09-12 — `lodScreenSpaceErrorPx` 2.0 → 4.0 (T-0063)
+
+Recorded here rather than edited silently, per PROTOCOL §5.1.
+
+The node error model reported the **arc sagitta** while the renderer draws a
+**bilinear quad**, whose true deviation is exactly twice that. A nominal τ of
+2.0 px was therefore delivering ~4.0 px of real geometric deviation for the
+whole of M1. Correcting the model without touching τ made the selector demand
+twice the patches, saturating the 900-patch cap at ~2.2 × 10⁶ m; the resulting
+truncation produced 200-patch churn per frame, which is far worse than the sag
+it removed.
+
+| | peak visible | max disappear | max appear | >1 ms | exhausted |
+| --- | --- | --- | --- | --- | --- |
+| before (model wrong, τ 2.0) | — | 57 | 48 | 24 | 0 |
+| model fixed, τ 2.0 | **900 (saturated)** | 211 | 212 | 51 | 15 |
+| model fixed, **τ 4.0** | 759 | 56 | 48 | **11** | 0 |
+
+τ = 4.0 reproduces the previous *behaviour* — because that is what was actually
+being delivered — while the number now means what it says, and select-time
+overruns more than halve. This is a truth-in-labelling change, not a quality
+reduction. Whether 4 px of limb deviation is acceptable is a visual question
+that is now answerable; it was not before, because the stated figure was not the
+delivered one.
+
 ---
 
 ---
@@ -2108,3 +2134,100 @@ measured again.
 - The LOD selector needs a per-node bounding sphere and an inherited geometric
   error. Both are computed at tile bake and stored, per DEC-010.
 - `maxTerrainElevation` becomes a planet parameter the renderer reads.
+
+---
+
+## DEC-035 — Cube-face orientation and UV convention
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Amends:** DEC-007 (fixes the per-face convention DEC-007 left as "a convention")
+**Closes:** the architectural FYI Grok raised in `agent/HANDOFF.md` after the
+Ampere pass
+**Author:** Opus 5
+
+### Context
+
+Astra's Ampere run showed large holes in the sphere. One cause was that on
+`POS_Y` and `NEG_Y` the 3-D image of `∂/∂u × ∂/∂v` pointed **inward**, so those
+two faces were wound opposite to the other four and back-face culling removed
+them. Grok fixed the mapping (`POS_Y` now `z = -b`, `NEG_Y` now `x = a`) and
+correctly flagged that this **changes which physical location a given quadkey on
+those two faces addresses**.
+
+He then asked the right question rather than answering it himself: is per-face
+UV orientation an implementation detail of DEC-007, or part of the persistent
+coordinate system?
+
+DEC-007 says only that "the orientation within a face is a convention, fixed
+here". That sentence names the thing without pinning it, which is precisely how
+it managed to be wrong on two faces for a whole milestone.
+
+### Decision
+
+**Per-face UV orientation is part of the coordinate system, not an implementation
+detail.** It is specified here, exhaustively, and changing it from now on
+requires a superseding record and a save-format migration.
+
+With `a = warp(2u − 1)` and `b = warp(2v − 1)`, `warp(s) = tan(sπ/4)`, the six
+faces are exactly:
+
+| Face | id | (x, y, z) before normalisation | ∂u | ∂v | ∂u × ∂v |
+| --- | --- | --- | --- | --- | --- |
+| `POS_X` | 0 | `( 1,  a,  b)` | +Y | +Z | **+X** |
+| `NEG_X` | 1 | `(-1, -a,  b)` | −Y | +Z | **−X** |
+| `POS_Y` | 2 | `( a,  1, -b)` | +X | −Z | **+Y** |
+| `NEG_Y` | 3 | `( a, -1,  b)` | +X | +Z | **−Y** |
+| `POS_Z` | 4 | `( a,  b,  1)` | +X | +Y | **+Z** |
+| `NEG_Z` | 5 | `( a, -b, -1)` | +X | −Y | **−Z** |
+
+**The binding invariant: on every face, `∂u × ∂v` points outward** — into the
+same hemisphere as the face's own cube axis. Everything else follows from it:
+
+1. In `(u, v)` parameter order, the triangle `(0,0) → (1,0) → (0,1)` is
+   counter-clockwise **seen from outside the planet**. The index buffer is wound
+   `(a,b,c) + (b,d,c)` to match.
+2. A patch's four corners packed in `(c00, c10, c01, c11)` order have
+   `cross(c10 − c00, c01 − c00)` pointing away from the planet centre, so the
+   shader's geometric normal needs no sign fix and no per-face special case.
+3. The inverse map `unitToCubeFace` must invert exactly this table. It is not
+   free to choose its own signs.
+
+`u` and `v` both increase; there is no face on which either axis is reversed
+relative to its own tangent basis. Any future face-local flip must be recorded
+here, not absorbed into a function.
+
+### Alternatives considered
+
+| Option | Why not |
+| --- | --- |
+| **Treat this as an implementation fix to DEC-007, no record** (Grok's Option 1) | Defensible *today*: no world is persisted, and the old mapping was internally inconsistent, so nothing correct was broken. Rejected because of *when* we are. M2 begins binding data to tiles keyed by quadkey; from that moment the mapping is a save-format commitment and a change to it silently relocates terrain. The cost of the record is one table; the cost of not having it is discovered after the first shared world. |
+| Keep the old `POS_Y`/`NEG_Y` mapping and flip the winding per face in the renderer | Makes the renderer carry a per-face sign table forever, and leaves `∂u × ∂v` meaning different things on different faces — which is the ambiguity that caused the bug. |
+| Derive each face basis from a generated rotation table instead of a literal switch | Fewer characters, more indirection, and the six cases are the specification. A reader must be able to check the table against the code by eye. |
+| Adopt a published convention (OpenGL cubemap face layout) | Genuinely tempting for interoperability with cubemap tooling. Rejected: GL's cubemap layout is left-handed with `-Y` down and flipped `t`, chosen for historical render-to-texture reasons, and adopting it would put an inward `∂u × ∂v` on some faces — reintroducing exactly this bug for the sake of a texture-loading convenience we do not need. Noted so nobody "fixes" the table toward GL later. |
+
+### Rationale
+
+The orientation is load-bearing in three places at once — the renderer's
+winding, the shader's normal, and the quadkey → physical location map — and it
+was only ever written down in one of them. Anything depended on by three
+subsystems and specified in none of them is a latent defect; this milestone
+found out how it fails.
+
+Writing the table now costs nothing because no world exists. Writing it after M2
+costs a migration.
+
+### Consequences
+
+- The table above is the specification. `cubesphere.ts` is checked against it by
+  `packages/render/test/geometry.test.ts`, which asserts outwardness on all six
+  faces on an interior grid, not only at face centres.
+- Quadkeys on `POS_Y`/`NEG_Y` address different physical locations than they did
+  before `889cebf`. **No migration is needed** because no world has been
+  persisted — this is the last moment at which that sentence is true.
+- T-0020 (seam topology, hydrology corners) treats outwardness as given and is
+  concerned only with valence-3 corner behaviour.
+- DEC-007's "orientation within a face is a convention" is superseded by this
+  table; DEC-007's grid choice is untouched.
+- Any future planet with a different reference frame reuses this table
+  unchanged: it is expressed in the body's own axes.

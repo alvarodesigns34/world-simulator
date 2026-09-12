@@ -20,6 +20,9 @@ importers:
       vitest:
         specifier: ^3.2.0
         version: 3.2.7
+      wgsl_reflect:
+        specifier: ^1.6.0
+        version: 1.6.0
 
   packages/app:
     dependencies:
@@ -623,6 +626,9 @@ packages:
       jsdom:
         optional: true
 
+  wgsl_reflect@1.6.0:
+    resolution: {integrity: sha512-p2bJTZXaS4/2L2NlvRIcnI6ZJJSF1kxvH5RYZzGw958Z2PDAw6Cl13cgbE9CWEqWZOFtnlCLXM9ZYdifnJ0FJg==}
+
   why-is-node-running@2.3.0:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
     engines: {node: '>=8'}
@@ -1062,6 +1068,8 @@ snapshots:
       - terser
       - tsx
       - yaml
+
+  wgsl_reflect@1.6.0: {}
 
   why-is-node-running@2.3.0:
     dependencies:

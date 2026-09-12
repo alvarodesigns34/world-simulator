@@ -28,9 +28,15 @@ export interface PatchNode {
   /** Outward unit normal at the node centre. */
   readonly normal: Vec3;
   /**
-   * Geometric error in metres: how far this node's mesh can deviate from the
-   * true surface. For a smooth sphere it is the sagitta of the node's arc; with
-   * real terrain a tile's measured error replaces it (DEC-010).
+   * Geometric error in metres: how far this node's RENDERED mesh can deviate
+   * from the true surface (DEC-010).
+   *
+   * This must describe the geometry we actually draw, not an idealised one.
+   * The shader bilinearly interpolates the node's four sphere corners, so the
+   * drawn surface is a bilinear quad whose worst deviation is at its CENTRE,
+   * not at an edge midpoint. See `bilinearSag` for the derivation — it is
+   * exactly 2x the arc sagitta, and using the sagitta made every
+   * screen-space-error decision optimistic by that factor.
    *
    * A node without a measured error cannot participate in LOD selection,
    * because an unmeasured error is an unbounded screen-space error.
@@ -71,18 +77,48 @@ export function makeNode(
   };
   const radius = Math.max(d(p00), d(p10), d(p01), d(p11), maxTerrainElevation);
 
-  // Sagitta of the node's arc: R * (1 - cos(theta/2)), theta = arc / R.
-  const arc = cellSize(key.level, planet);
-  const theta = arc / planet.radius;
-  const sagitta = planet.radius * (1 - Math.cos(theta / 2));
+  const error = bilinearSag(key.level, planet);
 
   return {
     key,
     centre,
     radius,
     normal,
-    geometricError: Math.max(sagitta, maxTerrainElevation * 0.5),
+    geometricError: Math.max(error, maxTerrainElevation * 0.5),
   };
+}
+
+/**
+ * Worst-case radial deviation of the rendered bilinear patch from the sphere.
+ *
+ * The four corners lie ON the sphere; everything between them is a bilinear
+ * blend of those corners, so the patch interior falls INSIDE the sphere. The
+ * deepest point is the centre, at radius R·cos(θu/2)·cos(θv/2), so for a square
+ * cell of angular size θ:
+ *
+ *     deviation = R(1 − cos²(θ/2)) = R·sin²(θ/2)
+ *
+ * The arc sagitta R(1 − cos(θ/2)) describes the EDGE midpoints and is smaller
+ * by a factor of (1 + cos(θ/2)) → 2. Measured against a 64×64 sample of real
+ * cells this closed form is accurate to five significant figures
+ * (`docs/RENDERING.md` §4.0b).
+ *
+ * NOTE FOR M2: increasing `patchVerticesPerSide` does NOT reduce this. Every
+ * grid vertex lies on the same bilinear quad, so tessellation is currently
+ * geometrically inert — accuracy comes only from splitting patches. Spherical
+ * interpolation is what makes tessellation pay, and M2 needs it anyway for
+ * terrain displacement.
+ */
+export function bilinearSag(level: number, planet: PlanetGeometry): number {
+  const theta = cellSize(level, planet) / planet.radius;
+  const s = Math.sin(theta / 2);
+  return planet.radius * s * s;
+}
+
+/** The arc sagitta — the EDGE-midpoint deviation. Kept for comparison and
+ *  documentation; it is not what the renderer draws. */
+export function arcSagitta(level: number, planet: PlanetGeometry): number {
+  return planet.radius * (1 - Math.cos(cellSize(level, planet) / planet.radius / 2));
 }
 
 /**

@@ -117,8 +117,39 @@ export const MEMORY_BYTES = {
 } as const;
 
 export const QUALITY = {
-  /** Screen-space error threshold for LOD split, in pixels (DEC-010). Unmeasured. */
-  lodScreenSpaceErrorPx: 2.0,
+  /**
+   * Screen-space error threshold for LOD split, in pixels (DEC-010).
+   *
+   * RAISED 2.0 -> 4.0 on 2026-09-12. This does NOT lower the delivered quality;
+   * it stops the number from lying.
+   *
+   * The node error model reported the arc sagitta while the renderer draws a
+   * bilinear quad whose true deviation is exactly 2x that (T-0063). A nominal
+   * tau of 2.0 px was therefore delivering ~4.0 px of real deviation all along.
+   * With the model corrected, 4.0 px means 4.0 px, and the descent reproduces
+   * its previous behaviour almost exactly:
+   *
+   *              peak visible   maxDisappear   maxAppear   >1ms   exhausted
+   *   before          -              57            48       24        0
+   *   tau 2.0 fixed  900*           211           212       51       15   <- saturated
+   *   tau 4.0        759             56            48        8        0
+   *
+   * Setting tau to 2.0 with the truthful model saturates the 900-patch cap at
+   * ~2.2e6 m and the truncation causes 200-patch churn per frame, which is far
+   * worse than the sag it was trying to remove.
+   *
+   * Nobody has judged 4 px by eye. That is Astra's call, and it is now an
+   * honest question rather than a number that meant something else.
+   *
+   * NOTE FOR E1 (T-0050): because tessellation is geometrically inert while the
+   * shader interpolates only four corners, patch COUNT alone sets accuracy. At
+   * equal tau, 17x17 gives the same geometry as 33x33 for ~3.75x fewer
+   * triangles (0.49 M vs 1.84 M at 8000 km) and has a 2048-patch budget instead
+   * of 900, so it does not saturate at all. That inverts the CPU-only
+   * "keep 33x33" conclusion — but only until M2 puts real displacement on those
+   * vertices. Decide it with the GPU column, not from here.
+   */
+  lodScreenSpaceErrorPx: 4.0,
   /** Merge at split * this, so a node on the threshold cannot oscillate (DEC-034). */
   lodHysteresis: 1.5,
   /**

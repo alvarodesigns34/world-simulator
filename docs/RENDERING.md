@@ -155,6 +155,53 @@ grazing angles near the 8 corner points, where three cells meet.
 
 ---
 
+## 3.3 The CPU↔GPU contract (T-0061, T-0062)
+
+Astra's Ampere pass found four defects that a green TypeScript build could not
+see. They had one thing in common: **the CPU and the shader agreed only by
+convention.** These are the contracts that now hold them together, and how each
+is enforced.
+
+| Contract | Enforced by | Catches |
+| --- | --- | --- |
+| WGSL is syntactically valid | `pnpm run check:wgsl` — parses with a real WGSL grammar (`wgsl_reflect`) | malformed shaders, bad types, broken attributes |
+| No reserved-word identifiers | the W3C list in `wgsl-reserved.ts` | the `meta` failure exactly; a grammar will not catch these because they parse fine |
+| No planet-scale f32 reconstruction | forbidden-identifier list + measured magnitude tests | `centreRel + dir * R`, the DEC-033 violation |
+| WGSL struct layout == CPU packer | `gpu-contract.test.ts` reflects the shader and asserts `layout.ts` against it | a fifth member, a reordered field, a `vec3` alignment trap |
+| Entry points and bindings | same test | a renamed `vs`/`fs`, a moved `@binding` |
+| Vertex format matches `@location` | same test | a stride or format change |
+| Front-face convention | `probeWindingConvention` at startup — **a real GPU measurement** | the black screen |
+
+**The direction matters.** The shader is the authority and the CPU constants are
+checked against it, not the other way round, because the compiler on the far
+side of the boundary is the one that gets to be right.
+
+**What none of this guarantees.** It is not a compiler. It will not catch a type
+mismatch, a device-limit violation, or a driver-specific rejection. Only a GPU
+does that — which is why the winding probe exists and why Astra's pass is still
+required.
+
+### 3.3b The front-face probe (T-0062)
+
+WebGPU's NDC is **y-up** (bottom-left is `(-1,-1)`); its framebuffer is
+**y-down** (top-left is `(0,0)`). There is a Y flip in the viewport transform,
+and whether `frontFace: 'ccw'` is evaluated before or after it decides whether
+an outward-wound sphere is drawn or **culled entirely**.
+
+This is not settleable from the CPU, and reading the specification does not
+settle what a particular driver does. So the engine asks: at startup it draws
+one triangle, known counter-clockwise in NDC, with `frontFace: 'ccw'` and
+`cullMode: 'back'`, into a 1×1 texture, and reads the pixel back.
+
+- pixel written → `'ccw'` means CCW-in-NDC; the renderer uses `'ccw'`.
+- pixel not written → the convention is post-flip; the renderer uses `'cw'`.
+- probe unavailable → **`cullMode: 'none'`**. A convex closed body renders
+  identically with culling off, at the cost of overdraw. A wrong guess costs a
+  black screen and a session; overdraw costs some fill rate.
+
+The result is shown in the HUD, so a driver that disagrees appears as a line of
+text rather than as an unexplained black canvas.
+
 ## 4. LOD (DEC-010)
 
 ### 4.0 Visibility comes first (DEC-034)
@@ -175,6 +222,70 @@ the quadtree **exists at every level** with ancestor upsampling, so a descending
 camera never pops from 4.9 km cells to 38 m cells; and streaming prefetches the
 **chain** of ancestors, coarse to fine, because a leaf arriving before its parents
 cannot be shown without a discontinuity.
+
+### 4.0b Bilinear sag: what we actually draw (T-0063)
+
+The shader interpolates a patch's **four sphere corners bilinearly**. The corners
+lie on the sphere; everything between them does not. The drawn surface is a
+bilinear quad sagging *inside* the sphere, deepest at the patch centre:
+
+```
+deviation = R·sin²(θ/2)          θ = cell arc / R
+```
+
+which is **exactly (1 + cos(θ/2)) → 2 times** the arc sagitta `R(1 − cos(θ/2))`
+that describes the edge midpoints. Verified against a dense sample of real cells
+to five significant figures.
+
+| Level | cell | bilinear sag | arc sagitta (old model) |
+| --- | --- | --- | --- |
+| L4 | 625 km | **15.3 km** | 7.7 km |
+| L6 | 156 km | **959 m** | 480 m |
+| L8 | 39 km | **60 m** | 30 m |
+| L10 | 9.8 km | **3.7 m** | 1.9 m |
+| L12 | 2.4 km | **23 cm** | 12 cm |
+| L14 | 611 m | **1.5 cm** | 0.7 cm |
+
+The node error model previously reported the arc sagitta, so **every
+screen-space-error decision was optimistic by 2×**: a nominal τ of 2 px was
+really about 4 px of geometric deviation. `bilinearSag` is now what
+`makeNode` reports. Cost, measured: patch counts rise ~1.4–1.75× at mid
+altitudes (60 → 172 at 400 km), well inside the 900-patch budget, and the
+worst-case selection time is unchanged because it was already level-capped.
+
+Measured on-screen deviation with the corrected model, across the altitude
+sweep: **≤ 2.9 px**, limb **≤ 1.6 px**. Whether that reads as a faceted limb is
+a visual question and belongs to Astra.
+
+**Two consequences worth stating plainly.**
+
+1. **Tessellation is currently geometrically inert.** Every vertex of an n×n
+   patch lies on the same bilinear quad, so raising `patchVerticesPerSide` buys
+   no accuracy whatsoever — only patch splitting does. This changes what the
+   E1 benchmark measures: 17 vs 33 vs 65 is a pure cost comparison at M1, with
+   identical geometry.
+2. **M2 needs spherical interpolation anyway**, because terrain displacement is
+   applied along the surface normal and displacing a bilinear quad does not give
+   terrain on a sphere.
+
+The precision-safe way to spherify, for whoever picks this up: the naive
+`centreRel + normalize(dir) * R` is exactly the DEC-033 violation Grok removed —
+two 6.4 × 10⁶-magnitude terms cancelling to a small one, at 0.5 m ulp. It can be
+done without that. With `Bd` the bilinear blend of the four **unit** corner
+directions, the target is `B/|Bd| + k·C` where `B` is the existing bilinear
+position, `C` the camera position and `k = (1 − |Bd|)/|Bd|`. The cancellation in
+`1 − |Bd|` is avoidable in closed form:
+
+```
+1 − |Bd|² = ½ ΣΣ wᵢⱼ w_kl |dᵢⱼ − d_kl|²
+```
+
+— all differences of nearby unit vectors, so f32-safe. And `k` is ~10⁻⁶, so
+multiplying it by a planet-scale `C` scales the error *down*: passing `C` in f32
+is safe here precisely because it is never *added* to anything large. That is
+the distinction DEC-033 draws, and it is what makes a correct spherification
+possible. **Deferred to M2** — it is not worth the complexity for ≤ 2.9 px until
+terrain forces it.
 
 ### 4.1 The four elements
 
