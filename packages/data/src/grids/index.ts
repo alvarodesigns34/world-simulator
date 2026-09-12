@@ -51,8 +51,8 @@ function geodesic(n: number): GridDescriptor {
 }
 
 const GRIDS: readonly GridDescriptor[] = [
-  ...[6, 8, 10, 11, 12].map(cubeSphere),
-  ...[4, 5, 6, 7].map(geodesic),
+  ...[3, 4, 5, 6, 8, 10, 11, 12].map(cubeSphere),
+  ...[2, 3, 4, 5, 6, 7].map(geodesic),
 ];
 
 const BY_ID = new Map(GRIDS.map((g) => [g.id, g]));
@@ -80,3 +80,6 @@ export function gridId(kind: GridKind, level: number): GridId {
 export function isCoarserOrEqual(coarse: GridDescriptor, fine: GridDescriptor): boolean {
   return coarse.cellCount <= fine.cellCount;
 }
+
+export * from './geodesic.js';
+export * from './resample.js';
