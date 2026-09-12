@@ -8,10 +8,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "check": "pnpm run check:types && pnpm run check:boundaries && pnpm run check:boundaries:selftest",
+    "check": "pnpm run check:types && pnpm run check:boundaries && pnpm run check:boundaries:selftest && pnpm run check:wgsl",
     "check:types": "tsc --noEmit && tsc --noEmit -p packages/render/tsconfig.json && tsc --noEmit -p packages/app/tsconfig.json",
     "check:boundaries": "node tools/check-boundaries.mjs",
     "check:boundaries:selftest": "node tools/selftest-boundaries.mjs",
+    "check:wgsl": "node tools/check-wgsl.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:determinism": "vitest run -t determinism",

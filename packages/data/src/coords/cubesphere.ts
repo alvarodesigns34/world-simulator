@@ -15,6 +15,13 @@
  * and face corner from ~1.9x (naive) to ~1.3x, for the cost of one tan/atan per
  * conversion. Cheap, and it markedly improves LOD uniformity.
  *
+ * ORIENTATION CONTRACT. On every face, the 3-D image of ∂/∂u × ∂/∂v points
+ * *outward* (same hemisphere as the face's cube axis). Triangle (0,0)→(1,0)→(0,1)
+ * is therefore CCW when viewed from outside, which is what the renderer
+ * (`frontFace: 'ccw'`, `cullMode: 'back'`) expects. POS_Y / NEG_Y originally
+ * pointed inward; Ampere showed the resulting holes. No persisted world exists
+ * yet, so flipping those two faces is free.
+ *
  * REFERENCE NUMBERS (R = 6 371 000 m):
  *   face edge arc length = 2*PI*R/4 = 10 007 543 m
  *   cell size at level L = 10 007 543 / 2^L
@@ -41,10 +48,9 @@ export function unwarp(w: number): number {
 /**
  * (face, u, v) -> unit vector in PCF.
  *
- * Face layouts are chosen so each face covers exactly one side of the cube; the
- * orientation within a face is a convention, fixed here and depended on by the
- * quadtree, the tile atlas and the seam topology. Changing it changes every
- * existing world.
+ * Face layouts are chosen so each face covers exactly one side of the cube AND
+ * so ∂u × ∂v points outward. That orientation is now a contract: the quadtree,
+ * the tile atlas, the seam topology and the renderer all depend on it.
  */
 export function cubeFaceToUnit(c: CubeFace): PCF {
   assertInRange(c.u, 0, 1, 'CubeFace.u');
@@ -58,12 +64,12 @@ export function cubeFaceToUnit(c: CubeFace): PCF {
   let z: number;
 
   switch (c.face) {
-    case FACE.POS_X: x = 1;  y = a;  z = b;  break;
-    case FACE.NEG_X: x = -1; y = -a; z = b;  break;
-    case FACE.POS_Y: x = a;  y = 1;  z = b;  break;
-    case FACE.NEG_Y: x = -a; y = -1; z = b;  break;
-    case FACE.POS_Z: x = a;  y = b;  z = 1;  break;
-    case FACE.NEG_Z: x = a;  y = -b; z = -1; break;
+    case FACE.POS_X: x = 1;  y = a;  z = b;  break;          // ∂u=+Y, ∂v=+Z, × = +X
+    case FACE.NEG_X: x = -1; y = -a; z = b;  break;          // ∂u=-Y, ∂v=+Z, × = -X
+    case FACE.POS_Y: x = a;  y = 1;  z = -b; break;          // ∂u=+X, ∂v=-Z, × = +Y
+    case FACE.NEG_Y: x = a;  y = -1; z = b;  break;          // ∂u=+X, ∂v=+Z, × = -Y
+    case FACE.POS_Z: x = a;  y = b;  z = 1;  break;          // ∂u=+X, ∂v=+Y, × = +Z
+    case FACE.NEG_Z: x = a;  y = -b; z = -1; break;          // ∂u=+X, ∂v=-Y, × = -Z
     default:
       throw new Error(`invalid cube face: ${String(c.face)}`);
   }
@@ -96,10 +102,10 @@ export function unitToCubeFace(p: PCF): CubeFace {
     if (p.y > 0) {
       face = FACE.POS_Y;
       a = p.x / ay;
-      b = p.z / ay;
+      b = -p.z / ay;
     } else {
       face = FACE.NEG_Y;
-      a = -p.x / ay;
+      a = p.x / ay;
       b = p.z / ay;
     }
   } else {

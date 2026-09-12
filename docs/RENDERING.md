@@ -55,10 +55,11 @@ constraint that shapes the entire renderer.
 
 1. **All world data is `f64`.** `Float64Array` for position-like fields. Never `f32`
    upstream of the renderer.
-2. **All GPU vertex data is `f32` and camera-relative.** Per patch:
-   `delta = originPCF_f64 − cameraPCF_f64`, computed in `f64` on the CPU; only
-   `delta` and patch-local offsets reach the GPU. With patch origins within 100 km
-   of the camera, one ulp is 7.8 mm.
+2. **All GPU vertex data is `f32` and camera-relative.** Per patch the CPU
+   subtracts `cornerPCF_f64 − cameraPCF_f64` for **four** sphere-surface
+   corners and uploads those deltas. The shader bilinearly interpolates them.
+   A three-corner parallelogram misses the fourth vertex and opens cracks at
+   every interior edge. The shader never reconstructs `relative + cameraPCF`.
 3. **Reversed-Z, `depth32float`, infinite far plane.** Near maps to 1.0, far to 0.0;
    depth test `GreaterEqual`; clear to 0.0. This distributes float depth precision
    where reversed-Z wants it and removes any need to split the frustum into multiple
@@ -113,20 +114,27 @@ See [`ARCHITECTURE.md` §4.1](ARCHITECTURE.md#41-coordinate-frames-dec-006). The
 renderer's concern is the tail of the chain, which runs once per frame in `f64`:
 
 ```
-CameraState (geodetic, f64)
-  → PCF (f64)
-  → per-patch: originPCF − cameraPCF   (f64 subtraction)
-  → Render (f32, camera-relative, +Y up)
+CameraState (PCF + quaternion, f64)
+  → per-patch: 4 × (sphereCornerPCF − cameraPCF)   (f64 subtraction)
+  → Render (f32, camera-relative, +Y up in camera local)
 ```
 
-The `Z-up (PCF) → Y-up (Render)` basis change happens once, here. It is not a
-configurable option.
+View matrix (column-major, `M * v`, `clip = proj * view * pos`): rows are the
+camera axes in PCF. Camera looks down local −Z. The conversion point is the
+f64 subtract, not a shader add.
 
 ### 3.2 Cube-sphere with tangent warping
 
 Face coordinate `s ∈ [-1, 1]` is warped by `tan(s·π/4) / tan(π/4)` before
 normalisation to the sphere. This reduces cell-area variation from 5.20× (naive) to
 ~1.3×, for the cost of a `tan`/`atan` per conversion.
+
+**Orientation contract.** On every face, ∂u × ∂v points *outward*. Triangle
+`(0,0)→(1,0)→(0,1)` is CCW from outside, matching `frontFace: 'ccw'` /
+`cullMode: 'back'`. POS_Y / NEG_Y originally pointed inward; combined with a
+CW index buffer `(a,c,b)` that culled the four outward faces. Both were
+flipped. Do not disable culling to hide a winding bug. No persisted world
+existed, so the two-face UV flip does not migrate data.
 
 | Level | Cell size | Cells (6·4^L) | `i16` field size |
 | --- | --- | --- | --- |

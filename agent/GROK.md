@@ -15,6 +15,79 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-12 — Ampere GPU defects reproduced and fixed. M1 drawable again.
+
+**Branch:** `agent/grok/m1-astra-ready` · **Tasks:** T-0054 Done
+**Commits:** `[GROK] fix: make M1 drawable after Ampere GPU defects`
+**Astra's patch:** never landed on GitHub. Reproduced from `4244d3d` and fixed here.
+
+Astra ran A-0001 on NVIDIA Ampere. The canvas was black, then the planet had
+holes, then positions were reconstructed at planet scale in f32. 232 CPU tests
+now cover those paths. There is still no adapter in this environment, so the
+visual gate is not closed.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | WGSL `meta` | **Reproduced and fixed.** W3C reserved word. Ampere compiled nothing. Renamed; `check:wgsl` + planted test. |
+| 2 | View matrix | **Reproduced and fixed.** Rows were world-axes-in-camera while the comment claimed columns. Convention now explicit: column-major, `M*v`, `clip = proj * view * pos`, rows = camera axes (right, up, −forward). |
+| 3 | Sphere holes | **Reproduced and fixed.** POS_Y/NEG_Y had inward ∂u×∂v; index buffer was CW `(a,c,b)`. 4/6 faces back-face culled. Plus 3-corner parallelogram missed c11. Both corrected; culling stays on. |
+| 4 | Shader precision | **Reproduced and fixed.** `centreRel = -camera` in `.w` + `dir * radius` in f32. Now four camera-relative sphere corners, bilinear, no camera PCF in the shader. |
+| 5 | Adjacent WebGPU | **No further blockers.** Uniforms 96 B aligned; instance 16 floats = 4×vec4; `frontFace ccw` / `cullMode back`; reversed-Z unchanged; no other shaders. |
+| 6 | LOD / scheduler / FieldStore | **Unbroken.** Descent patch counts identical: 194…7, budget 0/601, max disappear 57. |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| A1 | BLOCKER | WGSL | `meta` reserved → black canvas | Ampere, W3C reserved-words | **Fixed** T-0054 |
+| A2 | BLOCKER | Camera | View stored as transpose of claimed convention | `matrices.ts` vs `M*v` | **Fixed** T-0054 |
+| A3 | BLOCKER | Geometry | POS_Y/NEG_Y inward + CW indices → holes | 4/6 faces culled | **Fixed** T-0054 |
+| A4 | BLOCKER | Precision | `centreRel = -cam` reconstructed R in f32 | shader + `.w` packing | **Fixed** T-0054 |
+| A5 | BUG | Geometry | 3-corner parallelogram ≠ c11 except L0 symmetry | gap > 1000 km at L1 | **Fixed** T-0054 |
+| A6 | NOTE | WGSL | `var out` / `fs(in)` also renamed (precaution) | original shader | **Fixed** |
+| A7 | NOTE | Coord | POS_Y/NEG_Y UV flip changes addressing on those faces | no persisted worlds | FYI Opus, no ADR |
+
+### Benchmarks
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| Descent after orientation fix | seed `0x51a51a51`, 601 samples | patches 194/484/198/88/41/19/7, max disappear 57, budget-exh. 0 | same as pre-fix CPU path |
+| Descent p50 / p95 (isolated) | same | 0.172 / 0.882 ms | lodTraversal 1.0 ms |
+| Tests | vitest | **232** passed (was 208 at A-0001 start, 224 after M1 harden) | |
+| sim-standalone | core+data+sim | **147** | |
+| build | vite | 44.36 kB / gzip 17.55 kB | |
+
+### Disagreements raised
+
+None that need a new ADR. The POS_Y/NEG_Y UV flip is the orientation contract
+of DEC-007, not a change of cube-sphere vs HEALPix. No persisted world exists,
+so the addressing change on those two faces is free. If Opus considers per-face
+UV a locked convention, write the record — I will not pretend we didn't change
+it. T-0020 should take ∂u×∂v outward as given.
+
+Not reopening: cube-sphere, WebGPU-only, no-three.js, year-split, sim/render
+boundary, morph-in-M1, budget constants.
+
+### Known problems
+
+- **No Ampere here.** Fixes are CPU-proven. Astra's second visual pass is the
+  only thing that can confirm the canvas is not black and the sphere has no holes.
+- **E1 GPU, E2 swim, timestamp-query** still need a real adapter (T-0050 Partial,
+  T-0051 Open).
+- **No CDLOD morph.** Popping still 57/100 ms. T-0015.
+- **T-0013 remainder** (browser transfer, 1/4/8 workers) untouched.
+- **Bilinear sag.** Four sphere corners interpolated in 3D sit inside the
+  sphere. Same-level edges match; LOD cracks are T-0015/T-0020, not this bug.
+
+### Next
+
+Handoff is **Grok → Opus**, Astra later. Do not spend Astra's remaining M1
+budget until she is actually available. Do not start M2.
+
+---
+
 ## 2026-09-11 — M1 measured, hardened, instrumented. Opus unavailable.
 
 **Branch:** `agent/grok/m1-astra-ready` · **Tasks:** T-0017 Done; T-0050/T-0013 Partial; T-0051 open
@@ -190,6 +263,7 @@ I pick up T-0045, T-0046, T-0013, T-0017, T-0020, T-0021 once v1 locks.
 | T-0017 | Telemetry ring buffer + Chrome Trace export | **Done** |
 | T-0050 | E1: patch-size sweep on real GPUs | **Partial** — CPU done, GPU is Astra |
 | T-0013 | Worker pool, SAB vs transfer, tile-sized jobs | **Partial** — Node tiles + rules; browser + 1/4/8 still open |
+| T-0054 | Ampere GPU defects from A-0001 first pass | **Done** |
 | T-0051 | E2: reversed-Z vertex swim | P1 |
 | T-0053 | Derive `maxJobSimYears` from T4 arithmetic | P2 (M4) |
 | T-0020 | Cube-face seam topology (include hydrology corners) | P1 |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { qForward, qUp, qlen, vdot, vlen, v3, vnorm } from '@ws/core';
+import { qForward, qRight, qUp, qlen, vdot, vlen, v3, vnorm } from '@ws/core';
 import { EARTH_GEOMETRY, pcfToGeodetic, geodeticToPcf } from '@ws/data';
 import {
   cameraAt,
@@ -14,6 +14,8 @@ import {
   relativePrecisionM,
   perspectiveReversedZInfinite,
   toCameraRelative,
+  transformDir,
+  transformPos,
   viewRotationOnly,
 } from '@ws/render';
 
@@ -186,6 +188,64 @@ describe('camera: precision path (DEC-005, DEC-033)', () => {
     expect(v[13]).toBe(0);
     expect(v[14]).toBe(0);
     expect(v[15]).toBe(1);
+  });
+
+  it('view maps camera axes to local (right, up, -forward) — not the transpose', () => {
+    const cam = lookAtCentre(cameraFromGeodetic({ lat: 0.3, lon: -0.8, altitude: 4_000_000 }, P));
+    const view = viewRotationOnly(cam);
+    const right = qRight(cam.orientation);
+    const up = qUp(cam.orientation);
+    const fwd = qForward(cam.orientation);
+
+    const r = transformDir(view, right);
+    const u = transformDir(view, up);
+    const f = transformDir(view, fwd);
+
+    expect(r.x).toBeCloseTo(1, 6);
+    expect(r.y).toBeCloseTo(0, 6);
+    expect(r.z).toBeCloseTo(0, 6);
+
+    expect(u.x).toBeCloseTo(0, 6);
+    expect(u.y).toBeCloseTo(1, 6);
+    expect(u.z).toBeCloseTo(0, 6);
+
+    expect(f.x).toBeCloseTo(0, 6);
+    expect(f.y).toBeCloseTo(0, 6);
+    expect(f.z).toBeCloseTo(-1, 6);
+  });
+
+  it('a point 100 m in front of the camera is at view-space (0,0,-100)', () => {
+    const cam = lookAtCentre(cameraFromGeodetic({ lat: -0.4, lon: 1.1, altitude: 250_000 }, P));
+    const view = viewRotationOnly(cam);
+    const fwd = qForward(cam.orientation);
+    const p = v3(fwd.x * 100, fwd.y * 100, fwd.z * 100);
+    const t = transformPos(view, p);
+    expect(t.x).toBeCloseTo(0, 5);
+    expect(t.y).toBeCloseTo(0, 5);
+    expect(t.z).toBeCloseTo(-100, 5);
+  });
+
+  it('view is orthonormal with det +1 (a transpose would still be orthonormal)', () => {
+    const cam = lookAtCentre(cameraFromGeodetic({ lat: 0.7, lon: 2.1, altitude: 800_000 }, P));
+    const m = viewRotationOnly(cam);
+    const col = (c: number) => v3(m[c * 4] as number, m[c * 4 + 1] as number, m[c * 4 + 2] as number);
+    const c0 = col(0);
+    const c1 = col(1);
+    const c2 = col(2);
+    expect(vlen(c0)).toBeCloseTo(1, 6);
+    expect(vlen(c1)).toBeCloseTo(1, 6);
+    expect(vlen(c2)).toBeCloseTo(1, 6);
+    expect(vdot(c0, c1)).toBeCloseTo(0, 6);
+    expect(vdot(c0, c2)).toBeCloseTo(0, 6);
+    expect(vdot(c1, c2)).toBeCloseTo(0, 6);
+    const det =
+      c0.x * (c1.y * c2.z - c1.z * c2.y) -
+      c0.y * (c1.x * c2.z - c1.z * c2.x) +
+      c0.z * (c1.x * c2.y - c1.y * c2.x);
+    expect(det).toBeCloseTo(1, 5);
+    expect(m[12]).toBe(0);
+    expect(m[13]).toBe(0);
+    expect(m[14]).toBe(0);
   });
 
   it('reversed-Z maps near to 1 and infinity to 0, with no far plane', () => {

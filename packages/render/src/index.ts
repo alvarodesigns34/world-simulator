@@ -5,3 +5,6 @@ export * from './lod/select.js';
 export * from './lod/descent.js';
 export * from './gpu/device.js';
 export * from './gpu/renderer.js';
+export * from './gpu/instance.js';
+export * from './shaders/planet.wgsl.js';
+export * from './shaders/wgsl-reserved.js';

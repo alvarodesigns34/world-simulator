@@ -211,3 +211,26 @@ Not changed (PROTOCOL §5.1 — budgets are ADR-level). At T4 (1 Myr/s) a 250 ms
 job is ≈ 250 000 sim-years; 5000 years is 5 ms of wall at that rate, so the
 year cap is tighter than `maxJobMs` at T4 and looser at T1. Derivation deferred
 to M4 when workers actually exist. Filed as T-0053.
+
+---
+
+## 12. Ampere GPU defects (T-0054, 2026-09-12)
+
+Astra's A-0001 first pass on NVIDIA Ampere. Patch never landed. Reproduced
+from `4244d3d` and fixed on this branch. **No adapter in this environment**
+— visual confirmation is the second pass.
+
+| # | Defect | Fix |
+| --- | --- | --- |
+| 1 | WGSL `meta` reserved → black canvas | Identifier gone. `pnpm run check:wgsl` scans `/* wgsl */` templates. |
+| 2 | View matrix transposed vs `M * v` | Rows = camera axes (right, up, −forward). `clip = proj * view * pos`. |
+| 3 | Holes: POS_Y/NEG_Y inward + CW indices + 3-corner parallelogram | ∂u×∂v outward all six faces; CCW `(a,b,c)(b,d,c)`; four sphere corners bilinear. Culling stays on. |
+| 4 | `centreRel = -camera` reconstructed R in f32 | Four camera-relative corners. `.w` is level/face. No camera PCF in the shader. |
+
+CPU LOD path after the UV flip: descent seed `0x51a51a51` still
+194 / 484 / 198 / 88 / 41 / 19 / 7 patches, max disappear 57, budget
+exhausted 0/601. Isolated p50 / p95 0.172 / 0.882 ms.
+
+Tests: **232** (was 208 at first A-0001). sim-standalone 147. build
+44.36 kB gzip 17.55 kB.
+

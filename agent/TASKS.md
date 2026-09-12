@@ -18,12 +18,14 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ## Now — M1 closing / M2 opening
 
-Architecture v1 is consolidated and the M1 kernel is executable. Grok has
-measured and instrumented it. **Opus is unavailable** — the next step is
-Astra's A-0001 visual gate, not another Opus round.
+Architecture v1 is consolidated and the M1 kernel is executable. Grok measured
+it, then reproduced and fixed the Ampere GPU defects Astra found on A-0001
+(T-0054). **Opus is available** for the UV-orientation FYI. **Astra is not
+available immediately** — A-0001 second pass waits.
 
 What remains in M1 is what only a GPU and a human looking at the running app
-can answer: E1 GPU, E2 vertex swim, popping-as-seen, camera feel, poles-as-seen.
+can answer: E1 GPU, E2 vertex swim, popping-as-seen, camera feel, poles-as-seen,
+and confirmation that Ampere now draws a closed planet.
 
 | ID | Title | Owner | Status | Pri | Acceptance |
 | --- | --- | --- | --- | --- | --- |
@@ -43,12 +45,13 @@ can answer: E1 GPU, E2 vertex swim, popping-as-seen, camera feel, poles-as-seen.
 | **T-0017** | **Telemetry ring buffer + Chrome Trace export** | **Grok** | **Done** | **P0** | Fixed ring, no alloc in hot path, Perfetto JSON, HUD, `T`/`G`/`?descent`. `core` never calls `performance` |
 | **T-0050** | **E1: patch-size sweep on real GPUs** | **Grok** | **Partial** | **P0** | CPU+arithmetic: keep 33×33 (`tools/bench/patch-size.out.md`). **GPU half is Astra** — 17/33/65 × 1080p/1440p/2160p on ≥ 2 vendors |
 | **T-0051** | **E2: reversed-Z vertex swim, measured in-shader** | **Grok** | Open | P1 | Stationary camera at 1 m altitude; measure actual vertex jitter. Closes R-09. Needs a GPU |
-| T-0020 | Cube-face seam topology, incl. valence-3 corners for hydrology | Grok | Open | P1 | 24 edge adjacencies; write-up covers hydrology at the 8 corners |
+| T-0020 | Cube-face seam topology, incl. valence-3 corners for hydrology | Grok | Open | P1 | 24 edge adjacencies; write-up covers hydrology at the 8 corners. **Orientation is given:** ∂u×∂v outward on all six faces (T-0054). Do not re-litigate winding. |
 | T-0021 | `stableMath` Tier-A transcendentals | Grok | Open | P1 | ULP bound vs a high-precision reference; benchmark vs native; CI matrix for E4 |
 | T-0022 | `hashWorldState()` + determinism suite | Opus | Open | P1 | Same seed / reversed order / 1-4-8 workers / save→load→step |
 | T-0023 | Command types + command log recording | Opus | Open | P1 | All mutation flows through commands; `timeScale` changes ARE commands (DEC-030) |
 | T-0052 | Ancestor upsampling + chain prefetch | Opus | Open | P1 | DEC-034 rules 2–4. Needs tiles, so it lands with M2 |
 | T-0053 | Derive `maxJobSimYears` from T4 arithmetic | Grok | Open | P2 | 5000 is a guess. At T4 1 Myr/s, 5000 yr = 5 ms wall. ADR-level; do not silently edit `budgets.ts`. M4 |
+| **T-0054** | **Ampere GPU defects from A-0001 first pass** | **Grok** | **Done** | **P0** | `meta` not in WGSL; view convention explicit + tested; six faces outward; CCW indices; 4-corner camera-relative packing; no `centreRel` reconstruction; `check:wgsl` in `pnpm run check` |
 
 
 ## Backlog
@@ -73,7 +76,7 @@ milestone plus the milestone gate. Requests must use the template in
 
 | ID | Request | Milestone | Status |
 | --- | --- | --- | --- |
-| A-0001 | **M1 gate** — orbit→surface continuity, precision, depth, seam quality, popping, frame pacing | M1 | **Ready to request.** Brief in `agent/ASTRA.md`. Opus is unavailable; do not wait. |
+| A-0001 | **M1 gate** — orbit→surface continuity, precision, depth, seam quality, popping, frame pacing | M1 | **First pass on Ampere: REJECTED (black canvas, holes, f32 reconstruction). Fixed in T-0054. Second pass not queued — Astra unavailable. Brief in `agent/ASTRA.md`.** |
 
 ---
 
@@ -99,6 +102,7 @@ milestone plus the milestone gate. Requests must use the template in
 | T-0045 | `hashU64` as DEC-017 specified | Opus | M1 |
 | T-0046 | Boundary checker: sort / Map / quoted-property / Tier A | Opus | M1 |
 | T-0017 | Telemetry ring buffer + Chrome Trace export | Grok | M1 — `packages/core/src/telemetry.ts` |
+| T-0054 | Ampere GPU defects from A-0001 first pass | Grok | M1 — WGSL `meta`, view convention, cube-face winding, 4-corner packing |
 
 ### Deferred with a reason
 

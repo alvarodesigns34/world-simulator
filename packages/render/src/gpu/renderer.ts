@@ -11,7 +11,7 @@
  */
 
 import { budgets, vnorm, vscale, v3, vcross, type Vec3 } from '@ws/core';
-import { cubeFaceToUnit, quadkey, type PlanetGeometry } from '@ws/data';
+import { type PlanetGeometry } from '@ws/data';
 import type { CameraState } from '../camera/state.js';
 import { derive, nearPlane } from '../camera/state.js';
 import {
@@ -28,13 +28,12 @@ import {
 import { NodePool, type PatchNode } from '../lod/quadtree.js';
 import { PLANET_WGSL } from '../shaders/planet.wgsl.js';
 import type { GpuContext } from './device.js';
+import { FLOATS_PER_INSTANCE, packPatchInstance, patchCorners, patchIndices } from './instance.js';
 
 /** Reversed-Z (DEC-033 rule 3): near maps to 1.0, far to 0.0, clear to 0.0. */
 export const DEPTH_CLEAR_VALUE = 0.0;
 export const DEPTH_COMPARE: GPUCompareFunction = 'greater-equal';
 export const DEPTH_FORMAT: GPUTextureFormat = 'depth32float';
-
-const FLOATS_PER_INSTANCE = 16; // 4 x vec4
 
 export interface RendererOptions {
   readonly planet: PlanetGeometry;
@@ -150,18 +149,7 @@ export class PlanetRenderer {
     });
     device.queue.writeBuffer(this.gridBuffer, 0, verts);
 
-    const quads = (n - 1) * (n - 1);
-    const indices = new Uint32Array(quads * 6);
-    for (let j = 0, k = 0; j < n - 1; j++) {
-      for (let i = 0; i < n - 1; i++) {
-        const a = j * n + i;
-        const b = a + 1;
-        const c = a + n;
-        const d = c + 1;
-        indices[k++] = a; indices[k++] = c; indices[k++] = b;
-        indices[k++] = b; indices[k++] = c; indices[k++] = d;
-      }
-    }
+    const indices = patchIndices(n);
     this.indexCount = indices.length;
     this.indexBuffer = device.createBuffer({
       label: 'patch-indices',
@@ -230,33 +218,15 @@ export class PlanetRenderer {
   /**
    * Pack one patch into the instance buffer, CAMERA-RELATIVE.
    *
-   * This is the f64 -> f32 boundary in practice: `corner - camera` is computed
-   * in f64 here, and only the small difference is written as f32.
+   * Four sphere-surface corners, subtracted in f64. The shader bilinearly
+   * interpolates them — it does not reconstruct a planet-centred position.
    */
   private writeInstance(out: Float32Array, at: number, node: PatchNode, cam: CameraState): void {
-    const [u0, v0, u1, v1] = quadkey.bounds(node.key);
-    const R = this.planet.radius;
-
-    const corner = cubeFaceToUnit({ face: node.key.face, u: u0, v: v0 });
-    const cu = cubeFaceToUnit({ face: node.key.face, u: u1, v: v0 });
-    const cv = cubeFaceToUnit({ face: node.key.face, u: u0, v: v1 });
-
-    const ox = corner.x * R - cam.position.x;
-    const oy = corner.y * R - cam.position.y;
-    const oz = corner.z * R - cam.position.z;
-
-    const tux = (cu.x - corner.x) * R;
-    const tuy = (cu.y - corner.y) * R;
-    const tuz = (cu.z - corner.z) * R;
-    const tvx = (cv.x - corner.x) * R;
-    const tvy = (cv.y - corner.y) * R;
-    const tvz = (cv.z - corner.z) * R;
-
-    let k = at * FLOATS_PER_INSTANCE;
-    out[k++] = ox; out[k++] = oy; out[k++] = oz; out[k++] = -cam.position.z;
-    out[k++] = tux; out[k++] = tuy; out[k++] = tuz; out[k++] = -cam.position.x;
-    out[k++] = tvx; out[k++] = tvy; out[k++] = tvz; out[k++] = -cam.position.y;
-    out[k++] = node.key.level; out[k++] = 0; out[k++] = node.key.face; out[k++] = 0;
+    packPatchInstance(
+      out,
+      at,
+      patchCorners(node.key, this.planet.radius, cam.position),
+    );
   }
 
   render(cam: CameraState, target: GPUTextureView, width: number, height: number): FrameStats {

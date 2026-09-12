@@ -88,6 +88,25 @@ describe('cube-sphere round-trip (DEC-007)', () => {
     }
   });
 
+  it('∂u × ∂v points outward on every face (renderer winding contract)', () => {
+    const eps = 1e-5;
+    for (let face = 0; face < 6; face++) {
+      for (const [u, v] of [
+        [0.5, 0.5],
+        [0.2, 0.8],
+        [0.8, 0.2],
+      ] as const) {
+        const p = cubeFaceToUnit({ face, u, v });
+        const pu = cubeFaceToUnit({ face, u: u + eps, v });
+        const pv = cubeFaceToUnit({ face, u, v: v + eps });
+        const cx = (pu.y - p.y) * (pv.z - p.z) - (pu.z - p.z) * (pv.y - p.y);
+        const cy = (pu.z - p.z) * (pv.x - p.x) - (pu.x - p.x) * (pv.z - p.z);
+        const cz = (pu.x - p.x) * (pv.y - p.y) - (pu.y - p.y) * (pv.x - p.x);
+        expect(cx * p.x + cy * p.y + cz * p.z).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it('covers the whole sphere: every sample lands on exactly one face', () => {
     const hits = new Array<number>(6).fill(0);
     for (const p of samplePoints(60_000)) {
