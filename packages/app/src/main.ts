@@ -7,20 +7,19 @@
  */
 
 import {
-  DAY,
   EARTH_CALENDAR,
   Telemetry,
   ZONE,
   budgets,
   duration,
   format,
-  simTime,
   usFromMs,
   v3,
 } from '@ws/core';
-import { EARTH_GEOMETRY, FieldStore, fieldId, gridId, subsystemId } from '@ws/data';
+import { EARTH_GEOMETRY, cubeDim, cubeIndex, type QuadKey } from '@ws/data';
 import {
   DESCENT,
+  FieldOverlay,
   PlanetRenderer,
   acquireGpu,
   probeWindingConvention,
@@ -34,10 +33,11 @@ import {
   type CameraState,
   type DebugMode,
 } from '@ws/render';
-import { Scheduler, type Subsystem } from '@ws/sim';
+import { createWorld, sampleElevation, sunState } from '@ws/sim';
 import { Hud } from './hud.js';
 
 const PLANET = EARTH_GEOMETRY;
+const VISUAL_FIELDS = ['elevation', 'plateId', 'crustAge', 'uplift', 'temperature', 'precip', 'humidity', 'ice'] as const;
 
 function fail(message: string): void {
   const el = document.createElement('div');
@@ -61,23 +61,6 @@ function download(filename: string, text: string, type = 'application/json'): vo
   URL.revokeObjectURL(url);
 }
 
-function makeRotationSubsystem(store: FieldStore): Subsystem {
-  const owner = subsystemId('planetRotation');
-  const f = store.mut(fieldId('rotationAngle'), owner);
-  return {
-    id: owner,
-    phase: 'Derived',
-    cadence: { kind: 'every', dt: DAY },
-    reads: [],
-    writes: [fieldId('rotationAngle')],
-    step: (ctx) => {
-      const turns = ctx.step % 360;
-      f.set(0, turns);
-      f.commit();
-    },
-  };
-}
-
 async function main(): Promise<void> {
   const canvas = document.createElement('canvas');
   canvas.setAttribute('style', 'position:fixed;inset:0;width:100%;height:100%;display:block');
@@ -97,36 +80,12 @@ async function main(): Promise<void> {
   }
   context.configure({ device: gpu.device, format: gpu.format, alphaMode: 'opaque' });
 
-  const store = new FieldStore()
-    .declare({
-      id: fieldId('rotationAngle'),
-      grid: gridId('cubesphere', 6),
-      dtype: 'i16',
-      components: 1,
-      quantum: 1,
-      offset: 0,
-      units: 'deg',
-      range: [0, 360],
-      owner: subsystemId('planetRotation'),
-      tier: 'A',
-      temporalClass: 'slow',
-      doubleBuffered: false,
-      persist: 'snapshot',
-    })
-    .seal();
+  const world = createWorld({
+    climateN: 4,
+    terrainLevel: 8,
+    genesis: { steps: 120 },
+  });
 
-  const scheduler = new Scheduler({
-    calendar: EARTH_CALENDAR,
-    startTime: simTime(0, 0, EARTH_CALENDAR),
-    store,
-  })
-    .register(makeRotationSubsystem(store))
-    .build();
-
-  // Ask the GPU which winding convention it applies (T-0062) before building
-  // the pipeline. WebGPU's NDC is y-up and its framebuffer y-down; whether
-  // 'ccw' is evaluated before or after that flip decides whether the planet
-  // draws or is culled to a black screen. Measured, not assumed.
   const winding = await probeWindingConvention(gpu.device);
 
   let patchN: number = budgets.QUALITY.patchVerticesPerSide;
@@ -138,7 +97,23 @@ async function main(): Promise<void> {
       winding,
     });
   let renderer = makeRenderer();
+  const elevationSampler = (key: QuadKey) => {
+    const n = cubeDim(key.level);
+    const h = (x: number, y: number): number => {
+      const xx = x < 0 ? 0 : x >= n ? n - 1 : x;
+      const yy = y < 0 ? 0 : y >= n ? n - 1 : y;
+      if (key.level === world.geology.level) {
+        return world.geology.elevationM[cubeIndex(key.face, key.level, xx, yy)] as number;
+      }
+      return sampleElevation(world.geology, world.seed, key.face, key.level, xx, yy);
+    };
+    return { h00: h(key.x, key.y), h10: h(key.x + 1, key.y), h01: h(key.x, key.y + 1), h11: h(key.x + 1, key.y + 1) };
+  };
+  renderer.seaLevel = world.ocean.seaLevel;
+  renderer.elevationAt = elevationSampler;
+
   const hud = new Hud(document.body);
+  const overlay = new FieldOverlay(document.body);
   const telemetry = new Telemetry(16_384, budgets.QUALITY.maxFrameMsDuringDescent);
 
   let cam: CameraState = lookAtCentre(
@@ -171,7 +146,6 @@ async function main(): Promise<void> {
     lastY = e.clientY;
     const alt = derive(cam, PLANET).altitude;
     const rate = (1e-3 * Math.min(1, alt / 1e6 + 0.02)) / 1;
-    // Polar-safe: qUp / qRight, not world-Z / (-y, x, 0), which vanish at ±Z.
     cam = dragOrbit(cam, -dx * rate, dy * rate);
   });
 
@@ -192,6 +166,7 @@ async function main(): Promise<void> {
     if (e.key === '1') debugMode = 'shaded';
     if (e.key === '2') debugMode = 'lod';
     if (e.key === '3') debugMode = 'patches';
+    if (e.key === '4') debugMode = 'height';
     if ((e.key === 'w' || e.key === 'W') && descentT < 0) {
       cam = setAltitude(cam, Math.max(2, d.altitude * 0.7), PLANET);
     }
@@ -200,12 +175,20 @@ async function main(): Promise<void> {
     }
     if (e.key === 'p' || e.key === 'P') poleSweep = !poleSweep;
     if (e.key === '`' || e.key === 'h' || e.key === 'H') hud.toggle();
+    if (e.key === 'v' || e.key === 'V') overlay.visible = !overlay.visible;
+    if (e.key === 'c' || e.key === 'C') {
+      const i = VISUAL_FIELDS.indexOf(world.visualField as (typeof VISUAL_FIELDS)[number]);
+      const next = VISUAL_FIELDS[(i + 1) % VISUAL_FIELDS.length] as string;
+      world.apply({ kind: 'setVisualField', field: next });
+    }
+    if (e.key === '=' || e.key === '+') world.apply({ kind: 'setTimeScale', scale: world.timeScale * 10 });
+    if (e.key === '-' || e.key === '_') world.apply({ kind: 'setTimeScale', scale: Math.max(1, world.timeScale / 10) });
     if (e.key === 't' || e.key === 'T') {
       descentT = 0;
       telemetry.clear();
     }
     if (e.key === 'g' || e.key === 'G') {
-      download(`ws-m1-trace-seed${DESCENT.seed.toString(16)}.json`, telemetry.toJSONString());
+      download(`ws-m4-trace-seed${DESCENT.seed.toString(16)}.json`, telemetry.toJSONString());
     }
     if (e.key === '[' || e.key === ']') {
       const sizes = [17, 33, 65];
@@ -214,6 +197,8 @@ async function main(): Promise<void> {
       renderer.destroy();
       renderer = makeRenderer();
       renderer.debugMode = debugMode;
+      renderer.seaLevel = world.ocean.seaLevel;
+      renderer.elevationAt = elevationSampler;
     }
   });
 
@@ -240,8 +225,11 @@ async function main(): Promise<void> {
     const hFrame = telemetry.begin(ZONE.FRAME, usFromMs(now));
 
     const hSim = telemetry.begin(ZONE.SIM, usFromMs(performance.now()));
-    scheduler.advance(duration(wallDt * 86400));
+    world.scheduler.advance(duration(wallDt * world.timeScale));
     telemetry.end(hSim, usFromMs(performance.now()));
+
+    const sun = sunState(world.scheduler.time, world.calendar);
+    renderer.sunDirection = v3(sun.sunPcf.x, sun.sunPcf.y, sun.sunPcf.z);
 
     if (descentT >= 0) {
       descentT += wallDt;
@@ -263,6 +251,9 @@ async function main(): Promise<void> {
       telemetry.record(ZONE.GPU, usFromMs(now), usFromMs(stats.gpuFrameMs));
     }
 
+    const overlayField = overlayFieldOf(world);
+    overlay.draw(overlayField);
+
     const cpuMs = stats.cpuSelectMs + stats.cpuEncodeMs;
     const telUs = usFromMs(performance.now() - tel0);
     hud.update({
@@ -273,21 +264,50 @@ async function main(): Promise<void> {
       adapter: gpu.adapterInfo,
       patchVerticesPerSide: patchN,
       debugMode,
-      sharedMemory: store.usingSharedMemory,
+      sharedMemory: world.store.usingSharedMemory,
       winding: `${winding.observed} (${winding.frontFace})`,
       culling: winding.fallbackNoCull ? 'off (probe unavailable)' : 'back',
-      simTime: format(scheduler.time, EARTH_CALENDAR),
+      simTime: format(world.scheduler.time, EARTH_CALENDAR),
       telemetryUs: telUs,
       spikeCount: telemetry.spikeCount(),
       deviceLost: gpu.lostReason(),
       lastGpuError: gpu.lastUncapturedError(),
       tracing: descentT >= 0,
+      regime: world.climate.regime,
+      timeScale: world.timeScale,
+      seaLevel: world.ocean.seaLevel,
+      meanT: meanOf(world.climate.T),
+      visualField: world.visualField,
     });
 
     telemetry.end(hFrame, usFromMs(performance.now()));
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+}
+
+function meanOf(a: Float64Array): number {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] as number;
+  return s / a.length;
+}
+
+function overlayFieldOf(world: ReturnType<typeof createWorld>): {
+  name: string;
+  values: ArrayLike<number>;
+  kind: 'cubesphere' | 'geodesic';
+  level: number;
+  positions?: Float64Array;
+} {
+  const name = world.visualField;
+  if (name === 'temperature') return { name, values: world.climate.T, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
+  if (name === 'precip') return { name, values: world.climate.precip, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
+  if (name === 'humidity') return { name, values: world.climate.q, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
+  if (name === 'ice') return { name, values: world.climate.ice, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
+  if (name === 'plateId') return { name, values: world.geology.plateId, kind: 'cubesphere', level: world.geology.level };
+  if (name === 'crustAge') return { name, values: world.geology.crustAgeMyr, kind: 'cubesphere', level: world.geology.level };
+  if (name === 'uplift') return { name, values: world.geology.upliftM, kind: 'cubesphere', level: world.geology.level };
+  return { name: 'elevation', values: world.geology.elevationM, kind: 'cubesphere', level: world.geology.level };
 }
 
 void main().catch((err: unknown) => {

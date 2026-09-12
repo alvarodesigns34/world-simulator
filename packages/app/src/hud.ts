@@ -28,6 +28,11 @@ export interface HudInput {
   readonly deviceLost: string | null;
   readonly lastGpuError: string | null;
   readonly tracing: boolean;
+  readonly regime?: string;
+  readonly timeScale?: number;
+  readonly seaLevel?: number;
+  readonly meanT?: number;
+  readonly visualField?: string;
 }
 
 const STYLE = `
@@ -79,7 +84,7 @@ export class Hud {
     const pxTri = s.triangles > 0 ? s.pixelCount / s.triangles : 0;
 
     this.el.textContent = [
-      `WORLD SIMULATOR  M1`,
+      `WORLD SIMULATOR  M4`,
       `${input.adapter}`,
       `tier ${input.gpuTier}   SAB ${input.sharedMemory ? 'yes' : 'no'}   trace ${input.tracing ? 'ON' : 'off'}`,
       `winding    ${input.winding}   cull ${input.culling}`,
@@ -98,6 +103,9 @@ export class Hud {
       `speed      ${formatSpeed(s.cameraSpeed)}`,
       `near       ${s.cameraNear.toFixed(3)} m`,
       `sim time   ${input.simTime}`,
+      input.regime ? `regime     ${input.regime}  scale ${input.timeScale ?? 1}` : ``,
+      input.meanT !== undefined ? `mean T     ${input.meanT.toFixed(1)} K   sea ${input.seaLevel?.toFixed(0) ?? '—'} m` : ``,
+      input.visualField ? `field      ${input.visualField}` : ``,
       ``,
       `patches    ${s.drawnPatches} / ${s.budgetPatches}  ${bar(s.drawnPatches, s.budgetPatches)}`,
       `triangles  ${(s.triangles / 1000).toFixed(0)}k   ${budget.trianglesPerPatch}/patch   ${pxTri.toFixed(2)} px/tri`,
@@ -109,7 +117,8 @@ export class Hud {
       `culled     horizon ${s.culledHorizon}  frustum ${s.culledFrustum}`,
       s.budgetExhausted ? `BUDGET EXHAUSTED` : ``,
       ``,
-      `[1] shaded  [2] lod  [3] patches   [W/S] alt  [drag] orbit`,
+      `[1] shaded  [2] lod  [3] patches  [4] height`,
+      `[W/S] alt  [drag] orbit  [C] field  [V] overlay  [+/-] time`,
       `[P] pole    [T] descent  [G] export trace  [\`] HUD  [[][]] patch`,
     ]
       .filter((l) => l !== '')
