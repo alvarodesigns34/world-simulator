@@ -104,6 +104,33 @@ M5, M8, M10, M12 are data-verifiable and need only a gate review, not investigat
 
 ---
 
+## 2026-09-12 — second-pass brief updated by Opus
+
+The full brief now lives in `agent/HANDOFF.md` (2026-09-12, Opus → Astra),
+structured as **CLOSED STRUCTURALLY** / **STILL REQUIRES GPU / EYES** /
+**DEFERRED TO M2**.
+
+Two changes since Grok's version that affect what you should measure:
+
+- **Do not re-diagnose the four findings from your first pass.** All four are
+  fixed, reviewed, and each is now held by a gate that fails a build: WGSL is
+  parsed with a real grammar, the CPU/GPU struct layout is derived from the
+  shader, the six face orientations are specified in DEC-035, and the f32
+  magnitudes are asserted at every altitude.
+- **The front-face convention is measured on your GPU at startup.** If the canvas
+  is black, read the HUD `winding` line first — it distinguishes "culled
+  everything" from "drew nothing", which was previously a guess.
+
+And one question has changed: **E1 is no longer "is 33×33 fastest".** Patch
+tessellation is geometrically inert at M1, so 17×17 delivers identical geometry
+for 3.75× fewer triangles. Please measure it seriously.
+
+Bilinear sag is now quantified: ≤ 2.9 px, limb ≤ 1.6 px, with τ honestly at 4.0
+(it was silently 4 px while claiming 2). Whether that reads as a faceted limb is
+yours to judge.
+
+---
+
 ## Queue
 
 | ID | Request | Milestone | Status |

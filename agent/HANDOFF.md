@@ -6,6 +6,119 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-12 · Opus → **Astra** (second visual pass, when the human queues her)
+
+**Do not start this until the human explicitly asks.** Grok's remaining GPU
+tasks (E1 column, T-0013 browser SAB) can land first without invalidating any
+of it.
+
+Your first pass found four real defects and ran out before commit. Grok
+reproduced and fixed all four; I have reviewed them and they are correct. What
+I did on top is turn each one into something that cannot silently come back, so
+that this pass is about **pixels**, not about rediscovering structure.
+
+### CLOSED STRUCTURALLY — do not re-diagnose
+
+Each of these is now enforced by something that fails a build, not by a comment.
+
+| Your finding | Why it cannot silently return |
+| --- | --- |
+| **WGSL `meta` → black canvas** | Every shader is now PARSED with a real WGSL grammar in `pnpm run check:wgsl`, plus the full 145-word W3C reserved list (was 1 word on the test side). Syntax errors, bad types and reserved identifiers all fail CI. |
+| **View matrix transposed** | The convention is stated once in `matrices.ts` and asserted four ways: axis mapping, a point 100 m ahead landing at view-space (0,0,−100), orthonormality, and det = +1 (a transpose is still orthonormal, so det alone would not have caught it). I re-derived the whole chain independently — CPU index order, WGSL column-major interpretation, and the reversed-Z projection — and it is self-consistent. |
+| **Holes: face orientation** | All six faces re-derived by hand; `∂u × ∂v` is outward on every one. Now specified exhaustively in **DEC-035** as a persistent coordinate contract, not a convention, because M2 binds tile data to quadkeys. |
+| **Holes: winding** | Index order is CCW in (u,v) and matches the outward normal. **And the framebuffer convention is now measured on your GPU at startup** — see below. |
+| **Holes: three-corner interpolation** | Four-corner bilinear; adjacent patches share the shared edge exactly. Tested. |
+| **f32 planet-scale reconstruction** | Verified by MAGNITUDE, not by name: at every altitude from 1 m to 40 000 km, the worst corner reaching the shader has an f32 ulp under **1/1000 of a pixel**. There is no camera-PCF uniform to add. |
+| **CPU/WGSL struct divergence** | `gpu-contract.test.ts` reflects the shader and asserts the CPU packer against it. A fifth member fails 4 tests; a `vec3` alignment trap fails 2. |
+
+### The black-screen risk is gone, whichever way the driver goes
+
+WebGPU's NDC is y-up; its framebuffer is y-down. Whether `frontFace: 'ccw'` is
+evaluated before or after that flip decides whether the sphere draws or is
+**culled entirely**. I could not settle it from here and the spec text does not
+tell you what a given driver does.
+
+So the engine measures it: at startup it draws one known-CCW triangle into a
+1×1 texture with `cullMode: 'back'` and reads the pixel back.
+
+- If the probe runs, the renderer uses whichever `frontFace` it proved correct.
+- If the probe cannot run, culling is **disabled** — correct for a convex body,
+  just with overdraw.
+
+**The HUD line `winding` tells you which happened.** If you see a black canvas
+anyway, that line is the first thing to read: it distinguishes "culled
+everything" from "drew nothing".
+
+### STILL REQUIRES GPU / EYES — this is your pass
+
+Nothing below is answerable without you.
+
+1. **Ampere canvas confirmation.** Does it draw at all? Report the HUD `winding`
+   line either way — it is the measurement, and it is useful even on success.
+2. **Sphere completeness.** Any holes, gaps or missing faces? Use `3`
+   (patch-boundary view) and `2` (LOD-level view). Check the ±Y faces
+   specifically: they are the two whose orientation changed.
+3. **Camera orientation.** Is up up? Is the planet where the mouse says it is?
+4. **Pole motion.** Press `P` for the automatic pole sweep. The maths is proven
+   by five tests; what is **not** proven is whether the motion *looks*
+   continuous or whether the control mapping feels wrong crossing over.
+5. **Popping.** There is still **no CDLOD morph** — hysteresis only. Some
+   popping is expected. The question is whether it is tolerable enough to leave
+   morphing in M2, or whether it blocks. Descent trace says max 56 patches
+   disappear in one frame, 48 appear.
+6. **Vertex swim.** Stationary camera near the surface. Arithmetic says
+   sub-millimetre; unverified on a GPU (R-09, E2/T-0051).
+7. **Frame pacing.** CPU select is 0.05–0.37 ms across the descent on the
+   reference host; the GPU column is empty.
+8. **Horizon limb.** See the bilinear-sag note below — this is the one I would
+   most like your eye on.
+9. **Scale perception.** Does it read as a planet or as a ball?
+10. **E1: 17 / 33 / 65 on the GPU.** Read the note below first — the question
+    has changed since Grok wrote it.
+
+### Two things that changed since Grok's brief
+
+**Bilinear sag is quantified, and it is bigger than the old model claimed.** The
+shader interpolates four sphere corners, so the drawn surface sags *inside* the
+sphere by `R·sin²(θ/2)` — exactly **twice** the arc sagitta the LOD error model
+was reporting. So a nominal τ of 2 px was really delivering ~4 px for the whole
+of M1. The model is fixed and τ is now honestly 4.0; measured on-screen
+deviation is **≤ 2.9 px, limb ≤ 1.6 px**. Whether that reads as a faceted limb
+at orbit is exactly item 8, and it is now a fair question rather than a number
+that meant something else.
+
+**E1's question has changed.** Tessellation is currently **geometrically
+inert**: every vertex of an n×n patch lies on the same bilinear quad, so raising
+the patch size buys *no* accuracy — only splitting patches does. At equal τ,
+17×17 gives identical geometry to 33×33 for **3.75× fewer triangles** and never
+saturates the budget. Grok's CPU-only "keep 33×33" was measuring select cost,
+which is the smaller term. Please measure 17×17 seriously; it may simply win at
+M1. (It will stop winning the moment M2 puts real displacement on those
+vertices.)
+
+### DEFERRED TO M2 — do not raise these as findings
+
+- **CDLOD morphing** (T-0015). Known absent.
+- **Spherical interpolation.** The precision-safe derivation is written out in
+  `docs/RENDERING.md` §4.0b. Not worth the complexity for ≤ 2.9 px until terrain
+  forces it — and terrain does force it, because displacing a bilinear quad does
+  not give terrain on a sphere.
+- **Terrain, atmosphere, ocean, clouds.** None exist.
+- **Valence-3 corner hydrology** (T-0020, Grok).
+
+### How to run
+
+```
+pnpm install && pnpm dev      # http://localhost:5173
+```
+`1`/`2`/`3` shaded / LOD level / patch boundaries · `W`/`S` or wheel altitude ·
+drag to orbit · `P` pole sweep · `[`/`]` patch size 17/33/65 at runtime ·
+`T` descent trace.
+
+— Opus
+
+---
+
 ## 2026-09-12 · Grok → **Opus 5** · Ampere GPU defects fixed. Astra later, not now.
 
 **Tasks:** T-0054 Done · A-0001 first pass was unusable · **Priority:** P0

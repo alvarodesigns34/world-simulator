@@ -9,6 +9,109 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-12 — M1 GPU integration review (post-Ampere)
+
+**Branch:** `agent/opus/m1-gpu-integration-review` → PR to `dev`
+**Base:** `889cebf` (Grok's Ampere fixes) · **Tasks:** T-0060…T-0063 done
+**Astra:** not available; not invoked.
+
+### The question I was asked
+
+After four defects that only a real GPU found, are the renderer's contracts
+explicit enough to keep building on? Short answer: they were not, and now they
+are. Grok's four fixes are all **correct** — I re-derived each rather than
+trusting the tests — but each was *verified* by a regex or by inspection, so the
+next defect of the same kind would have got through too.
+
+### Review of Grok's fixes
+
+| # | Fix | Verdict |
+| --- | --- | --- |
+| 1 | WGSL `meta` removed | **CORRECT**, gate incomplete — see below |
+| 2 | View matrix transpose | **CORRECT** — re-derived the whole chain: CPU `c*4+r` indexing, WGSL column-major interpretation, `view·forward = (0,0,−1)`, reversed-Z projection. Self-consistent. |
+| 3 | Cube-face orientation + winding + 4-corner bilinear | **CORRECT** — all six faces re-derived by hand; `∂u × ∂v` outward on every one; inverse map inverts the same table |
+| 4 | No f32 planet reconstruction | **CORRECT** — and I verified it by *magnitude*, not by identifier name |
+
+### What I changed, and why each was necessary
+
+**T-0060 — WGSL is parsed, not pattern-matched.** Astra proved that a green
+TypeScript build says nothing about whether WGSL compiles. A reserved-word regex
+closes exactly one hole. Shaders are now parsed with a real grammar
+(`wgsl_reflect`, MIT, dev-only, no runtime deps), which catches syntax errors,
+bad types and malformed attributes; the reserved list stays alongside it because
+reserved words *parse fine* — which is precisely why `meta` got through.
+
+I also found a live divergence: `wgsl-reserved.ts` held **one** reserved word
+while the tool held **145**. A shader using `layout` or `filter` would have
+passed the test and failed the tool. Two sources of truth for one rule, with the
+test-facing copy at 1/145th coverage. One list now.
+
+**T-0061 — the layout contract runs shader → CPU.** `gpu-contract.test.ts`
+reflects the WGSL and asserts the CPU packer against what the shader actually
+declares. That direction matters: the compiler on the far side of the boundary
+is the one that gets to be right. Proven to bite before I trusted it.
+
+**T-0062 — the front-face convention is measured.** This is the finding I care
+most about. WebGPU's NDC is y-up and its framebuffer y-down; whether
+`frontFace: 'ccw'` is evaluated before or after that flip decides whether the
+sphere draws or is culled to a black screen. I could not settle it from here and
+the spec does not tell you what a *driver* does. So the engine asks it at
+startup with a 1×1 readback, and falls back to `cullMode: 'none'` — correct for
+a convex body — if it cannot. This does not weaken Grok's "culling stays on"; it
+makes culling correct-by-measurement instead of correct-by-assumption.
+
+**T-0063 — the LOD error model was wrong, and correcting it exposed a worse
+problem.** The shader draws a bilinear quad through four sphere corners, so it
+sags inside the sphere by `R·sin²(θ/2)` — **exactly twice** the arc sagitta the
+model reported. So τ = 2.0 px had been delivering ~4.0 px for the whole of M1.
+
+Correcting the model without touching τ doubled patch demand, saturated the
+900-patch cap at 2.2 × 10⁶ m, and produced **200-patch churn per frame** — worse
+than the sag it removed. I did not accept that. τ is now 4.0, which reproduces
+the previous behaviour (because that is what was actually being delivered) while
+the number finally means what it says. Descent p95 improved 0.882 → 0.669 ms and
+>1 ms samples fell 24 → 11. Recorded as an amendment in DEC-032, not edited
+silently.
+
+### DEC-035 — written
+
+Grok asked whether per-face UV orientation is an implementation detail or part
+of the coordinate system. It is part of the coordinate system. His Option 1 is
+defensible *today* — no world is persisted — but M2 begins binding tile data to
+quadkeys, and from that moment the mapping is a save-format commitment. The
+table costs one afternoon now and a migration later.
+
+### Two findings worth carrying forward
+
+1. **Tessellation is geometrically inert.** Every vertex of an n×n patch lies on
+   the same bilinear quad, so patch size buys *no* accuracy — only splitting
+   does. This inverts E1's CPU-only "keep 33×33": at equal τ, 17×17 gives
+   identical geometry for **3.75× fewer triangles** and never saturates. It stops
+   being true the moment M2 displaces those vertices.
+2. **The patch cap truncates hard.** Nothing degrades gracefully when the budget
+   is reached; it just stops splitting and churns. Not hit at τ=4.0, so T-0065
+   is P2, but it is a real edge.
+
+### Known problems
+
+1. **The winding probe is itself unverified on hardware** — it is new code that
+   has never run on a GPU. Its failure path is safe by construction and tested,
+   but Astra should read the HUD `winding` line first if anything looks wrong.
+2. **`wgsl_reflect` is a parser, not a compiler.** No type checking, no device
+   limits, no driver quirks. Stated in the module header so nobody over-trusts it.
+3. **τ = 4.0 is honest but unjudged.** Nobody has looked at 4 px of limb
+   deviation. That is item 8 of Astra's brief.
+4. **Spherical interpolation is deferred** and M2 cannot skip it.
+5. Everything Grok listed as needing a GPU still needs a GPU.
+
+### Next
+
+Astra's second pass, when the human queues her — brief in `agent/HANDOFF.md`,
+split into CLOSED STRUCTURALLY / STILL REQUIRES EYES / DEFERRED TO M2. Grok:
+T-0050 (E1 GPU column, with the 17×17 question reframed), T-0013, T-0065.
+
+---
+
 ## 2026-09-11 — Architecture v1 + M1 Planet Engine Foundation
 
 **Branch:** `claude/dazzling-archimedes-m7ewoy` → PR #1 to `dev`

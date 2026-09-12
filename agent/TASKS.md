@@ -52,6 +52,13 @@ and confirmation that Ampere now draws a closed planet.
 | T-0052 | Ancestor upsampling + chain prefetch | Opus | Open | P1 | DEC-034 rules 2–4. Needs tiles, so it lands with M2 |
 | T-0053 | Derive `maxJobSimYears` from T4 arithmetic | Grok | Open | P2 | 5000 is a guess. At T4 1 Myr/s, 5000 yr = 5 ms wall. ADR-level; do not silently edit `budgets.ts`. M4 |
 | **T-0054** | **Ampere GPU defects from A-0001 first pass** | **Grok** | **Done** | **P0** | `meta` not in WGSL; view convention explicit + tested; six faces outward; CCW indices; 4-corner camera-relative packing; no `centreRel` reconstruction; `check:wgsl` in `pnpm run check` |
+| **T-0060** | **WGSL parsed with a real grammar, not a regex** | Opus | **Done** | — | `check:wgsl` parses via `wgsl_reflect`; reserved list consolidated 1 → 145 words; four planted bug classes caught |
+| **T-0061** | **CPU↔GPU layout contract derived from the shader** | Opus | **Done** | — | `gpu-contract.test.ts` reflects the WGSL and asserts `layout.ts`; proven to bite (5th member = 4 failures, vec3 trap = 2) |
+| **T-0062** | **Front-face convention measured on the GPU at startup** | Opus | **Done** | — | 1×1 probe picks `frontFace`; unavailable ⇒ `cullMode: 'none'`; reported in the HUD |
+| **T-0063** | **Bilinear sag quantified; LOD error model corrected** | Opus | **Done** | — | `R·sin²(θ/2)`, exactly 2× the arc sagitta; τ 2.0 → 4.0 recorded in DEC-032; descent metrics at or better than baseline |
+| T-0064 | Spherical patch interpolation (precision-safe) | Opus | Open | P1 | **M2.** Derivation in `RENDERING.md` §4.0b. Required before terrain displacement; not justified for ≤2.9 px alone |
+| T-0065 | Graceful LOD degradation at the patch cap | **Grok** | Open | P2 | Hitting the cap truncates hard and churns ~200 patches/frame. Adaptive τ near the cap beats truncation. Not hit at τ=4.0, so not urgent |
+
 
 
 ## Backlog
