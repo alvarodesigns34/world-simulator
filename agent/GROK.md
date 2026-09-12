@@ -15,6 +15,47 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-12 — Accelerated M1→M4 implementation block.
+
+**Branch:** `agent/grok/m1-m4-accelerated` @ `292470f`+ · **Tasks:** T-0013 Done; T-0020 Done; T-0021 Done; T-0022 Done; T-0023 Done; T-0030 Done; T-0031 Done; T-0034 Done; T-0035 Done (DEC-036); T-0052 Done; T-0064 Done; T-0019 Done; T-0065 unchanged Partial; T-0053 unchanged Open
+**Commits:** stacked `[GROK] feat` M1/M2/M3/M4 on this branch. **Do not merge `main`.** PR to `dev`.
+**Workflow:** human authorised a single Grok construction block covering remaining non-visual M1 + M2 + M3 + M4. Visual/GPU gates stay PENDING ASTRA. Claude consolidates the block afterwards. Formal approval ≠ implementation completeness.
+
+### Built
+
+| Area | What |
+| --- | --- |
+| T-0021 stableMath | sin/cos/atan/exp/log/pow/hypot. Octant Taylor + Cody–Waite split LN2. |
+| T-0013 workers | Decision table COOP/COEP on/off; inline default; 1/4/8 identity; apply-in-id-order. |
+| T-0020 seams | 24 edges, valence-3 corners, steradian partition. |
+| T-0030 plates | Euler-pole Voronoi genesis L6, isostatic+age-depth+orogen elevation. |
+| T-0031 erosion | Stream-power + diffusion + pit-fill, seam neighbours. |
+| T-0052 tiles | Bake, LRU, ancestor fallback, chain prefetch, Memory + OPFS port. |
+| T-0064 spherical | Closed-form 1−\|Bd\|², CPU tested, shader spherify + height displace. |
+| M3 | Sea level/mask/depth, orbit/seasons, analytic insolation, EBM radiation. |
+| T-0034 geodesic | n-grid, mutual neighbours, area partition, conservative resample. |
+| T-0035 solver | DEC-036: 1-layer SW + Newtonian T + moisture. Regimes, ice, mixed-layer. |
+| T-0019 visualiser | Colour ramps + equirect overlay + probe. |
+| World | FieldStore registry, commands, hashWorldState, scheduler subsystems. |
+
+### Findings (this block)
+
+| # | Severity | Area | Finding | Filed as |
+| --- | --- | --- | --- | --- |
+| C1 | P1 | climate | Gradient advection is not flux-conservative; 1e-6 water holds in paleo only | DEC-036 |
+| C2 | P2 | T-0065 | Adaptive τ still not shipped; cap still not hit at τ=4 | unchanged |
+| C3 | P2 | T-0053 | 5000 yr left; paleo step does not yet demand a budgets.ts change | unchanged |
+| C4 | NOTE | visual | Ocean/atmosphere/horizon/terminator are shader-approximate; GPU timing PENDING ASTRA | A-0001 retarget |
+| C5 | P1 | perf | n6 climate step ≈ 118 ms (n4 ≈ 9 ms). 40 ms n6 not met. App default n4. Not painted. | `climate.test.ts` |
+
+P0 closed in this block: pole `tan φ · tan δ` NaN at equinox; SW `h += dt·(−0.15)(T−Teq)` exploded equivalent depth; `climate` current-gen read of later-phase `oceanMask`.
+
+### Next
+
+Claude: architecture consistency, numerics of the SW solver, conservation of advective form, FieldStore climate publish path, shader camK exception vs DEC-033 names, n6 path (worker the grads?). Astra: the running planet with terrain, ocean colour, twilight, overlay.
+
+---
+
 ## 2026-09-12 — M1 final redteam of Opus FieldStore consolidation.
 
 **Branch:** `agent/grok/m1-final-redteam` @ `707535e`+ · **Tasks:** T-0078 Partial (CPU); T-0079 Done; T-0080 Done; T-0081 Done; T-0082 Done

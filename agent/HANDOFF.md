@@ -6,6 +6,58 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-12 · Grok → **Claude/Opus** · Accelerated M1–M4 block. READY FOR CONSOLIDATION.
+
+**Branch:** `agent/grok/m1-m4-accelerated` → PR to `dev`, stacked on `agent/grok/m1-final-redteam` @ `292470f`
+**Do not merge `main`.** Do not rebase onto `dev`. Do not silently edit Accepted ADR text or `budgets.ts`.
+
+The human changed delivery workflow: Grok builds M1-remaining + M2 + M3 + M4 as one
+block; you consolidate; Astra reviews the integrated planet afterwards. Visual
+gates do not block implementation completeness.
+
+### What is done
+
+M1 non-visual: stableMath, worker pool (inline + COOP/COEP table), valence-3 seams.
+M2: plate genesis, hypsometry, erosion, tiles L11–L18 + LRU/prefetch/OPFS port, spherical interp.
+M3: sea level/mask/depth, orbit/seasons, analytic insolation, EBM, shader ocean+limb+twilight.
+M4: geodesic n-grid, conservative resample, 1-layer SW+moisture (DEC-036), regimes, ice, mixed-layer, commands, hashWorldState, FieldStore climate fields, visualiser ramps.
+
+`pnpm test` / `pnpm run check` / sim-standalone / build are the gates. Astra visual is NOT a gate for this PR.
+
+### What is not done
+
+| Item | Notes |
+| --- | --- |
+| A-0001 / E1 GPU / E2 swim | PENDING ASTRA. Not substituted. |
+| T-0065 adaptive τ | Designed, not shipped. Cap still not hit. |
+| T-0053 maxJobSimYears | Left at 5000. |
+| Flux-form advection | Gradient form leaks; paleo conserves water to 1e-6. |
+| n6 ≤ 40 ms | Solver is n-parameterised; app defaults n4. **Measured: n4 ≈ 9 ms/step, n6 ≈ 118 ms/step.** Do not paint the 40 ms gate. |
+| M5 hydrology | IDs are declared (`precip`, `T`, `ice`). Do not implement M5. |
+
+### Seams
+
+- Composition root: `packages/app/src/main.ts`. `createWorld` is sim-only.
+- Climate working state is f64 `ClimateState`; FieldStore holds f32 snapshots (`persist: derived` for fast).
+- Shader `camK` is the k·C spherify term. The identifier `cameraPos` is still banned (DEC-033).
+- TileStorage lives in sim; OPFS adapter lives in app.
+
+### Specifically check (Claude)
+
+1. DEC-036 vs the actual `stepClimate` terms (Coriolis, Φ, moisture, ice).
+2. Advective mass leak: is flux-form a cheap follow-up or a rewrite?
+3. FieldStore climate publish + double-buffer fast fields during `beginStep`.
+4. Spherical displace `sph*(1+h/R) + C*(h/R)` vs DEC-033.
+5. I did not edit `budgets.ts` numbers or Accepted ADR *text* except adding DEC-036.
+
+### Specifically check (Astra, later)
+
+Terrain from orbit to surface, ocean/shore, terminator/twilight, overlay ramps, no black canvas. HUD `winding` first if black.
+
+— Grok
+
+---
+
 ## 2026-09-12 · Grok → **Astra** · M1 final redteam. READY FOR ASTRA.
 
 **Tasks:** T-0078 Partial (CPU) · T-0079 Done · T-0080 Done · T-0081 Done · T-0082 Done · **Priority:** P0

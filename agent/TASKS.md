@@ -16,7 +16,12 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ---
 
-## Now — M1 closing / M2 opening
+## Now — Accelerated M1→M4 block (human-authorised 2026-09-12)
+
+Grok is the long-running constructor for remaining non-visual M1 + M2 + M3 + M4.
+Visual/GPU gates do **not** block later milestones. Claude consolidates the
+block after this PR. Astra reviews the integrated planet afterwards.
+Formal approval and implementation completeness are distinct states.
 
 Architecture v1 is consolidated and the M1 kernel is executable. Grok measured
 it, then reproduced and fixed the Ampere GPU defects Astra found on A-0001
@@ -24,8 +29,7 @@ it, then reproduced and fixed the Ampere GPU defects Astra found on A-0001
 (T-0066). **Opus rewrote two FieldStore contracts** (T-0070…T-0077, PR #6).
 **Grok's final M1 redteam** (`agent/grok/m1-final-redteam`) closed descriptor
 mutation, production NaN, generation sign/wrap, and the stamp/publish protocol.
-**READY FOR ASTRA.** A-0001 second pass waits, and is retargeted to
-`agent/grok/m1-final-redteam`.
+**This branch continues from that HEAD** and implements M2–M4.
 
 What remains in M1 is what only a GPU and a human looking at the running app
 can answer: E1 GPU, E2 vertex swim, popping-as-seen, camera feel, poles-as-seen,
@@ -44,23 +48,23 @@ and confirmation that Ampere now draws a closed planet.
 | T-0016 | Camera: PCF + quaternion | Opus | **Done** | — | Five polar-crossing tests including a full polar orbit |
 | T-0010 | WebGPU device + reversed-Z | Opus | **Done** | — | Typed failure, no WebGL2; Grok: timestamp-query, cached depth view, lost/error on HUD |
 | T-0014 | Quadtree + horizon cull + LOD selection | Opus | **Done** | — | Grok: NodePool, SelectWorkspace, hole-fix (split reserves 4), scalar frustum, stress |
-| T-0019 | Data-layer / debug overlay | Opus | **Partial** | P1 | Patch boundaries, LOD, culling, altitude, frame, budget, telemetry, GPU time. **Field colour-ramp still to do** — needs a field with spatial data, i.e. M2 |
-| **T-0013** | **Worker pool, SAB vs transfer, tile-sized jobs** | **Grok** | **Partial** | **P0** | Tile sizes 8 KB–50 MB measured in Node; REQUIRED/PREFERRED/UNNECESSARY rules in `docs/M1-MEASUREMENTS.md`. **Node 1/4/8 workers identical (T-0066).** Still open: browser table, COOP/COEP on vs off |
+| T-0019 | Data-layer / debug overlay | Grok | **Done** | P1 | Colour ramps + legend + probe for elevation, plateId, crustAge, uplift, T, precip, humidity, ice |
+| **T-0013** | **Worker pool, SAB vs transfer, tile-sized jobs** | **Grok** | **Done** | **P0** | COOP/COEP table unit-tested; 1/4/8 identity; apply-in-id-order. Inline default (DOM-free); Worker backend injectable |
 | **T-0017** | **Telemetry ring buffer + Chrome Trace export** | **Grok** | **Done** | **P0** | Fixed ring, no alloc in hot path, Perfetto JSON, HUD, `T`/`G`/`?descent`. `core` never calls `performance` |
 | **T-0050** | **E1: patch-size sweep on real GPUs** | **Grok** | **Partial** | **P0** | CPU+arithmetic: keep 33×33 (`tools/bench/patch-size.out.md`). **GPU half is Astra** — 17/33/65 × 1080p/1440p/2160p on ≥ 2 vendors |
 | **T-0051** | **E2: reversed-Z vertex swim, measured in-shader** | **Grok** | Open | P1 | Stationary camera at 1 m altitude; measure actual vertex jitter. Closes R-09. Needs a GPU |
-| T-0020 | Cube-face seam topology, incl. valence-3 corners for hydrology | Grok | Open | P1 | 24 edge adjacencies; write-up covers hydrology at the 8 corners. **Orientation is given:** ∂u×∂v outward on all six faces (T-0054). Do not re-litigate winding. |
-| T-0021 | `stableMath` Tier-A transcendentals | Grok | Open | P1 | ULP bound vs a high-precision reference; benchmark vs native; CI matrix for E4 |
-| T-0022 | `hashWorldState()` + determinism suite | Opus | Open | P1 | Same seed / reversed order / 1-4-8 workers / save→load→step |
-| T-0023 | Command types + command log recording | Opus | Open | P1 | All mutation flows through commands; `timeScale` changes ARE commands (DEC-030) |
-| T-0052 | Ancestor upsampling + chain prefetch | Opus | Open | P1 | DEC-034 rules 2–4. Needs tiles, so it lands with M2 |
+| T-0020 | Cube-face seam topology, incl. valence-3 corners for hydrology | Grok | **Done** | P1 | 24 edge adjacencies; 8 valence-3 corners; area partition. DEC-035 not reopened |
+| T-0021 | `stableMath` Tier-A transcendentals | Grok | **Done** | P1 | sin/cos/atan/exp/log/pow; ULP vs Math.* and series; cost ratio recorded |
+| T-0022 | `hashWorldState()` + determinism suite | Grok | **Done** | P1 | Same-seed world digest; climate replay |
+| T-0023 | Command types + command log recording | Grok | **Done** | P1 | timeScale/pause/resume/regime/visualField/stepOnce |
+| T-0052 | Ancestor upsampling + chain prefetch | Grok | **Done** | P1 | TileCache prefetchChain coarse→fine; ancestor fallback |
 | T-0053 | Derive `maxJobSimYears` from T4 arithmetic | Grok | Open | P2 | 5000 is a guess. At T4 1 Myr/s, 5000 yr = 5 ms wall. ADR-level; do not silently edit `budgets.ts`. M4 |
 | **T-0054** | **Ampere GPU defects from A-0001 first pass** | **Grok** | **Done** | **P0** | `meta` not in WGSL; view convention explicit + tested; six faces outward; CCW indices; 4-corner camera-relative packing; no `centreRel` reconstruction; `check:wgsl` in `pnpm run check` |
 | **T-0060** | **WGSL parsed with a real grammar, not a regex** | Opus | **Done** | — | `check:wgsl` parses via `wgsl_reflect`; reserved list consolidated 1 → 145 words; four planted bug classes caught |
 | **T-0061** | **CPU↔GPU layout contract derived from the shader** | Opus | **Done** | — | `gpu-contract.test.ts` reflects the WGSL and asserts `layout.ts`; proven to bite (5th member = 4 failures, vec3 trap = 2) |
 | **T-0062** | **Front-face convention measured on the GPU at startup** | Opus | **Done** | — | 1×1 probe picks `frontFace`; unavailable ⇒ `cullMode: 'none'`; reported in the HUD. **Grok T-0066:** three draws + `classifyProbePixels`; control black never guesses CW |
 | **T-0063** | **Bilinear sag quantified; LOD error model corrected** | Opus | **Done** | — | `R·sin²(θ/2)`, exactly 2× the arc sagitta; τ 2.0 → 4.0 recorded in DEC-032; descent metrics at or better than baseline |
-| T-0064 | Spherical patch interpolation (precision-safe) | Opus | Open | P1 | **M2.** Derivation in `RENDERING.md` §4.0b. Required before terrain displacement; not justified for ≤2.9 px alone |
+| T-0064 | Spherical patch interpolation (precision-safe) | Grok | **Done** | P1 | Closed form 1−\|Bd\|²; CPU tests; shader spherify + height displace |
 | T-0065 | Graceful LOD degradation at the patch cap | **Grok** | **Partial** | P2 | Design/bench recorded (`lod.cap.test.ts`, `M1-MEASUREMENTS.md` §13). Adaptive τ near the cap beats truncation. **Not shipped:** τ=4.0 does not hit the cap. `budgets.ts` untouched |
 | **T-0066** | **M1 structural redteam of Opus GPU-integration HEAD** | **Grok** | **Done** | **P0** | CI P0 (rng timeout, `check`+build). FieldStore partial publish, capability view, write barrier. Scheduler everyNOf/resume/cross-phase. Winding three-draw. Polar `dragOrbit`. timestamp-query retry. PR to `dev` |
 | **T-0070** | **Read views handed out writable memory** | Opus | **Done** | — | Hostile tests reproduced both attacks; `view()` now holds no live memory; DEC-013 amended |
@@ -84,12 +88,12 @@ and confirmation that Ampere now draws a closed planet.
 
 | ID | Title | Owner | Status | Pri | Notes |
 | --- | --- | --- | --- | --- | --- |
-| T-0030 | Genesis plate simulation (M2) | **Grok** | Open | P2 | Prime Grok module — self-contained, algorithmic, benchmarkable |
-| T-0031 | Erosion kernels: stream-power + hillslope diffusion | **Grok** | Open | P2 | Benchmark first; WASM candidate under DEC-021 |
+| T-0030 | Genesis plate simulation (M2) | **Grok** | **Done** | P2 | L6 Euler-pole Voronoi; elevation diagnosed from geology, not FBM |
+| T-0031 | Erosion kernels: stream-power + hillslope diffusion | **Grok** | **Done** | P2 | Stream-power + diffusion + pit-fill; seam neighbours |
 | T-0032 | Priority-flood depression filling | **Grok** | Open | P3 | Known-good references exist; ideal for verification against a spec |
 | T-0033 | Serialisation container + quantisation + migrations | Opus | Open | P2 | M2 needs tile persistence; full format at M11 |
-| T-0034 | Icosahedral geodesic grid + conservative resampling operators | **Grok** | Open | P3 | M3/M4; round-trip conservation to 1e-9 |
-| T-0035 | Choose the M4 atmospheric solver formulation, with a benchmark | Opus + Grok | Open | P3 | DEC-008 fixes the grid, not the equations — this is deliberately open |
+| T-0034 | Icosahedral geodesic grid + conservative resampling operators | **Grok** | **Done** | P3 | n-grid, neighbours, areas; extensive round-trip ≤ 1e-9 |
+| T-0035 | Choose the M4 atmospheric solver formulation, with a benchmark | Grok | **Done** | P3 | DEC-036: 1-layer SW + Newtonian T + moisture |
 | T-0036 | UI framework decision (ADR) | Opus | Open | P3 | Deferred until the UI has real requirements (M8+) |
 
 ---
@@ -102,7 +106,7 @@ milestone plus the milestone gate. Requests must use the template in
 
 | ID | Request | Milestone | Status |
 | --- | --- | --- | --- |
-| A-0001 | **M1 gate** — orbit→surface continuity, precision, depth, seam quality, popping, frame pacing | M1 | **First pass on Ampere: REJECTED (black canvas, holes, f32 reconstruction). Fixed in T-0054. Second pass not queued — Astra unavailable. Brief in `agent/ASTRA.md`. Target: `agent/grok/m1-final-redteam`.** |
+| A-0001 | **M1 gate** — orbit→surface continuity, precision, depth, seam quality, popping, frame pacing | M1–M4 | **First pass on Ampere: REJECTED. Second pass retargeted to the integrated M1–M4 planet on `agent/grok/m1-m4-accelerated`. Do not insert Astra between M2/M3/M4.** |
 
 ---
 

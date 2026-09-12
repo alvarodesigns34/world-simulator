@@ -59,6 +59,7 @@ Statuses: `Proposed` · `Accepted` · `Superseded by DEC-NNN` · `Rejected`
 | DEC-033 | Shader-side precision rules | **Accepted** | M1 exit |
 | DEC-034 | Visibility and LOD contract: horizon culling, multi-level descent | **Accepted** | M2 exit |
 | DEC-035 | Cube-face orientation and UV convention | **Accepted** | — |
+| DEC-036 | M4 atmospheric solver: 1-layer PE/SW + Newtonian T + moisture | **Accepted** | M4 exit |
 
 ### Architecture v1 — what changed and why
 
@@ -2320,3 +2321,57 @@ costs a migration.
   table; DEC-007's grid choice is untouched.
 - Any future planet with a different reference frame reuses this table
   unchanged: it is expressed in the body's own axes.
+
+---
+
+## DEC-036 — M4 atmospheric solver: one-layer PE / shallow-water + moisture
+
+**Date:** 2026-09-12
+**Status:** Accepted
+**Closes:** T-0035
+**Author:** Grok 4.6 (accelerated M1–M4 block; human-authorised to decide)
+
+### Context
+
+DEC-008 fixes the grid (icosahedral geodesic, n6 = 10·4^n+2) and not the
+equations. T-0035 left the formulation open on purpose. The accelerated block
+cannot wait for another round of review: a solver that is wrong can be replaced;
+a missing solver cannot be reviewed.
+
+Three candidates were on the table:
+
+1. 3-D primitive equations (several σ-layers).
+2. One-layer primitive-equation / shallow-water + Newtonian temperature + moisture.
+3. Prescribed Hadley/Ferrel/Polar cells (the M3 fallback).
+
+### Decision
+
+**Option 2.** One-layer shallow-water momentum on the geodesic grid, Newtonian
+cooling toward a latitudinal `T_eq` from the M3 energy-balance radiation, moisture
+advected on the same mesh, orographic condensation from M2 terrain, mixed-layer
+ocean heat transport diagnosed from wind, sea ice from mixed-layer T.
+
+Temporal LOD is a regime switch on this state, not four solvers: `explicit` and
+`synoptic` integrate SW; `climatology` uses thermal wind; `paleo` damps wind and
+skips advection. `quiesce`/`resume` drop and re-seed fast state.
+
+### Why not the others
+
+| Option | Why not |
+| --- | --- |
+| **3-D PE** | A 3-layer n6 state is ~3× the 40 ms budget in JS before physics. No evidence it is feasible without WASM (DEC-021 gate not met). |
+| **Prescribed cells** | M3 may use them as initial / fallback. They cannot be the M4 *result* because weather would not emerge from state. |
+
+### Conservation (honest)
+
+- **Resampling** cube ↔ geodesic, extensive: mass round-trip ≤ 1e-9 (centre-cell partition). Held in tests.
+- **Atmospheric water** `q + precipAcc − evapAcc`: conserved to 1e-6 in `paleo` (no advection). Gradient-form advection in `explicit`/`synoptic` is **not** flux-conservative; the leak is measured, not painted over. Flux-form advection is M4-follow-up, not a silent 1e-6 claim.
+- **Energy:** an open EBM with TOA radiation does not conserve column heat to 1e-6. The diagnostic is `(dE/dt) vs (TOA_in − TOA_out)`, not a closed-box residual.
+
+### Consequences
+
+- Implementation: `packages/sim/src/climate/solver.ts` (`@tier A`).
+- Default interactive grid is geodesic n4 (2 562 cells) in the app; n6 (40 962) is registered and the solver is written against `n`. Measured 2026-09-12: n4 ≈ 9 ms/step, n6 ≈ 118 ms/step (JS, this machine). The 40 ms n6 target is **not** claimed.
+- `maxJobSimYears` stays 5000 (T-0053). At T4 1 Myr/s that is 5 ms wall; changing `budgets.ts` is ADR-level and the climate paleo step does not yet justify a different number.
+- M5 hydrology reads `precip`, `precipMean`, `T`, `ice` from FieldStore. Those IDs are declared now.
+
