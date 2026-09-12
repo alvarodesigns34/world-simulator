@@ -41,7 +41,10 @@ const KEYFRAMES: readonly Keyframe[] = [
   { t: 32, lat: Math.PI / 2, lon: 0.0, logAlt: Math.log(600_000) },
   { t: 40, lat: 0.7, lon: -0.4, logAlt: Math.log(80_000) },
   { t: 50, lat: 0.48, lon: -0.32, logAlt: Math.log(6_000) },
-  { t: 60, lat: 0.48, lon: -0.32, logAlt: Math.log(2) },
+  // 1 m, matching the ROADMAP M1 criterion exactly. The harness previously
+  // stopped at 2 m for no recorded reason; an acceptance criterion the harness
+  // does not actually reach is not an acceptance criterion (T-0077).
+  { t: 60, lat: 0.48, lon: -0.32, logAlt: Math.log(1) },
 ];
 
 function smooth01(x: number): number {

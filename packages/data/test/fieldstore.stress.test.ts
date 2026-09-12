@@ -68,7 +68,7 @@ describe('FieldStore stress: many fields, lookup, publication, churn', () => {
     f.set(4097, 1);
     f.set(20_000, 1);
     const blocks: number[] = [];
-    f.dirty.forEachDirtyBlock((b) => blocks.push(b));
+    f.pendingReplication.forEachDirtyBlock((b: number) => blocks.push(b));
     expect(blocks).toEqual([0, 1, 4]);
   });
 

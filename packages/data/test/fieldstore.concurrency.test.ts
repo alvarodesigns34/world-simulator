@@ -44,7 +44,7 @@ function workerEval(code: string, workerData: unknown): Promise<unknown> {
 describe('FieldStore generation-publish under concurrency', () => {
   it('exposes SAB handles when shared memory is on', () => {
     const s = new FieldStore().declare(desc({ grid: gridId('cubesphere', 6) })).seal();
-    const h = s.view(fieldId('elevation')).handles();
+    const h = s.share(fieldId('elevation'));
     expect(h.copies).toBe(2);
     expect(h.shared).toBe(sharedMemoryAvailable());
     expect(h.elems).toBeGreaterThan(0);
@@ -208,7 +208,7 @@ describe('FieldStore: stale reads and invalid publication', () => {
 
   it('ownership is still enforced after handles() is taken', () => {
     const s = new FieldStore().declare(desc()).seal();
-    s.view(fieldId('elevation')).handles();
+    s.share(fieldId('elevation'));
     expect(() => s.mut(fieldId('elevation'), subsystemId('hydrology'))).toThrow(/owned by 'terrain'/);
   });
 });

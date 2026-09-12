@@ -74,3 +74,48 @@ describe('winding probe: classifyProbePixels (pure)', () => {
     expect(classifyProbePixels(white, black, black).fallbackNoCull).toBe(true);
   });
 });
+
+/**
+ * The safety property, exhaustively (T-0076).
+ *
+ * Grok's three-way probe has several inconclusive branches. Individually tested
+ * above; this closes the space. Over every combination of the three probe
+ * pixels there must be NO input for which culling is enabled without the probe
+ * having proved exactly one winding — because that is the branch that ends in a
+ * black canvas on Astra's machine.
+ */
+describe('winding probe: culling is never enabled by an inconclusive result', () => {
+  const LIT = new Uint8Array([255, 255, 255, 255]);
+  const DARK = new Uint8Array([0, 0, 0, 255]);
+
+  it('holds for all 8 pixel combinations', () => {
+    for (const control of [DARK, LIT]) {
+      for (const ccw of [DARK, LIT]) {
+        for (const cw of [DARK, LIT]) {
+          const out = classifyProbePixels(control, ccw, cw);
+          const conclusive =
+            control === LIT && ((ccw === LIT && cw === DARK) || (cw === LIT && ccw === DARK));
+
+          if (conclusive) {
+            expect(out.fallbackNoCull).toBe(false);
+            expect(out.observed).toBe(ccw === LIT ? 'ccw' : 'cw');
+          } else {
+            // Every other case must disable culling and say so.
+            expect(out.fallbackNoCull).toBe(true);
+            expect(out.observed).toBe('unknown');
+            expect(out.detail.length).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
+  });
+
+  it('a partially lit pixel is not treated as lit-enough to conclude', () => {
+    const faint = new Uint8Array([1, 0, 0, 255]);
+    const out = classifyProbePixels(faint, faint, DARK);
+    // Whatever the threshold decides, the invariant is the same: concluding
+    // requires the control to have drawn.
+    if (out.observed !== 'unknown') expect(out.fallbackNoCull).toBe(false);
+    else expect(out.fallbackNoCull).toBe(true);
+  });
+});

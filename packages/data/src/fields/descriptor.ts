@@ -17,7 +17,7 @@
  * An "arbitrary container" is exactly what this must not become.
  */
 
-import { assert } from '@ws/core';
+import { invariant } from '@ws/core';
 import { grid, isCoarserOrEqual, type GridId } from '../grids/index.js';
 
 export type FieldId = string & { readonly __brand: 'FieldId' };
@@ -117,7 +117,7 @@ export function isPowerOfTwo(x: number): boolean {
  * Used when baking a tile whose range determines its own quantum.
  */
 export function snapQuantum(q: number): number {
-  assert(q > 0 && Number.isFinite(q), `quantum must be positive and finite: ${String(q)}`);
+  invariant(q > 0 && Number.isFinite(q), `quantum must be positive and finite: ${String(q)}`);
   return 2 ** Math.ceil(Math.log2(q));
 }
 
@@ -135,15 +135,15 @@ export function validateDescriptor(
   d: FieldDescriptor,
   lookup: (id: FieldId) => FieldDescriptor | undefined,
 ): void {
-  assert(d.components >= 1 && d.components <= 4, `${d.id}: components must be 1..4`);
-  assert(d.range[0] < d.range[1], `${d.id}: range must be ordered`);
+  invariant(d.components >= 1 && d.components <= 4, `${d.id}: components must be 1..4`);
+  invariant(d.range[0] < d.range[1], `${d.id}: range must be ordered`);
 
   const g = grid(d.grid); // throws if unknown
 
   if (isFloatDtype(d.dtype)) {
-    assert(d.quantum === 1 && d.offset === 0, `${d.id}: float fields take quantum 1, offset 0`);
+    invariant(d.quantum === 1 && d.offset === 0, `${d.id}: float fields take quantum 1, offset 0`);
   } else {
-    assert(
+    invariant(
       isPowerOfTwo(d.quantum),
       `${d.id}: quantum ${String(d.quantum)} is not a power of two (DEC-028) — ` +
         `encode/decode would not be exactly representable and the field would leave tier A`,
@@ -153,7 +153,7 @@ export function validateDescriptor(
     const [lo, hi] = DTYPE_RANGE[d.dtype];
     const repLo = d.offset + lo * d.quantum;
     const repHi = d.offset + hi * d.quantum;
-    assert(
+    invariant(
       repLo <= d.range[0] && repHi >= d.range[1],
       `${d.id}: dtype ${d.dtype} with quantum ${String(d.quantum)} and offset ${String(d.offset)} ` +
         `represents [${String(repLo)}, ${String(repHi)}] ${d.units}, which cannot hold the ` +
@@ -163,13 +163,13 @@ export function validateDescriptor(
 
   if (d.aggregate !== undefined) {
     const agg = lookup(d.aggregate);
-    assert(agg !== undefined, `${d.id}: aggregate '${d.aggregate}' is not registered`);
+    invariant(agg !== undefined, `${d.id}: aggregate '${d.aggregate}' is not registered`);
     const a = agg as FieldDescriptor;
-    assert(
+    invariant(
       a.temporalClass === 'aggregate',
       `${d.id}: aggregate '${a.id}' must have temporalClass 'aggregate', has '${a.temporalClass}'`,
     );
-    assert(
+    invariant(
       isCoarserOrEqual(grid(a.grid), g),
       `${d.id}: aggregate '${a.id}' is on a FINER grid (${a.grid} > ${d.grid}); ` +
         `an aggregate may be coarser or equal, never finer (DEC-030)`,
@@ -179,13 +179,13 @@ export function validateDescriptor(
   // DEC-030 rule 2: a fast field that is read across a regime boundary needs an
   // aggregate. We cannot see consumers here, so the rule is enforced at
   // scheduler build time; what we can check is that slow state never claims one.
-  assert(
+  invariant(
     !(d.temporalClass === 'slow' && d.aggregate !== undefined),
     `${d.id}: slow state has no aggregate — it is never reconstructed from statistics (DEC-030)`,
   );
 
   // DEC-018: the GPU is never authoritative.
-  assert(
+  invariant(
     !(d.tier === 'C' && d.persist === 'snapshot'),
     `${d.id}: tier C data is not authoritative and must not be persisted as a snapshot (DEC-018)`,
   );

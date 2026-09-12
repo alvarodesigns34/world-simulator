@@ -45,9 +45,38 @@
  * CAPABILITY, NOT A TS QUALIFIER. `view()` returns a handle that does not have
  * `rawMut` / `set` / `commit` / writable dirty at runtime. `Readonly<Field>`
  * is a compile-time fiction and does not survive a cast.
+ *
+ * 4. READ-ONLY IS A CAPABILITY SHAPE, NOT MEMORY PROTECTION (T-0070).
+ *    Said plainly, because the alternative is a promise we cannot keep:
+ *    **JavaScript has no way to hand out a zero-copy, non-writable view of a
+ *    TypedArray.** `Readonly<TypedArray>` is erased at compile time,
+ *    `Object.freeze` does not constrain indexed elements of a TypedArray, and a
+ *    Proxy costs 10-100x per element, which destroys the very hot path the raw
+ *    access exists for. Anyone holding the array, or the ArrayBuffer behind it,
+ *    can write to authoritative state.
+ *
+ *    So the boundary is drawn by NAMING rather than by enforcement. `view()`
+ *    returns a genuinely safe surface — `get`, `copyRange`, `changedBlocksSince`
+ *    — with no live memory in it at all. Everything that hands out live memory
+ *    lives behind one door, `FieldStore.unsafeRawAccess(id, reason)`, which
+ *    takes a mandatory reason string so that every such call is visible in a
+ *    diff and greppable in review. `share()` is the same idea for workers.
+ *
+ *    This does not defend against malicious code and is not trying to. It makes
+ *    it hard for render/UI to corrupt authoritative state BY ACCIDENT, which is
+ *    the actual threat (DEC-011, DEC-013).
+ *
+ * 5. TWO DIRTY LIFETIMES, TWO MECHANISMS (T-0071).
+ *    A single mask cannot be both "what commit must replicate" (scoped to one
+ *    generation, must be cleared) and "what a consumer still has to upload"
+ *    (must survive until seen, and there may be several consumers). Holding
+ *    both in one mask made the replication set grow monotonically: N
+ *    generations touching one block each replicated N(N+1)/2 blocks, turning an
+ *    O(dirty) publish into an O(field) memcpy — exactly what DEC-032 rule 4
+ *    forbids. See `replicationDirty` and `blockGeneration` below.
  */
 
-import { assert, assertFinite } from '@ws/core';
+import { assertFinite, invariant } from '@ws/core';
 import { grid } from '../grids/index.js';
 import {
   DTYPE_BYTES,
@@ -105,12 +134,28 @@ function fail(message: string): never {
  */
 export const DIRTY_BLOCK_CELLS = 4096;
 
-/** Query half of a dirty mask. No mutators — this is what a read view exposes. */
+/** Query half of a dirty mask. No mutators. Writer-side introspection only. */
 export interface DirtyQuery {
   readonly blockCount: number;
   readonly dirtyBlockCount: number;
   isBlockDirty(block: number): boolean;
   forEachDirtyBlock(fn: (block: number, startCell: number, endCell: number) => void): void;
+}
+
+/**
+ * A consumer's position in a field's change history.
+ *
+ * Each consumer keeps its own cursor, so there is no global `clear()` to get
+ * wrong and no way for one consumer to swallow another's changes. Start at 0 to
+ * mean "I have seen nothing"; `changedBlocksSince` hands back the generation to
+ * store for next time.
+ */
+export interface ChangeCursor {
+  generation: number;
+}
+
+export function createChangeCursor(): ChangeCursor {
+  return { generation: 0 };
 }
 
 export class DirtyMask implements DirtyQuery {
@@ -199,34 +244,92 @@ export interface ReadonlyFieldView {
   readonly descriptor: FieldDescriptor;
   readonly cellCount: number;
   readonly generation: number;
-  /** Raw stored integers/floats of the current front buffer. */
-  raw(): Readonly<TypedArray>;
   /** Decoded physical value: `offset + stored * quantum`. */
   get(cell: number, component?: number): number;
-  readonly dirty: DirtyQuery;
-  /** Worker-shareable backing stores. Prefer `FieldStore.share(id)`. */
+  /**
+   * Copy a half-open cell range into a caller-provided array, decoded or raw.
+   *
+   * This is the safe bulk path and it is fast enough for the case that matters:
+   * one dirty block is 4096 cells, so an i16 field copies 8 KB. Returns the
+   * number of elements written.
+   */
+  copyRange(startCell: number, endCell: number, out: TypedArray, decoded?: boolean): number;
+  /**
+   * Visit the blocks changed since `cursor.generation` and advance the cursor.
+   *
+   * Generation-scoped and per-consumer, so several consumers can track the same
+   * field independently, nothing is lost, and nothing has to be cleared.
+   */
+  changedBlocksSince(
+    cursor: ChangeCursor,
+    fn: (block: number, startCell: number, endCell: number) => void,
+  ): number;
+  /** Generation at which `block` last changed. 0 means never. */
+  blockChangedAt(block: number): number;
+  readonly blockCount: number;
+}
+
+/**
+ * Live memory. Everything here can corrupt authoritative state; the type name
+ * and `unsafeRawAccess(id, reason)` are the whole enforcement (see note 4).
+ */
+export interface UnsafeFieldAccess {
+  readonly descriptor: FieldDescriptor;
+  readonly generation: number;
+  /** The live front buffer. Writable in fact, whatever the type says. */
+  raw(): TypedArray;
+  /** Worker-shareable backing stores. */
   handles(): FieldHandles;
   /**
    * Seqlock-style read: load generation, run `fn` on that front, load again.
-   * `torn` means a publisher committed during `fn`. Safe retry if `fn` is pure.
+   * `torn` means a commit landed mid-read and the caller should retry.
    */
-  consistentRead<T>(fn: (raw: Readonly<TypedArray>, generation: number) => T): ConsistentRead<T>;
+  consistentRead<T>(fn: (raw: TypedArray, generation: number) => T): ConsistentRead<T>;
 }
 
 export interface FieldView extends ReadonlyFieldView {
-  readonly dirty: DirtyMask;
   /** Writable back buffer for the owning subsystem. */
   rawMut(): TypedArray;
   set(cell: number, value: number, component?: number): void;
-  /** Publish the back buffer. O(1) index flip, then O(dirty) replicate. */
+  /**
+   * Mark cells the owner wrote through `rawMut`. `set` marks for you.
+   *
+   * These replaced a directly exposed `DirtyMask`. Handing the writer a mask
+   * with `clear()` on it was a live hazard: clearing between a write and a
+   * commit skips replication and republishes a stale sibling cell.
+   */
+  markDirty(cell: number): void;
+  markDirtyRange(startCell: number, endCellExclusive: number): void;
+  markAllDirty(): void;
+  /** Blocks that the next `commit` will replicate. Introspection, not control. */
+  readonly pendingReplication: DirtyQuery;
+  /** Publish the back buffer. O(1) index flip, then O(dirty-this-gen) replicate. */
   commit(): void;
+  raw(): TypedArray;
+  handles(): FieldHandles;
+  consistentRead<T>(fn: (raw: TypedArray, generation: number) => T): ConsistentRead<T>;
 }
 
-class Field implements FieldView {
+class Field implements FieldView, UnsafeFieldAccess {
   readonly descriptor: FieldDescriptor;
   readonly cellCount: number;
-  readonly dirty: DirtyMask;
-  readonly dirtyQuery: DirtyQuery;
+  /**
+   * WRITER REPLICATION SET (lifetime A). Blocks written since the last commit.
+   * Cleared by `commit` once replicated. Never escapes the writer.
+   */
+  private readonly replicationDirty: DirtyMask;
+  readonly pendingReplication: DirtyQuery;
+  /**
+   * CONSUMER CHANGE RECORD (lifetime B). `blockGeneration[b]` is the generation
+   * at which block b was last published as changed; 0 means never.
+   *
+   * A stamp rather than a mask, because a mask forces a single global `clear()`
+   * and there is more than one consumer. Each consumer holds a cursor and asks
+   * for blocks stamped after it, so nothing is lost and nothing is cleared.
+   * Cost is 4 bytes per block — 24 KB for a 50 MB L11 field.
+   */
+  private readonly blockGeneration: Uint32Array;
+  readonly blockCount: number;
 
   private readonly buffers: readonly TypedArray[];
   private readonly dataBacking: ArrayBufferLike;
@@ -239,8 +342,10 @@ class Field implements FieldView {
   constructor(d: FieldDescriptor, useShared: boolean, store: FieldStore) {
     this.descriptor = d;
     this.cellCount = grid(d.grid).cellCount;
-    this.dirty = new DirtyMask(this.cellCount);
-    this.dirtyQuery = new DirtyQueryView(this.dirty);
+    this.replicationDirty = new DirtyMask(this.cellCount);
+    this.pendingReplication = new DirtyQueryView(this.replicationDirty);
+    this.blockCount = this.replicationDirty.blockCount;
+    this.blockGeneration = new Uint32Array(this.blockCount);
     this.store = store;
 
     const elems = this.cellCount * d.components;
@@ -301,7 +406,7 @@ class Field implements FieldView {
     }
   }
 
-  raw(): Readonly<TypedArray> {
+  raw(): TypedArray {
     return this.frontAt(this.loadGeneration());
   }
 
@@ -331,7 +436,66 @@ class Field implements FieldView {
       const q = Math.round((value - d.offset) / d.quantum);
       back[i] = Math.min(this.clampHi, Math.max(this.clampLo, q));
     }
-    this.dirty.markCell(cell);
+    this.replicationDirty.markCell(cell);
+  }
+
+  markDirty(cell: number): void {
+    this.store.assertWritable(this.descriptor.id);
+    this.checkCell(cell, 0);
+    this.replicationDirty.markCell(cell);
+  }
+
+  markDirtyRange(startCell: number, endCellExclusive: number): void {
+    this.store.assertWritable(this.descriptor.id);
+    if (endCellExclusive <= startCell) return;
+    this.checkCell(startCell, 0);
+    this.checkCell(Math.min(endCellExclusive, this.cellCount) - 1, 0);
+    this.replicationDirty.markRange(startCell, Math.min(endCellExclusive, this.cellCount));
+  }
+
+  markAllDirty(): void {
+    this.store.assertWritable(this.descriptor.id);
+    this.replicationDirty.markAll();
+  }
+
+  copyRange(startCell: number, endCell: number, out: TypedArray, decoded = false): number {
+    const d = this.descriptor;
+    const lo = Math.max(0, startCell);
+    const hi = Math.min(this.cellCount, endCell);
+    if (hi <= lo) return 0;
+    const comps = d.components;
+    const n = (hi - lo) * comps;
+    if (out.length < n) {
+      fail(`${String(d.id)}: copyRange needs ${String(n)} elements, got ${String(out.length)}`);
+    }
+    const src = this.frontAt(this.loadGeneration());
+    if (!decoded || isFloatDtype(d.dtype)) {
+      out.set(src.subarray(lo * comps, hi * comps) as unknown as ArrayLike<number>, 0);
+      return n;
+    }
+    for (let i = 0; i < n; i++) {
+      out[i] = d.offset + (src[lo * comps + i] as number) * d.quantum;
+    }
+    return n;
+  }
+
+  changedBlocksSince(
+    cursor: ChangeCursor,
+    fn: (block: number, startCell: number, endCell: number) => void,
+  ): number {
+    const since = cursor.generation;
+    const now = this.loadGeneration();
+    for (let b = 0; b < this.blockCount; b++) {
+      if ((this.blockGeneration[b] as number) > since) {
+        fn(b, b * DIRTY_BLOCK_CELLS, Math.min((b + 1) * DIRTY_BLOCK_CELLS, this.cellCount));
+      }
+    }
+    cursor.generation = now;
+    return now;
+  }
+
+  blockChangedAt(block: number): number {
+    return (this.blockGeneration[block] as number) ?? 0;
   }
 
   /**
@@ -347,16 +511,25 @@ class Field implements FieldView {
     if (isShared(this.control.buffer)) Atomics.store(this.control, 0, next);
     else this.control[0] = next;
 
-    if (this.buffers.length === 2) {
-      const front = this.frontAt(next);
-      const back = this.backAt(next);
-      const comps = this.descriptor.components;
-      this.dirty.forEachDirtyBlock((_b, startCell, endCell) => {
+    const comps = this.descriptor.components;
+    const front = this.frontAt(next);
+    const back = this.backAt(next);
+    const twoBuffers = this.buffers.length === 2;
+    const stampGen = next >>> 0;
+
+    // One pass: replicate this generation's blocks and stamp them for consumers.
+    this.replicationDirty.forEachDirtyBlock((b, startCell, endCell) => {
+      if (twoBuffers) {
         const i0 = startCell * comps;
         const i1 = Math.min(endCell, this.cellCount) * comps;
         if (i1 > i0) back.set(front.subarray(i0, i1), i0);
-      });
-    }
+      }
+      this.blockGeneration[b] = stampGen;
+    });
+
+    // Lifetime A ends here. The consumer record (lifetime B) is untouched, so
+    // clearing costs nobody anything — which is the point of separating them.
+    this.replicationDirty.clear();
   }
 
   handles(): FieldHandles {
@@ -379,9 +552,15 @@ class Field implements FieldView {
 }
 
 /**
- * Runtime read handle. Deliberately a different object from `Field`: it has no
- * `set` / `rawMut` / `commit`, and its dirty mask has no mutators. A cast to
- * `FieldView` still cannot write through it because the methods are absent.
+ * Runtime read handle (T-0070).
+ *
+ * Deliberately a different object from `Field`, and deliberately WITHOUT
+ * `raw()`, `handles()` or `consistentRead()`: those hand out live memory, and
+ * `Readonly<TypedArray>` does not survive into JavaScript. A cast to
+ * `FieldView` cannot write through this because the methods are simply absent.
+ *
+ * A consumer that genuinely needs live memory asks for it by name through
+ * `FieldStore.unsafeRawAccess(id, reason)`, which is greppable in review.
  */
 class SafeReadView implements ReadonlyFieldView {
   constructor(private readonly field: Field) {}
@@ -394,20 +573,23 @@ class SafeReadView implements ReadonlyFieldView {
   get generation(): number {
     return this.field.generation;
   }
-  get dirty(): DirtyQuery {
-    return this.field.dirtyQuery;
-  }
-  raw(): Readonly<TypedArray> {
-    return this.field.raw();
+  get blockCount(): number {
+    return this.field.blockCount;
   }
   get(cell: number, component = 0): number {
     return this.field.get(cell, component);
   }
-  handles(): FieldHandles {
-    return this.field.handles();
+  copyRange(startCell: number, endCell: number, out: TypedArray, decoded = false): number {
+    return this.field.copyRange(startCell, endCell, out, decoded);
   }
-  consistentRead<T>(fn: (raw: Readonly<TypedArray>, generation: number) => T): ConsistentRead<T> {
-    return this.field.consistentRead(fn);
+  changedBlocksSince(
+    cursor: ChangeCursor,
+    fn: (block: number, startCell: number, endCell: number) => void,
+  ): number {
+    return this.field.changedBlocksSince(cursor, fn);
+  }
+  blockChangedAt(block: number): number {
+    return this.field.blockChangedAt(block);
   }
 }
 
@@ -441,8 +623,8 @@ export class FieldStore {
   }
 
   declare(d: FieldDescriptor): this {
-    assert(!this.sealed, `FieldStore is sealed; cannot declare '${d.id}'`);
-    assert(!this.descriptors.has(d.id), `duplicate field id '${d.id}'`);
+    invariant(!this.sealed, `FieldStore is sealed; cannot declare '${d.id}'`);
+    invariant(!this.descriptors.has(d.id), `duplicate field id '${d.id}'`);
     this.descriptors.set(d.id, d);
     this.order.push(d.id);
     return this;
@@ -450,7 +632,7 @@ export class FieldStore {
 
   /** Validate every descriptor, allocate, and close the registry. */
   seal(): this {
-    assert(!this.sealed, 'FieldStore already sealed');
+    invariant(!this.sealed, 'FieldStore already sealed');
     const lookup = (id: FieldId): FieldDescriptor | undefined => this.descriptors.get(id);
     // Ascending declaration order — a plain array, so validation order is stable.
     for (const id of this.order) {
@@ -476,7 +658,7 @@ export class FieldStore {
 
   descriptor(id: FieldId): FieldDescriptor {
     const d = this.descriptors.get(id);
-    assert(d !== undefined, `unknown field '${String(id)}'`);
+    invariant(d !== undefined, `unknown field '${String(id)}'`);
     return d as FieldDescriptor;
   }
 
@@ -531,10 +713,35 @@ export class FieldStore {
     return f;
   }
 
-  /** Read-only access. Anyone may read anything. Capability-safe at runtime. */
+  /**
+   * Read-only access. Anyone may read anything.
+   *
+   * Safe at runtime in the only sense JavaScript allows: the handle contains no
+   * live memory, so there is nothing to write through. See note 4 in the module
+   * header for why that is the honest limit of the guarantee.
+   */
   view(id: FieldId): ReadonlyFieldView {
     this.require(id);
     return this.views.get(id) as SafeReadView;
+  }
+
+  /**
+   * Live memory, for callers that genuinely need zero-copy access — a GPU
+   * upload, a worker kernel, a whole-field scan.
+   *
+   * THIS CAN CORRUPT AUTHORITATIVE STATE. Writing through the returned array
+   * bypasses ownership, the write barrier, the generation counter and dirty
+   * tracking, so a later commit will silently publish or overwrite it.
+   *
+   * `reason` is mandatory and unused at runtime. It exists so that every
+   * escape from the safe surface is self-documenting in a diff and greppable in
+   * review — which is the whole enforcement mechanism (note 4).
+   */
+  unsafeRawAccess(id: FieldId, reason: string): UnsafeFieldAccess {
+    if (typeof reason !== 'string' || reason.trim().length === 0) {
+      fail(`unsafeRawAccess('${String(id)}') requires a non-empty reason`);
+    }
+    return this.require(id);
   }
 
   /** Worker-shareable handles without handing out a writable view. */
@@ -543,9 +750,9 @@ export class FieldStore {
   }
 
   private require(id: FieldId): Field {
-    assert(this.sealed, `FieldStore is not sealed; call seal() before use`);
+    invariant(this.sealed, `FieldStore is not sealed; call seal() before use`);
     const f = this.fields.get(id);
-    assert(f !== undefined, `unknown field '${String(id)}'`);
+    invariant(f !== undefined, `unknown field '${String(id)}'`);
     return f as Field;
   }
 

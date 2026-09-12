@@ -14,7 +14,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 4.5080540000000155,
+      "selectMs": 4.089106000000015,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -49,7 +49,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.8441260000000739,
+      "selectMs": 0.7750240000000304,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -84,7 +84,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.5411700000000792,
+      "selectMs": 0.5105539999999564,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -119,7 +119,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.5889260000000149,
+      "selectMs": 0.5248330000000578,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -154,7 +154,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.555140999999935,
+      "selectMs": 0.49967500000002474,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -189,7 +189,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.38259400000004007,
+      "selectMs": 0.3808279999999513,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -224,7 +224,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.42628499999989344,
+      "selectMs": 0.5818990000000213,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -259,7 +259,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.4833300000000236,
+      "selectMs": 0.46238800000003266,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -294,7 +294,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.5733800000000429,
+      "selectMs": 0.5398370000000341,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -329,7 +329,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.5163900000000012,
+      "selectMs": 0.5350190000000339,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -364,7 +364,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.4204540000000634,
+      "selectMs": 0.4649090000000342,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -399,7 +399,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.439850999999976,
+      "selectMs": 0.5198139999999967,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -434,7 +434,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.3504489999999123,
+      "selectMs": 0.620632999999998,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -469,7 +469,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.35010699999997996,
+      "selectMs": 0.4867970000000241,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -504,7 +504,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.25846899999999096,
+      "selectMs": 0.34630600000002687,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -539,7 +539,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.35189200000002074,
+      "selectMs": 0.3698890000000574,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -574,7 +574,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.27327900000000227,
+      "selectMs": 0.3433469999999943,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -609,7 +609,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.31299300000000585,
+      "selectMs": 0.33498899999995047,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -644,7 +644,7 @@
       "culledFrustum": 0,
       "triangles": 397312,
       "maxLevel": 3,
-      "selectMs": 0.25568699999996625,
+      "selectMs": 0.37136599999996633,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -679,7 +679,7 @@
       "culledFrustum": 0,
       "triangles": 395264,
       "maxLevel": 3,
-      "selectMs": 0.25870500000007723,
+      "selectMs": 0.37622399999997924,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -714,7 +714,7 @@
       "culledFrustum": 0,
       "triangles": 393216,
       "maxLevel": 3,
-      "selectMs": 0.2990710000000263,
+      "selectMs": 0.3613980000000083,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -749,7 +749,7 @@
       "culledFrustum": 0,
       "triangles": 393216,
       "maxLevel": 3,
-      "selectMs": 0.2592610000000377,
+      "selectMs": 0.3285000000000764,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -784,7 +784,7 @@
       "culledFrustum": 0,
       "triangles": 393216,
       "maxLevel": 3,
-      "selectMs": 0.245956000000092,
+      "selectMs": 0.3678690000000415,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -819,7 +819,7 @@
       "culledFrustum": 0,
       "triangles": 393216,
       "maxLevel": 3,
-      "selectMs": 0.40206499999999323,
+      "selectMs": 0.3287319999999454,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -854,7 +854,7 @@
       "culledFrustum": 0,
       "triangles": 393216,
       "maxLevel": 3,
-      "selectMs": 0.3408070000000407,
+      "selectMs": 0.24996199999998225,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -889,7 +889,7 @@
       "culledFrustum": 0,
       "triangles": 393216,
       "maxLevel": 3,
-      "selectMs": 0.3829009999999471,
+      "selectMs": 0.2721589999999878,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -924,7 +924,7 @@
       "culledFrustum": 0,
       "triangles": 393216,
       "maxLevel": 3,
-      "selectMs": 0.37273400000003676,
+      "selectMs": 0.26383099999998194,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -959,7 +959,7 @@
       "culledFrustum": 0,
       "triangles": 391168,
       "maxLevel": 3,
-      "selectMs": 0.365099999999984,
+      "selectMs": 0.29049299999996947,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -994,7 +994,7 @@
       "culledFrustum": 0,
       "triangles": 391168,
       "maxLevel": 3,
-      "selectMs": 0.34357599999998456,
+      "selectMs": 0.2547550000000456,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1029,7 +1029,7 @@
       "culledFrustum": 0,
       "triangles": 389120,
       "maxLevel": 3,
-      "selectMs": 0.3697590000000446,
+      "selectMs": 0.24255399999992733,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1064,7 +1064,7 @@
       "culledFrustum": 0,
       "triangles": 389120,
       "maxLevel": 3,
-      "selectMs": 0.32716000000004897,
+      "selectMs": 0.24002999999993335,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1099,7 +1099,7 @@
       "culledFrustum": 0,
       "triangles": 387072,
       "maxLevel": 3,
-      "selectMs": 0.3513940000000275,
+      "selectMs": 0.2655129999999417,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1134,7 +1134,7 @@
       "culledFrustum": 0,
       "triangles": 385024,
       "maxLevel": 3,
-      "selectMs": 0.33208300000001145,
+      "selectMs": 0.24335399999995388,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1169,7 +1169,7 @@
       "culledFrustum": 0,
       "triangles": 382976,
       "maxLevel": 3,
-      "selectMs": 0.35118800000009287,
+      "selectMs": 0.2386700000000701,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1204,7 +1204,7 @@
       "culledFrustum": 0,
       "triangles": 380928,
       "maxLevel": 3,
-      "selectMs": 0.3510480000001053,
+      "selectMs": 0.26337499999999636,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1239,7 +1239,7 @@
       "culledFrustum": 0,
       "triangles": 376832,
       "maxLevel": 3,
-      "selectMs": 0.3807689999999866,
+      "selectMs": 0.24118299999997816,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1274,7 +1274,7 @@
       "culledFrustum": 0,
       "triangles": 374784,
       "maxLevel": 3,
-      "selectMs": 0.3333939999999984,
+      "selectMs": 0.23458100000004833,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1309,7 +1309,7 @@
       "culledFrustum": 0,
       "triangles": 372736,
       "maxLevel": 3,
-      "selectMs": 0.30988800000000083,
+      "selectMs": 0.377791000000002,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1344,7 +1344,7 @@
       "culledFrustum": 0,
       "triangles": 372736,
       "maxLevel": 3,
-      "selectMs": 0.7260350000000244,
+      "selectMs": 0.3341880000000401,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1379,7 +1379,7 @@
       "culledFrustum": 0,
       "triangles": 372736,
       "maxLevel": 3,
-      "selectMs": 0.39238000000000284,
+      "selectMs": 0.4395599999999149,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1414,7 +1414,7 @@
       "culledFrustum": 0,
       "triangles": 372736,
       "maxLevel": 3,
-      "selectMs": 0.2696160000000418,
+      "selectMs": 0.33626300000003084,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1449,7 +1449,7 @@
       "culledFrustum": 0,
       "triangles": 368640,
       "maxLevel": 3,
-      "selectMs": 0.2713139999999612,
+      "selectMs": 0.3400219999999763,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1484,7 +1484,7 @@
       "culledFrustum": 0,
       "triangles": 368640,
       "maxLevel": 3,
-      "selectMs": 0.30005400000004556,
+      "selectMs": 0.3315910000000031,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1519,7 +1519,7 @@
       "culledFrustum": 0,
       "triangles": 370688,
       "maxLevel": 3,
-      "selectMs": 0.2268139999999903,
+      "selectMs": 0.313254000000029,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1554,7 +1554,7 @@
       "culledFrustum": 0,
       "triangles": 370688,
       "maxLevel": 3,
-      "selectMs": 0.2564200000000483,
+      "selectMs": 0.30506199999990713,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1589,7 +1589,7 @@
       "culledFrustum": 0,
       "triangles": 370688,
       "maxLevel": 3,
-      "selectMs": 0.25157000000001517,
+      "selectMs": 0.30609599999991133,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1624,7 +1624,7 @@
       "culledFrustum": 0,
       "triangles": 366592,
       "maxLevel": 3,
-      "selectMs": 0.22298000000000684,
+      "selectMs": 0.3274390000000267,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1659,7 +1659,7 @@
       "culledFrustum": 0,
       "triangles": 366592,
       "maxLevel": 3,
-      "selectMs": 0.2089330000000018,
+      "selectMs": 0.3318980000000238,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1694,7 +1694,7 @@
       "culledFrustum": 0,
       "triangles": 366592,
       "maxLevel": 3,
-      "selectMs": 0.23231799999996383,
+      "selectMs": 0.29963100000009035,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1729,7 +1729,7 @@
       "culledFrustum": 0,
       "triangles": 366592,
       "maxLevel": 3,
-      "selectMs": 0.21140700000000834,
+      "selectMs": 0.28509299999996074,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1764,7 +1764,7 @@
       "culledFrustum": 0,
       "triangles": 366592,
       "maxLevel": 3,
-      "selectMs": 0.21240499999998974,
+      "selectMs": 0.3109349999999722,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1799,7 +1799,7 @@
       "culledFrustum": 0,
       "triangles": 364544,
       "maxLevel": 3,
-      "selectMs": 0.20639399999993202,
+      "selectMs": 0.29518099999995684,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1834,7 +1834,7 @@
       "culledFrustum": 0,
       "triangles": 362496,
       "maxLevel": 3,
-      "selectMs": 0.23898799999994935,
+      "selectMs": 0.29355499999996937,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1869,7 +1869,7 @@
       "culledFrustum": 0,
       "triangles": 362496,
       "maxLevel": 3,
-      "selectMs": 0.21244199999989632,
+      "selectMs": 0.6581270000000359,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1904,7 +1904,7 @@
       "culledFrustum": 0,
       "triangles": 360448,
       "maxLevel": 3,
-      "selectMs": 0.30124100000000453,
+      "selectMs": 0.24240199999997003,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1939,7 +1939,7 @@
       "culledFrustum": 0,
       "triangles": 374784,
       "maxLevel": 4,
-      "selectMs": 0.39503899999999703,
+      "selectMs": 0.34908600000005663,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -1974,7 +1974,7 @@
       "culledFrustum": 0,
       "triangles": 436224,
       "maxLevel": 4,
-      "selectMs": 0.7994789999999057,
+      "selectMs": 0.48531500000001415,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2009,7 +2009,7 @@
       "culledFrustum": 0,
       "triangles": 493568,
       "maxLevel": 4,
-      "selectMs": 0.7144810000000916,
+      "selectMs": 0.4583710000000565,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2044,7 +2044,7 @@
       "culledFrustum": 0,
       "triangles": 552960,
       "maxLevel": 4,
-      "selectMs": 0.47622499999999945,
+      "selectMs": 0.6763439999999719,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2079,7 +2079,7 @@
       "culledFrustum": 0,
       "triangles": 608256,
       "maxLevel": 4,
-      "selectMs": 0.5038250000000062,
+      "selectMs": 0.30298100000004524,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2114,7 +2114,7 @@
       "culledFrustum": 0,
       "triangles": 641024,
       "maxLevel": 4,
-      "selectMs": 0.4461539999999786,
+      "selectMs": 0.3452469999999721,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2149,7 +2149,7 @@
       "culledFrustum": 0,
       "triangles": 706560,
       "maxLevel": 4,
-      "selectMs": 0.6226640000000998,
+      "selectMs": 0.4273550000000341,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2184,7 +2184,7 @@
       "culledFrustum": 0,
       "triangles": 751616,
       "maxLevel": 4,
-      "selectMs": 0.5571370000000115,
+      "selectMs": 0.37724600000001374,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2219,7 +2219,7 @@
       "culledFrustum": 0,
       "triangles": 798720,
       "maxLevel": 4,
-      "selectMs": 0.7284389999999803,
+      "selectMs": 0.5911060000000816,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2254,7 +2254,7 @@
       "culledFrustum": 0,
       "triangles": 839680,
       "maxLevel": 4,
-      "selectMs": 1.1152029999999513,
+      "selectMs": 0.3148150000000669,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2289,7 +2289,7 @@
       "culledFrustum": 0,
       "triangles": 909312,
       "maxLevel": 4,
-      "selectMs": 0.4318540000000439,
+      "selectMs": 0.41959799999995084,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2324,7 +2324,7 @@
       "culledFrustum": 0,
       "triangles": 933888,
       "maxLevel": 4,
-      "selectMs": 0.4201950000000352,
+      "selectMs": 0.358916000000022,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2359,7 +2359,7 @@
       "culledFrustum": 0,
       "triangles": 1007616,
       "maxLevel": 4,
-      "selectMs": 0.42441500000006727,
+      "selectMs": 0.5015590000000429,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2394,7 +2394,7 @@
       "culledFrustum": 0,
       "triangles": 1048576,
       "maxLevel": 4,
-      "selectMs": 0.46636499999999614,
+      "selectMs": 0.3905610000000479,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2429,7 +2429,7 @@
       "culledFrustum": 0,
       "triangles": 1079296,
       "maxLevel": 4,
-      "selectMs": 0.3673240000000533,
+      "selectMs": 0.3281920000000582,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2464,7 +2464,7 @@
       "culledFrustum": 0,
       "triangles": 1146880,
       "maxLevel": 4,
-      "selectMs": 0.461830999999961,
+      "selectMs": 0.4558590000000322,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2499,7 +2499,7 @@
       "culledFrustum": 0,
       "triangles": 1198080,
       "maxLevel": 4,
-      "selectMs": 0.5188159999999016,
+      "selectMs": 0.4589970000000676,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2534,7 +2534,7 @@
       "culledFrustum": 0,
       "triangles": 1206272,
       "maxLevel": 4,
-      "selectMs": 0.4071190000000797,
+      "selectMs": 0.35506099999997787,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2569,7 +2569,7 @@
       "culledFrustum": 0,
       "triangles": 1206272,
       "maxLevel": 4,
-      "selectMs": 0.5597490000000107,
+      "selectMs": 0.43243900000004487,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2604,7 +2604,7 @@
       "culledFrustum": 0,
       "triangles": 1189888,
       "maxLevel": 4,
-      "selectMs": 0.5356469999999263,
+      "selectMs": 0.5201170000000275,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2639,7 +2639,7 @@
       "culledFrustum": 0,
       "triangles": 1179648,
       "maxLevel": 4,
-      "selectMs": 0.358936999999969,
+      "selectMs": 0.3652680000000146,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2674,7 +2674,7 @@
       "culledFrustum": 0,
       "triangles": 1177600,
       "maxLevel": 4,
-      "selectMs": 0.3566600000000335,
+      "selectMs": 0.2836020000000872,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2709,7 +2709,7 @@
       "culledFrustum": 0,
       "triangles": 1169408,
       "maxLevel": 4,
-      "selectMs": 0.3272140000000263,
+      "selectMs": 0.27360700000008364,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2744,7 +2744,7 @@
       "culledFrustum": 0,
       "triangles": 1163264,
       "maxLevel": 4,
-      "selectMs": 0.35457800000006046,
+      "selectMs": 0.29307599999992817,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2779,7 +2779,7 @@
       "culledFrustum": 0,
       "triangles": 1159168,
       "maxLevel": 4,
-      "selectMs": 0.37665999999990163,
+      "selectMs": 0.2576640000000907,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2814,7 +2814,7 @@
       "culledFrustum": 0,
       "triangles": 1155072,
       "maxLevel": 4,
-      "selectMs": 0.328879000000029,
+      "selectMs": 0.284911999999963,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2849,7 +2849,7 @@
       "culledFrustum": 0,
       "triangles": 1146880,
       "maxLevel": 4,
-      "selectMs": 0.30327699999998003,
+      "selectMs": 0.2592620000000352,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2884,7 +2884,7 @@
       "culledFrustum": 0,
       "triangles": 1136640,
       "maxLevel": 4,
-      "selectMs": 0.3280680000000302,
+      "selectMs": 0.2571699999999737,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2919,7 +2919,7 @@
       "culledFrustum": 0,
       "triangles": 1132544,
       "maxLevel": 4,
-      "selectMs": 0.2964889999999514,
+      "selectMs": 0.27296899999998914,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2954,7 +2954,7 @@
       "culledFrustum": 0,
       "triangles": 1122304,
       "maxLevel": 4,
-      "selectMs": 0.3335850000000846,
+      "selectMs": 0.24773799999991297,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -2989,7 +2989,7 @@
       "culledFrustum": 0,
       "triangles": 1118208,
       "maxLevel": 4,
-      "selectMs": 0.29570400000000063,
+      "selectMs": 0.2730149999999867,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3024,7 +3024,7 @@
       "culledFrustum": 0,
       "triangles": 1112064,
       "maxLevel": 4,
-      "selectMs": 0.33087399999999434,
+      "selectMs": 0.25418999999999414,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3059,7 +3059,7 @@
       "culledFrustum": 0,
       "triangles": 1107968,
       "maxLevel": 4,
-      "selectMs": 0.29422600000009425,
+      "selectMs": 0.26961400000004687,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3094,7 +3094,7 @@
       "culledFrustum": 0,
       "triangles": 1103872,
       "maxLevel": 4,
-      "selectMs": 0.44274000000007163,
+      "selectMs": 0.2440560000000005,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3129,7 +3129,7 @@
       "culledFrustum": 0,
       "triangles": 1099776,
       "maxLevel": 4,
-      "selectMs": 0.30023900000003323,
+      "selectMs": 0.25223400000004403,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3164,7 +3164,7 @@
       "culledFrustum": 0,
       "triangles": 1089536,
       "maxLevel": 4,
-      "selectMs": 0.31029399999999896,
+      "selectMs": 0.26262800000006337,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3199,7 +3199,7 @@
       "culledFrustum": 0,
       "triangles": 1087488,
       "maxLevel": 4,
-      "selectMs": 0.28621099999998023,
+      "selectMs": 0.24539900000002035,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3234,7 +3234,7 @@
       "culledFrustum": 0,
       "triangles": 1077248,
       "maxLevel": 4,
-      "selectMs": 0.3327289999999721,
+      "selectMs": 0.26422600000000784,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3269,7 +3269,7 @@
       "culledFrustum": 0,
       "triangles": 1073152,
       "maxLevel": 4,
-      "selectMs": 0.4309080000000449,
+      "selectMs": 0.2408100000000104,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3304,7 +3304,7 @@
       "culledFrustum": 0,
       "triangles": 1067008,
       "maxLevel": 4,
-      "selectMs": 0.3256619999999657,
+      "selectMs": 0.2482430000000022,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3339,7 +3339,7 @@
       "culledFrustum": 0,
       "triangles": 1064960,
       "maxLevel": 4,
-      "selectMs": 0.3136060000000498,
+      "selectMs": 0.2778049999999439,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3374,7 +3374,7 @@
       "culledFrustum": 0,
       "triangles": 1062912,
       "maxLevel": 4,
-      "selectMs": 0.29746700000009696,
+      "selectMs": 0.2368020000000115,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3409,7 +3409,7 @@
       "culledFrustum": 0,
       "triangles": 1060864,
       "maxLevel": 4,
-      "selectMs": 0.2792660000000069,
+      "selectMs": 0.2652859999999464,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3444,7 +3444,7 @@
       "culledFrustum": 0,
       "triangles": 1050624,
       "maxLevel": 4,
-      "selectMs": 0.28529200000002675,
+      "selectMs": 0.24080199999991692,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3479,7 +3479,7 @@
       "culledFrustum": 0,
       "triangles": 1044480,
       "maxLevel": 4,
-      "selectMs": 0.280159000000026,
+      "selectMs": 1.0028260000000273,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3514,7 +3514,7 @@
       "culledFrustum": 0,
       "triangles": 1042432,
       "maxLevel": 4,
-      "selectMs": 0.30536399999994046,
+      "selectMs": 0.34322999999994863,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3549,7 +3549,7 @@
       "culledFrustum": 0,
       "triangles": 1038336,
       "maxLevel": 4,
-      "selectMs": 0.27864899999997306,
+      "selectMs": 0.24668599999995422,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3584,7 +3584,7 @@
       "culledFrustum": 0,
       "triangles": 1036288,
       "maxLevel": 4,
-      "selectMs": 0.31748800000002575,
+      "selectMs": 0.27949100000000726,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3619,7 +3619,7 @@
       "culledFrustum": 0,
       "triangles": 1034240,
       "maxLevel": 4,
-      "selectMs": 0.2868339999999989,
+      "selectMs": 0.2501909999999725,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3654,7 +3654,7 @@
       "culledFrustum": 0,
       "triangles": 1028096,
       "maxLevel": 4,
-      "selectMs": 0.3008260000000291,
+      "selectMs": 0.24021000000004733,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3689,7 +3689,7 @@
       "culledFrustum": 0,
       "triangles": 1019904,
       "maxLevel": 4,
-      "selectMs": 0.28288800000007086,
+      "selectMs": 0.2635169999999789,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3724,7 +3724,7 @@
       "culledFrustum": 0,
       "triangles": 1017856,
       "maxLevel": 4,
-      "selectMs": 0.3283890000000156,
+      "selectMs": 0.27545100000008915,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3759,7 +3759,7 @@
       "culledFrustum": 0,
       "triangles": 1017856,
       "maxLevel": 4,
-      "selectMs": 0.29263800000001083,
+      "selectMs": 0.2500840000000153,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3794,7 +3794,7 @@
       "culledFrustum": 0,
       "triangles": 1015808,
       "maxLevel": 4,
-      "selectMs": 0.27150799999992614,
+      "selectMs": 0.2457560000000285,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3829,7 +3829,7 @@
       "culledFrustum": 0,
       "triangles": 1009664,
       "maxLevel": 4,
-      "selectMs": 0.279604000000063,
+      "selectMs": 0.24724200000002838,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3864,7 +3864,7 @@
       "culledFrustum": 0,
       "triangles": 1007616,
       "maxLevel": 4,
-      "selectMs": 0.3217409999999745,
+      "selectMs": 0.26343099999996866,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3899,7 +3899,7 @@
       "culledFrustum": 0,
       "triangles": 1007616,
       "maxLevel": 4,
-      "selectMs": 0.29090499999995245,
+      "selectMs": 0.2371650000000045,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3934,7 +3934,7 @@
       "culledFrustum": 0,
       "triangles": 1001472,
       "maxLevel": 4,
-      "selectMs": 0.2768989999999576,
+      "selectMs": 0.2797140000000127,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -3969,7 +3969,7 @@
       "culledFrustum": 0,
       "triangles": 997376,
       "maxLevel": 4,
-      "selectMs": 0.30251400000008744,
+      "selectMs": 0.25233400000001893,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4004,7 +4004,7 @@
       "culledFrustum": 0,
       "triangles": 995328,
       "maxLevel": 4,
-      "selectMs": 0.28217799999993076,
+      "selectMs": 0.2320630000000392,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4039,7 +4039,7 @@
       "culledFrustum": 0,
       "triangles": 993280,
       "maxLevel": 4,
-      "selectMs": 0.31118100000003324,
+      "selectMs": 0.2614730000000236,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4074,7 +4074,7 @@
       "culledFrustum": 0,
       "triangles": 993280,
       "maxLevel": 4,
-      "selectMs": 1.0295549999999594,
+      "selectMs": 0.2305669999999509,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4109,7 +4109,7 @@
       "culledFrustum": 0,
       "triangles": 993280,
       "maxLevel": 4,
-      "selectMs": 0.3171989999999596,
+      "selectMs": 0.24278800000001866,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4144,7 +4144,7 @@
       "culledFrustum": 0,
       "triangles": 993280,
       "maxLevel": 4,
-      "selectMs": 0.3247750000000451,
+      "selectMs": 0.2620369999999639,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4179,7 +4179,7 @@
       "culledFrustum": 0,
       "triangles": 991232,
       "maxLevel": 4,
-      "selectMs": 0.2810269999999946,
+      "selectMs": 0.24152000000003682,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4214,7 +4214,7 @@
       "culledFrustum": 0,
       "triangles": 991232,
       "maxLevel": 4,
-      "selectMs": 0.3353269999998929,
+      "selectMs": 0.24238000000002557,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4249,7 +4249,7 @@
       "culledFrustum": 0,
       "triangles": 991232,
       "maxLevel": 4,
-      "selectMs": 0.2876739999999245,
+      "selectMs": 0.24406299999998282,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4284,7 +4284,7 @@
       "culledFrustum": 0,
       "triangles": 991232,
       "maxLevel": 4,
-      "selectMs": 0.3126200000000381,
+      "selectMs": 0.2316489999999476,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4319,7 +4319,7 @@
       "culledFrustum": 0,
       "triangles": 991232,
       "maxLevel": 4,
-      "selectMs": 0.2940529999999626,
+      "selectMs": 0.29676500000005035,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4354,7 +4354,7 @@
       "culledFrustum": 0,
       "triangles": 991232,
       "maxLevel": 4,
-      "selectMs": 0.2768780000000106,
+      "selectMs": 0.2354930000000195,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4389,7 +4389,7 @@
       "culledFrustum": 0,
       "triangles": 989184,
       "maxLevel": 4,
-      "selectMs": 0.2925039999998944,
+      "selectMs": 0.24699899999995978,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4424,7 +4424,7 @@
       "culledFrustum": 0,
       "triangles": 989184,
       "maxLevel": 4,
-      "selectMs": 0.33550800000000436,
+      "selectMs": 0.23482500000000073,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4459,7 +4459,7 @@
       "culledFrustum": 0,
       "triangles": 987136,
       "maxLevel": 4,
-      "selectMs": 0.2952189999999746,
+      "selectMs": 0.23085099999991598,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4494,7 +4494,7 @@
       "culledFrustum": 0,
       "triangles": 985088,
       "maxLevel": 4,
-      "selectMs": 0.26877700000000004,
+      "selectMs": 0.25779499999998734,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4529,7 +4529,7 @@
       "culledFrustum": 0,
       "triangles": 983040,
       "maxLevel": 4,
-      "selectMs": 0.3014650000000074,
+      "selectMs": 0.23664799999994557,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4564,7 +4564,7 @@
       "culledFrustum": 0,
       "triangles": 983040,
       "maxLevel": 4,
-      "selectMs": 0.2823960000000625,
+      "selectMs": 0.829213999999979,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4599,7 +4599,7 @@
       "culledFrustum": 0,
       "triangles": 976896,
       "maxLevel": 4,
-      "selectMs": 0.2939169999999649,
+      "selectMs": 0.3224040000000059,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4634,7 +4634,7 @@
       "culledFrustum": 0,
       "triangles": 974848,
       "maxLevel": 4,
-      "selectMs": 0.27772299999992356,
+      "selectMs": 0.24794700000006742,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4669,7 +4669,7 @@
       "culledFrustum": 0,
       "triangles": 974848,
       "maxLevel": 4,
-      "selectMs": 0.25949499999990167,
+      "selectMs": 0.22740399999997862,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4704,7 +4704,7 @@
       "culledFrustum": 0,
       "triangles": 974848,
       "maxLevel": 4,
-      "selectMs": 0.2999340000000075,
+      "selectMs": 0.25199300000008407,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4739,7 +4739,7 @@
       "culledFrustum": 0,
       "triangles": 966656,
       "maxLevel": 4,
-      "selectMs": 0.38378799999998137,
+      "selectMs": 0.24790700000005472,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4774,7 +4774,7 @@
       "culledFrustum": 0,
       "triangles": 966656,
       "maxLevel": 4,
-      "selectMs": 0.28508799999997336,
+      "selectMs": 0.23919999999998254,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4809,7 +4809,7 @@
       "culledFrustum": 0,
       "triangles": 964608,
       "maxLevel": 4,
-      "selectMs": 0.271261000000095,
+      "selectMs": 0.2501270000000204,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4844,7 +4844,7 @@
       "culledFrustum": 0,
       "triangles": 964608,
       "maxLevel": 4,
-      "selectMs": 0.29423399999996036,
+      "selectMs": 0.22965300000009847,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4879,7 +4879,7 @@
       "culledFrustum": 0,
       "triangles": 958464,
       "maxLevel": 4,
-      "selectMs": 0.29935599999998885,
+      "selectMs": 0.2587019999999711,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4914,7 +4914,7 @@
       "culledFrustum": 0,
       "triangles": 946176,
       "maxLevel": 4,
-      "selectMs": 0.28369599999996353,
+      "selectMs": 0.24614699999995082,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4949,7 +4949,7 @@
       "culledFrustum": 0,
       "triangles": 940032,
       "maxLevel": 4,
-      "selectMs": 0.6629040000000259,
+      "selectMs": 0.2353729999999814,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -4984,7 +4984,7 @@
       "culledFrustum": 0,
       "triangles": 933888,
       "maxLevel": 4,
-      "selectMs": 0.30007100000000264,
+      "selectMs": 0.2603679999999713,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5019,7 +5019,7 @@
       "culledFrustum": 0,
       "triangles": 931840,
       "maxLevel": 4,
-      "selectMs": 0.26076100000000224,
+      "selectMs": 0.39843200000007073,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5054,7 +5054,7 @@
       "culledFrustum": 0,
       "triangles": 933888,
       "maxLevel": 4,
-      "selectMs": 0.31916000000001077,
+      "selectMs": 0.2742269999999962,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5089,7 +5089,7 @@
       "culledFrustum": 0,
       "triangles": 921600,
       "maxLevel": 4,
-      "selectMs": 0.2696659999999156,
+      "selectMs": 0.22056099999997514,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5124,7 +5124,7 @@
       "culledFrustum": 0,
       "triangles": 917504,
       "maxLevel": 4,
-      "selectMs": 0.3052750000000515,
+      "selectMs": 0.2494769999999562,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5159,7 +5159,7 @@
       "culledFrustum": 0,
       "triangles": 911360,
       "maxLevel": 4,
-      "selectMs": 0.2561590000000251,
+      "selectMs": 0.25081600000009985,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5194,7 +5194,7 @@
       "culledFrustum": 0,
       "triangles": 911360,
       "maxLevel": 4,
-      "selectMs": 0.7988229999999703,
+      "selectMs": 0.21311900000000605,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5229,7 +5229,7 @@
       "culledFrustum": 0,
       "triangles": 897024,
       "maxLevel": 4,
-      "selectMs": 0.2887230000000045,
+      "selectMs": 0.2104669999999942,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5264,7 +5264,7 @@
       "culledFrustum": 0,
       "triangles": 888832,
       "maxLevel": 4,
-      "selectMs": 0.29657300000008036,
+      "selectMs": 0.24108799999999064,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5299,7 +5299,7 @@
       "culledFrustum": 0,
       "triangles": 886784,
       "maxLevel": 4,
-      "selectMs": 0.2545149999999694,
+      "selectMs": 0.2102869999999939,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5334,7 +5334,7 @@
       "culledFrustum": 0,
       "triangles": 886784,
       "maxLevel": 4,
-      "selectMs": 0.3052030000000059,
+      "selectMs": 0.21467500000005657,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5369,7 +5369,7 @@
       "culledFrustum": 0,
       "triangles": 878592,
       "maxLevel": 4,
-      "selectMs": 0.27795800000001236,
+      "selectMs": 0.24658199999998942,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5404,7 +5404,7 @@
       "culledFrustum": 0,
       "triangles": 874496,
       "maxLevel": 4,
-      "selectMs": 0.29705699999999524,
+      "selectMs": 0.24993700000004537,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5439,7 +5439,7 @@
       "culledFrustum": 0,
       "triangles": 866304,
       "maxLevel": 4,
-      "selectMs": 0.29464499999994587,
+      "selectMs": 0.24345900000002985,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5474,7 +5474,7 @@
       "culledFrustum": 0,
       "triangles": 854016,
       "maxLevel": 4,
-      "selectMs": 0.27111200000001645,
+      "selectMs": 0.24381300000004558,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5509,7 +5509,7 @@
       "culledFrustum": 0,
       "triangles": 851968,
       "maxLevel": 4,
-      "selectMs": 0.23887999999999465,
+      "selectMs": 0.22379899999998543,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5544,7 +5544,7 @@
       "culledFrustum": 0,
       "triangles": 841728,
       "maxLevel": 4,
-      "selectMs": 0.26116400000000795,
+      "selectMs": 0.2065829999999096,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5579,7 +5579,7 @@
       "culledFrustum": 0,
       "triangles": 837632,
       "maxLevel": 4,
-      "selectMs": 0.24424999999996544,
+      "selectMs": 0.2217279999999846,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5614,7 +5614,7 @@
       "culledFrustum": 0,
       "triangles": 864256,
       "maxLevel": 5,
-      "selectMs": 0.4243549999999914,
+      "selectMs": 0.3268870000000561,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5649,7 +5649,7 @@
       "culledFrustum": 0,
       "triangles": 882688,
       "maxLevel": 5,
-      "selectMs": 0.3833559999999352,
+      "selectMs": 0.34768799999994826,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5684,7 +5684,7 @@
       "culledFrustum": 0,
       "triangles": 923648,
       "maxLevel": 5,
-      "selectMs": 0.39506599999992886,
+      "selectMs": 0.33339300000000094,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5719,7 +5719,7 @@
       "culledFrustum": 0,
       "triangles": 935936,
       "maxLevel": 5,
-      "selectMs": 0.32591100000001916,
+      "selectMs": 0.7070489999999836,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5754,7 +5754,7 @@
       "culledFrustum": 0,
       "triangles": 950272,
       "maxLevel": 5,
-      "selectMs": 0.30454500000007556,
+      "selectMs": 0.27475600000002487,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5789,7 +5789,7 @@
       "culledFrustum": 0,
       "triangles": 991232,
       "maxLevel": 5,
-      "selectMs": 0.4093070000000125,
+      "selectMs": 0.3225929999999835,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5824,7 +5824,7 @@
       "culledFrustum": 0,
       "triangles": 1005568,
       "maxLevel": 5,
-      "selectMs": 0.31843000000003485,
+      "selectMs": 0.26961099999994076,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5859,7 +5859,7 @@
       "culledFrustum": 0,
       "triangles": 1032192,
       "maxLevel": 5,
-      "selectMs": 0.47305600000004233,
+      "selectMs": 0.3502449999999726,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5894,7 +5894,7 @@
       "culledFrustum": 0,
       "triangles": 1069056,
       "maxLevel": 5,
-      "selectMs": 0.6065330000000131,
+      "selectMs": 0.39916600000003655,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5929,7 +5929,7 @@
       "culledFrustum": 0,
       "triangles": 1067008,
       "maxLevel": 5,
-      "selectMs": 0.3685410000000502,
+      "selectMs": 0.2765440000000581,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5964,7 +5964,7 @@
       "culledFrustum": 0,
       "triangles": 1112064,
       "maxLevel": 5,
-      "selectMs": 0.5376340000000255,
+      "selectMs": 0.3669790000000148,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -5999,7 +5999,7 @@
       "culledFrustum": 0,
       "triangles": 1128448,
       "maxLevel": 5,
-      "selectMs": 0.4015359999999646,
+      "selectMs": 0.2868159999999307,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6034,7 +6034,7 @@
       "culledFrustum": 0,
       "triangles": 1124352,
       "maxLevel": 5,
-      "selectMs": 0.37566000000003896,
+      "selectMs": 0.33533599999998387,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6069,7 +6069,7 @@
       "culledFrustum": 0,
       "triangles": 1161216,
       "maxLevel": 5,
-      "selectMs": 0.4828589999999622,
+      "selectMs": 0.3426690000000008,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6104,7 +6104,7 @@
       "culledFrustum": 0,
       "triangles": 1189888,
       "maxLevel": 5,
-      "selectMs": 0.454529999999977,
+      "selectMs": 0.3390279999999848,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6139,7 +6139,7 @@
       "culledFrustum": 0,
       "triangles": 1206272,
       "maxLevel": 5,
-      "selectMs": 0.43839200000002165,
+      "selectMs": 0.3248109999999542,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6174,7 +6174,7 @@
       "culledFrustum": 0,
       "triangles": 1214464,
       "maxLevel": 5,
-      "selectMs": 1.332224999999994,
+      "selectMs": 0.3117659999999205,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6209,7 +6209,7 @@
       "culledFrustum": 0,
       "triangles": 1228800,
       "maxLevel": 5,
-      "selectMs": 0.48059999999998126,
+      "selectMs": 0.34327700000005734,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6244,7 +6244,7 @@
       "culledFrustum": 0,
       "triangles": 1247232,
       "maxLevel": 5,
-      "selectMs": 0.40075400000000627,
+      "selectMs": 0.3154010000000653,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6279,7 +6279,7 @@
       "culledFrustum": 0,
       "triangles": 1265664,
       "maxLevel": 5,
-      "selectMs": 0.48051999999995587,
+      "selectMs": 0.35490500000003067,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6314,7 +6314,7 @@
       "culledFrustum": 0,
       "triangles": 1290240,
       "maxLevel": 5,
-      "selectMs": 0.4798750000001064,
+      "selectMs": 0.3448240000000169,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6349,7 +6349,7 @@
       "culledFrustum": 0,
       "triangles": 1298432,
       "maxLevel": 5,
-      "selectMs": 0.4612040000000661,
+      "selectMs": 0.4007680000000846,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6384,7 +6384,7 @@
       "culledFrustum": 0,
       "triangles": 1318912,
       "maxLevel": 5,
-      "selectMs": 0.4882509999999911,
+      "selectMs": 0.3639650000000074,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6419,7 +6419,7 @@
       "culledFrustum": 0,
       "triangles": 1325056,
       "maxLevel": 5,
-      "selectMs": 0.49640199999998913,
+      "selectMs": 0.37398799999994026,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6454,7 +6454,7 @@
       "culledFrustum": 0,
       "triangles": 1345536,
       "maxLevel": 5,
-      "selectMs": 0.4520839999998998,
+      "selectMs": 0.41029199999991306,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6489,7 +6489,7 @@
       "culledFrustum": 0,
       "triangles": 1353728,
       "maxLevel": 5,
-      "selectMs": 0.4639160000000402,
+      "selectMs": 0.40400099999999384,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6524,7 +6524,7 @@
       "culledFrustum": 0,
       "triangles": 1368064,
       "maxLevel": 5,
-      "selectMs": 0.5381499999999733,
+      "selectMs": 0.9519179999999778,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6559,7 +6559,7 @@
       "culledFrustum": 0,
       "triangles": 1372160,
       "maxLevel": 5,
-      "selectMs": 0.5264959999999519,
+      "selectMs": 0.4028419999999642,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6594,7 +6594,7 @@
       "culledFrustum": 0,
       "triangles": 1376256,
       "maxLevel": 5,
-      "selectMs": 0.4493049999999812,
+      "selectMs": 0.35937300000000505,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6629,7 +6629,7 @@
       "culledFrustum": 0,
       "triangles": 1406976,
       "maxLevel": 5,
-      "selectMs": 0.6630499999999984,
+      "selectMs": 0.44616400000006706,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6664,7 +6664,7 @@
       "culledFrustum": 0,
       "triangles": 1425408,
       "maxLevel": 5,
-      "selectMs": 0.5629900000000134,
+      "selectMs": 0.4093689999999697,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6699,7 +6699,7 @@
       "culledFrustum": 0,
       "triangles": 1433600,
       "maxLevel": 5,
-      "selectMs": 0.5054799999999204,
+      "selectMs": 0.3892829999999776,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6734,7 +6734,7 @@
       "culledFrustum": 0,
       "triangles": 1443840,
       "maxLevel": 5,
-      "selectMs": 0.5651090000000067,
+      "selectMs": 0.42980499999998756,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6769,7 +6769,7 @@
       "culledFrustum": 0,
       "triangles": 1458176,
       "maxLevel": 5,
-      "selectMs": 0.5337309999999889,
+      "selectMs": 0.39459499999998116,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6804,7 +6804,7 @@
       "culledFrustum": 0,
       "triangles": 1466368,
       "maxLevel": 5,
-      "selectMs": 0.5483179999999948,
+      "selectMs": 0.38452200000006087,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6839,7 +6839,7 @@
       "culledFrustum": 0,
       "triangles": 1478656,
       "maxLevel": 5,
-      "selectMs": 0.5373449999999593,
+      "selectMs": 0.4465430000000197,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6874,7 +6874,7 @@
       "culledFrustum": 0,
       "triangles": 1497088,
       "maxLevel": 5,
-      "selectMs": 0.540175999999974,
+      "selectMs": 0.38140999999995984,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6909,7 +6909,7 @@
       "culledFrustum": 0,
       "triangles": 1505280,
       "maxLevel": 5,
-      "selectMs": 1.4279339999999365,
+      "selectMs": 0.3824100000000499,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6944,7 +6944,7 @@
       "culledFrustum": 0,
       "triangles": 1521664,
       "maxLevel": 5,
-      "selectMs": 0.5263299999999163,
+      "selectMs": 0.4304469999999583,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -6979,7 +6979,7 @@
       "culledFrustum": 0,
       "triangles": 1515520,
       "maxLevel": 5,
-      "selectMs": 0.49758299999996325,
+      "selectMs": 0.3498610000000326,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7014,7 +7014,7 @@
       "culledFrustum": 0,
       "triangles": 1513472,
       "maxLevel": 5,
-      "selectMs": 0.5094950000000154,
+      "selectMs": 0.3708090000000084,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7049,7 +7049,7 @@
       "culledFrustum": 0,
       "triangles": 1519616,
       "maxLevel": 5,
-      "selectMs": 0.4754019999999173,
+      "selectMs": 0.37723000000005413,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7084,7 +7084,7 @@
       "culledFrustum": 0,
       "triangles": 1550336,
       "maxLevel": 5,
-      "selectMs": 0.5506219999999757,
+      "selectMs": 0.49076900000000023,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7119,7 +7119,7 @@
       "culledFrustum": 4,
       "triangles": 1554432,
       "maxLevel": 5,
-      "selectMs": 0.9779409999999871,
+      "selectMs": 0.7813899999999876,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7154,7 +7154,7 @@
       "culledFrustum": 44,
       "triangles": 1501184,
       "maxLevel": 5,
-      "selectMs": 1.0558159999999361,
+      "selectMs": 1.5806220000000621,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7189,7 +7189,7 @@
       "culledFrustum": 97,
       "triangles": 1386496,
       "maxLevel": 5,
-      "selectMs": 1.001496999999972,
+      "selectMs": 0.9170070000000123,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7224,7 +7224,7 @@
       "culledFrustum": 156,
       "triangles": 1273856,
       "maxLevel": 5,
-      "selectMs": 0.993846000000076,
+      "selectMs": 0.864278000000013,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7259,7 +7259,7 @@
       "culledFrustum": 199,
       "triangles": 1185792,
       "maxLevel": 5,
-      "selectMs": 0.9833919999999807,
+      "selectMs": 0.8422340000000759,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7294,7 +7294,7 @@
       "culledFrustum": 247,
       "triangles": 1103872,
       "maxLevel": 5,
-      "selectMs": 1.0145260000000462,
+      "selectMs": 0.8458660000000009,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7329,7 +7329,7 @@
       "culledFrustum": 277,
       "triangles": 1042432,
       "maxLevel": 5,
-      "selectMs": 0.9825710000000072,
+      "selectMs": 0.8927260000000388,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7364,7 +7364,7 @@
       "culledFrustum": 300,
       "triangles": 999424,
       "maxLevel": 5,
-      "selectMs": 1.9069439999999531,
+      "selectMs": 0.8237470000000258,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7399,7 +7399,7 @@
       "culledFrustum": 325,
       "triangles": 937984,
       "maxLevel": 5,
-      "selectMs": 0.9214610000000221,
+      "selectMs": 0.7700620000000526,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7434,7 +7434,7 @@
       "culledFrustum": 380,
       "triangles": 825344,
       "maxLevel": 5,
-      "selectMs": 1.0463419999999815,
+      "selectMs": 0.7662389999999277,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7469,7 +7469,7 @@
       "culledFrustum": 386,
       "triangles": 733184,
       "maxLevel": 5,
-      "selectMs": 0.8504639999999881,
+      "selectMs": 0.7048670000000357,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7504,7 +7504,7 @@
       "culledFrustum": 365,
       "triangles": 702464,
       "maxLevel": 5,
-      "selectMs": 0.8755179999999427,
+      "selectMs": 0.6738179999999829,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7539,7 +7539,7 @@
       "culledFrustum": 343,
       "triangles": 679936,
       "maxLevel": 5,
-      "selectMs": 0.7681180000000722,
+      "selectMs": 1.08596,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7574,7 +7574,7 @@
       "culledFrustum": 333,
       "triangles": 645120,
       "maxLevel": 5,
-      "selectMs": 0.773967999999968,
+      "selectMs": 0.6121210000000019,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7609,7 +7609,7 @@
       "culledFrustum": 324,
       "triangles": 622592,
       "maxLevel": 5,
-      "selectMs": 0.7451630000000478,
+      "selectMs": 0.6251470000000836,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7644,7 +7644,7 @@
       "culledFrustum": 308,
       "triangles": 600064,
       "maxLevel": 5,
-      "selectMs": 0.6907610000000659,
+      "selectMs": 0.6132010000000037,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7679,7 +7679,7 @@
       "culledFrustum": 306,
       "triangles": 571392,
       "maxLevel": 5,
-      "selectMs": 0.6692469999999275,
+      "selectMs": 0.5216069999999036,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7714,7 +7714,7 @@
       "culledFrustum": 291,
       "triangles": 559104,
       "maxLevel": 5,
-      "selectMs": 0.6341249999999263,
+      "selectMs": 0.6017729999999801,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7749,7 +7749,7 @@
       "culledFrustum": 291,
       "triangles": 534528,
       "maxLevel": 5,
-      "selectMs": 0.9596369999999297,
+      "selectMs": 0.5335600000000795,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7784,7 +7784,7 @@
       "culledFrustum": 295,
       "triangles": 518144,
       "maxLevel": 5,
-      "selectMs": 1.0274630000000116,
+      "selectMs": 0.48779399999989437,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7819,7 +7819,7 @@
       "culledFrustum": 292,
       "triangles": 499712,
       "maxLevel": 5,
-      "selectMs": 0.31166000000007443,
+      "selectMs": 0.5096780000000081,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7854,7 +7854,7 @@
       "culledFrustum": 288,
       "triangles": 489472,
       "maxLevel": 5,
-      "selectMs": 0.9351839999999356,
+      "selectMs": 0.47912800000005973,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7889,7 +7889,7 @@
       "culledFrustum": 278,
       "triangles": 481280,
       "maxLevel": 5,
-      "selectMs": 0.33615599999995993,
+      "selectMs": 0.497478000000001,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7924,7 +7924,7 @@
       "culledFrustum": 273,
       "triangles": 473088,
       "maxLevel": 5,
-      "selectMs": 0.2828299999999899,
+      "selectMs": 0.4753970000000436,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7959,7 +7959,7 @@
       "culledFrustum": 274,
       "triangles": 464896,
       "maxLevel": 5,
-      "selectMs": 0.253955000000019,
+      "selectMs": 0.4569979999999987,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -7994,7 +7994,7 @@
       "culledFrustum": 274,
       "triangles": 450560,
       "maxLevel": 5,
-      "selectMs": 0.27667300000007344,
+      "selectMs": 0.5996089999999867,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8029,7 +8029,7 @@
       "culledFrustum": 282,
       "triangles": 428032,
       "maxLevel": 5,
-      "selectMs": 0.28237000000001444,
+      "selectMs": 0.22437300000001414,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8064,7 +8064,7 @@
       "culledFrustum": 273,
       "triangles": 428032,
       "maxLevel": 5,
-      "selectMs": 0.2673369999999977,
+      "selectMs": 0.22789099999999962,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8099,7 +8099,7 @@
       "culledFrustum": 271,
       "triangles": 423936,
       "maxLevel": 5,
-      "selectMs": 0.2672180000000708,
+      "selectMs": 0.22146599999996397,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8134,7 +8134,7 @@
       "culledFrustum": 270,
       "triangles": 419840,
       "maxLevel": 5,
-      "selectMs": 0.24808099999995648,
+      "selectMs": 0.19814599999995153,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8169,7 +8169,7 @@
       "culledFrustum": 266,
       "triangles": 417792,
       "maxLevel": 5,
-      "selectMs": 0.22738800000001902,
+      "selectMs": 0.19327399999997397,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8204,7 +8204,7 @@
       "culledFrustum": 261,
       "triangles": 415744,
       "maxLevel": 5,
-      "selectMs": 0.24747899999999845,
+      "selectMs": 0.23225999999999658,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8239,7 +8239,7 @@
       "culledFrustum": 263,
       "triangles": 411648,
       "maxLevel": 5,
-      "selectMs": 0.232550999999944,
+      "selectMs": 0.5886960000000272,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8274,7 +8274,7 @@
       "culledFrustum": 264,
       "triangles": 407552,
       "maxLevel": 5,
-      "selectMs": 0.23166500000002088,
+      "selectMs": 0.23161000000004606,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8309,7 +8309,7 @@
       "culledFrustum": 261,
       "triangles": 407552,
       "maxLevel": 5,
-      "selectMs": 0.3331349999999702,
+      "selectMs": 0.2134409999999889,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8344,7 +8344,7 @@
       "culledFrustum": 261,
       "triangles": 405504,
       "maxLevel": 5,
-      "selectMs": 0.23822200000006433,
+      "selectMs": 0.19069100000001526,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8379,7 +8379,7 @@
       "culledFrustum": 255,
       "triangles": 405504,
       "maxLevel": 5,
-      "selectMs": 0.22309500000005755,
+      "selectMs": 0.18750599999998485,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8414,7 +8414,7 @@
       "culledFrustum": 255,
       "triangles": 405504,
       "maxLevel": 5,
-      "selectMs": 0.21133899999995265,
+      "selectMs": 0.19042899999999463,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8449,7 +8449,7 @@
       "culledFrustum": 253,
       "triangles": 403456,
       "maxLevel": 5,
-      "selectMs": 0.2504900000000134,
+      "selectMs": 0.20753000000001975,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8484,7 +8484,7 @@
       "culledFrustum": 253,
       "triangles": 403456,
       "maxLevel": 5,
-      "selectMs": 0.23519899999996596,
+      "selectMs": 0.18288400000005822,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8519,7 +8519,7 @@
       "culledFrustum": 257,
       "triangles": 395264,
       "maxLevel": 5,
-      "selectMs": 0.24924499999997352,
+      "selectMs": 0.18193000000007942,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8554,7 +8554,7 @@
       "culledFrustum": 249,
       "triangles": 393216,
       "maxLevel": 5,
-      "selectMs": 0.27129500000000917,
+      "selectMs": 0.1899190000000317,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8589,7 +8589,7 @@
       "culledFrustum": 251,
       "triangles": 387072,
       "maxLevel": 5,
-      "selectMs": 0.25091299999996863,
+      "selectMs": 0.20074799999997595,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8624,7 +8624,7 @@
       "culledFrustum": 254,
       "triangles": 378880,
       "maxLevel": 5,
-      "selectMs": 0.2148090000000593,
+      "selectMs": 0.1955630000001065,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8659,7 +8659,7 @@
       "culledFrustum": 253,
       "triangles": 374784,
       "maxLevel": 5,
-      "selectMs": 0.24455799999998362,
+      "selectMs": 0.18859200000008514,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8694,7 +8694,7 @@
       "culledFrustum": 244,
       "triangles": 372736,
       "maxLevel": 5,
-      "selectMs": 0.2317480000000387,
+      "selectMs": 0.2307419999999638,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8729,7 +8729,7 @@
       "culledFrustum": 243,
       "triangles": 366592,
       "maxLevel": 5,
-      "selectMs": 0.2012529999999515,
+      "selectMs": 0.1906940000000077,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8764,7 +8764,7 @@
       "culledFrustum": 238,
       "triangles": 362496,
       "maxLevel": 5,
-      "selectMs": 0.25323599999990165,
+      "selectMs": 0.17672600000003058,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8799,7 +8799,7 @@
       "culledFrustum": 240,
       "triangles": 352256,
       "maxLevel": 5,
-      "selectMs": 0.2183069999999816,
+      "selectMs": 0.17468699999994897,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8834,7 +8834,7 @@
       "culledFrustum": 237,
       "triangles": 346112,
       "maxLevel": 5,
-      "selectMs": 0.2001580000001013,
+      "selectMs": 0.17210700000009638,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8869,7 +8869,7 @@
       "culledFrustum": 241,
       "triangles": 339968,
       "maxLevel": 6,
-      "selectMs": 0.22767499999997654,
+      "selectMs": 0.21513199999992594,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8904,7 +8904,7 @@
       "culledFrustum": 236,
       "triangles": 348160,
       "maxLevel": 6,
-      "selectMs": 0.2822119999999586,
+      "selectMs": 0.19651500000009037,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8939,7 +8939,7 @@
       "culledFrustum": 241,
       "triangles": 346112,
       "maxLevel": 6,
-      "selectMs": 0.2885840000000144,
+      "selectMs": 0.1818590000000313,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -8974,7 +8974,7 @@
       "culledFrustum": 235,
       "triangles": 342016,
       "maxLevel": 6,
-      "selectMs": 0.2088860000000068,
+      "selectMs": 0.1752360000000408,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9009,7 +9009,7 @@
       "culledFrustum": 231,
       "triangles": 342016,
       "maxLevel": 6,
-      "selectMs": 0.25712000000009994,
+      "selectMs": 0.207033000000024,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9044,7 +9044,7 @@
       "culledFrustum": 229,
       "triangles": 325632,
       "maxLevel": 6,
-      "selectMs": 0.21762300000000323,
+      "selectMs": 0.17461100000002716,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9079,7 +9079,7 @@
       "culledFrustum": 219,
       "triangles": 337920,
       "maxLevel": 6,
-      "selectMs": 0.2164549999999963,
+      "selectMs": 0.18564099999991868,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9114,7 +9114,7 @@
       "culledFrustum": 211,
       "triangles": 342016,
       "maxLevel": 6,
-      "selectMs": 0.2309699999999566,
+      "selectMs": 0.17701399999998557,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9149,7 +9149,7 @@
       "culledFrustum": 210,
       "triangles": 335872,
       "maxLevel": 6,
-      "selectMs": 0.18316600000002836,
+      "selectMs": 0.17212700000004588,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9184,7 +9184,7 @@
       "culledFrustum": 210,
       "triangles": 339968,
       "maxLevel": 6,
-      "selectMs": 0.22862800000007155,
+      "selectMs": 0.17358600000000024,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9219,7 +9219,7 @@
       "culledFrustum": 206,
       "triangles": 342016,
       "maxLevel": 6,
-      "selectMs": 0.2580569999998943,
+      "selectMs": 0.16688699999997425,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9254,7 +9254,7 @@
       "culledFrustum": 203,
       "triangles": 342016,
       "maxLevel": 6,
-      "selectMs": 0.2339680000000044,
+      "selectMs": 0.1764180000000124,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9289,7 +9289,7 @@
       "culledFrustum": 196,
       "triangles": 346112,
       "maxLevel": 6,
-      "selectMs": 0.19609700000000885,
+      "selectMs": 0.21547700000007808,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9324,7 +9324,7 @@
       "culledFrustum": 190,
       "triangles": 344064,
       "maxLevel": 6,
-      "selectMs": 0.18224300000008498,
+      "selectMs": 0.17281500000001415,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9359,7 +9359,7 @@
       "culledFrustum": 187,
       "triangles": 348160,
       "maxLevel": 6,
-      "selectMs": 0.2367219999999861,
+      "selectMs": 0.16995299999996405,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9394,7 +9394,7 @@
       "culledFrustum": 179,
       "triangles": 348160,
       "maxLevel": 6,
-      "selectMs": 0.16905399999996007,
+      "selectMs": 0.1362460000000283,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9429,7 +9429,7 @@
       "culledFrustum": 182,
       "triangles": 348160,
       "maxLevel": 6,
-      "selectMs": 0.17946499999993648,
+      "selectMs": 0.1560180000000173,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9464,7 +9464,7 @@
       "culledFrustum": 171,
       "triangles": 352256,
       "maxLevel": 6,
-      "selectMs": 0.16881899999998495,
+      "selectMs": 0.17245500000001357,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9499,7 +9499,7 @@
       "culledFrustum": 171,
       "triangles": 346112,
       "maxLevel": 6,
-      "selectMs": 0.1937950000000228,
+      "selectMs": 0.1485930000000053,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9534,7 +9534,7 @@
       "culledFrustum": 167,
       "triangles": 346112,
       "maxLevel": 6,
-      "selectMs": 0.2767440000000079,
+      "selectMs": 0.152924999999982,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9569,7 +9569,7 @@
       "culledFrustum": 159,
       "triangles": 370688,
       "maxLevel": 6,
-      "selectMs": 0.22720899999990252,
+      "selectMs": 0.17853100000002087,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9604,7 +9604,7 @@
       "culledFrustum": 157,
       "triangles": 362496,
       "maxLevel": 6,
-      "selectMs": 0.15455500000007305,
+      "selectMs": 0.14914199999998345,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9639,7 +9639,7 @@
       "culledFrustum": 155,
       "triangles": 368640,
       "maxLevel": 6,
-      "selectMs": 0.28126800000006824,
+      "selectMs": 0.1602180000000999,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9674,7 +9674,7 @@
       "culledFrustum": 142,
       "triangles": 378880,
       "maxLevel": 6,
-      "selectMs": 0.21972900000002937,
+      "selectMs": 0.16318999999998596,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9709,7 +9709,7 @@
       "culledFrustum": 141,
       "triangles": 372736,
       "maxLevel": 6,
-      "selectMs": 0.16360299999996641,
+      "selectMs": 0.1283290000000079,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9744,7 +9744,7 @@
       "culledFrustum": 145,
       "triangles": 370688,
       "maxLevel": 6,
-      "selectMs": 0.17151400000000194,
+      "selectMs": 0.15075100000001385,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9779,7 +9779,7 @@
       "culledFrustum": 147,
       "triangles": 380928,
       "maxLevel": 6,
-      "selectMs": 0.27190699999994195,
+      "selectMs": 0.19487800000001698,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9814,7 +9814,7 @@
       "culledFrustum": 146,
       "triangles": 374784,
       "maxLevel": 6,
-      "selectMs": 0.19665199999997185,
+      "selectMs": 0.1590169999999489,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9849,7 +9849,7 @@
       "culledFrustum": 146,
       "triangles": 368640,
       "maxLevel": 6,
-      "selectMs": 0.1659029999999575,
+      "selectMs": 0.15314999999998236,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9884,7 +9884,7 @@
       "culledFrustum": 152,
       "triangles": 364544,
       "maxLevel": 6,
-      "selectMs": 0.1615359999999555,
+      "selectMs": 0.19492000000002463,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9919,7 +9919,7 @@
       "culledFrustum": 145,
       "triangles": 364544,
       "maxLevel": 6,
-      "selectMs": 0.20551399999999376,
+      "selectMs": 0.19185700000002726,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9954,7 +9954,7 @@
       "culledFrustum": 145,
       "triangles": 352256,
       "maxLevel": 6,
-      "selectMs": 0.15853299999992032,
+      "selectMs": 0.12600800000006984,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -9989,7 +9989,7 @@
       "culledFrustum": 141,
       "triangles": 339968,
       "maxLevel": 6,
-      "selectMs": 0.15436399999998685,
+      "selectMs": 0.13042299999995066,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10024,7 +10024,7 @@
       "culledFrustum": 142,
       "triangles": 346112,
       "maxLevel": 6,
-      "selectMs": 0.19681499999990137,
+      "selectMs": 0.24586899999997058,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10059,7 +10059,7 @@
       "culledFrustum": 141,
       "triangles": 342016,
       "maxLevel": 6,
-      "selectMs": 0.1938559999999825,
+      "selectMs": 0.14798700000005738,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10094,7 +10094,7 @@
       "culledFrustum": 139,
       "triangles": 346112,
       "maxLevel": 6,
-      "selectMs": 0.19839200000001256,
+      "selectMs": 0.15561200000001918,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10129,7 +10129,7 @@
       "culledFrustum": 142,
       "triangles": 339968,
       "maxLevel": 6,
-      "selectMs": 0.1575159999999869,
+      "selectMs": 0.132062000000019,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10164,7 +10164,7 @@
       "culledFrustum": 145,
       "triangles": 321536,
       "maxLevel": 6,
-      "selectMs": 0.1893519999999853,
+      "selectMs": 0.12248599999998078,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10199,7 +10199,7 @@
       "culledFrustum": 152,
       "triangles": 313344,
       "maxLevel": 6,
-      "selectMs": 0.22103500000002896,
+      "selectMs": 0.15224499999999352,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10234,7 +10234,7 @@
       "culledFrustum": 151,
       "triangles": 309248,
       "maxLevel": 6,
-      "selectMs": 0.1601989999999205,
+      "selectMs": 0.1306090000000495,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10269,7 +10269,7 @@
       "culledFrustum": 154,
       "triangles": 296960,
       "maxLevel": 6,
-      "selectMs": 0.1720990000000029,
+      "selectMs": 0.13944599999990714,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10304,7 +10304,7 @@
       "culledFrustum": 155,
       "triangles": 282624,
       "maxLevel": 6,
-      "selectMs": 0.13565599999992628,
+      "selectMs": 0.11435399999993479,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10339,7 +10339,7 @@
       "culledFrustum": 150,
       "triangles": 272384,
       "maxLevel": 6,
-      "selectMs": 0.14381300000002284,
+      "selectMs": 0.1295509999999922,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10374,7 +10374,7 @@
       "culledFrustum": 151,
       "triangles": 264192,
       "maxLevel": 6,
-      "selectMs": 0.18460000000004584,
+      "selectMs": 0.14445200000000114,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10409,7 +10409,7 @@
       "culledFrustum": 152,
       "triangles": 262144,
       "maxLevel": 6,
-      "selectMs": 0.1316469999999299,
+      "selectMs": 0.10903700000005756,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10444,7 +10444,7 @@
       "culledFrustum": 153,
       "triangles": 253952,
       "maxLevel": 6,
-      "selectMs": 0.14196700000002238,
+      "selectMs": 0.12108200000000124,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10479,7 +10479,7 @@
       "culledFrustum": 156,
       "triangles": 241664,
       "maxLevel": 6,
-      "selectMs": 0.11877000000004045,
+      "selectMs": 0.10261000000002696,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10514,7 +10514,7 @@
       "culledFrustum": 155,
       "triangles": 235520,
       "maxLevel": 6,
-      "selectMs": 0.11701100000004772,
+      "selectMs": 0.10061299999995299,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10549,7 +10549,7 @@
       "culledFrustum": 150,
       "triangles": 231424,
       "maxLevel": 6,
-      "selectMs": 0.16399400000000242,
+      "selectMs": 0.15160600000001523,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10584,7 +10584,7 @@
       "culledFrustum": 147,
       "triangles": 235520,
       "maxLevel": 6,
-      "selectMs": 0.1407050000000254,
+      "selectMs": 0.14320699999996123,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10619,7 +10619,7 @@
       "culledFrustum": 147,
       "triangles": 223232,
       "maxLevel": 6,
-      "selectMs": 0.13828300000000127,
+      "selectMs": 0.11261799999999766,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10654,7 +10654,7 @@
       "culledFrustum": 147,
       "triangles": 217088,
       "maxLevel": 6,
-      "selectMs": 0.11399099999994178,
+      "selectMs": 0.09917299999995066,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10689,7 +10689,7 @@
       "culledFrustum": 148,
       "triangles": 215040,
       "maxLevel": 6,
-      "selectMs": 0.13152499999989686,
+      "selectMs": 0.10877099999993334,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10724,7 +10724,7 @@
       "culledFrustum": 151,
       "triangles": 208896,
       "maxLevel": 6,
-      "selectMs": 0.14109499999995023,
+      "selectMs": 0.12094500000000608,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10759,7 +10759,7 @@
       "culledFrustum": 156,
       "triangles": 204800,
       "maxLevel": 6,
-      "selectMs": 0.33011099999998805,
+      "selectMs": 0.22145199999999932,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10794,7 +10794,7 @@
       "culledFrustum": 155,
       "triangles": 194560,
       "maxLevel": 6,
-      "selectMs": 0.1189719999999852,
+      "selectMs": 0.1056740000000218,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10829,7 +10829,7 @@
       "culledFrustum": 139,
       "triangles": 200704,
       "maxLevel": 6,
-      "selectMs": 0.1054749999999558,
+      "selectMs": 0.13758800000005067,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10864,7 +10864,7 @@
       "culledFrustum": 139,
       "triangles": 198656,
       "maxLevel": 6,
-      "selectMs": 0.1639790000000403,
+      "selectMs": 0.13112899999998717,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10899,7 +10899,7 @@
       "culledFrustum": 142,
       "triangles": 192512,
       "maxLevel": 6,
-      "selectMs": 0.13733799999999974,
+      "selectMs": 0.13338899999996556,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10934,7 +10934,7 @@
       "culledFrustum": 136,
       "triangles": 192512,
       "maxLevel": 6,
-      "selectMs": 0.14112499999998818,
+      "selectMs": 0.12725499999999101,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -10969,7 +10969,7 @@
       "culledFrustum": 130,
       "triangles": 188416,
       "maxLevel": 6,
-      "selectMs": 0.11285899999995763,
+      "selectMs": 0.1102170000000342,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11004,7 +11004,7 @@
       "culledFrustum": 134,
       "triangles": 184320,
       "maxLevel": 6,
-      "selectMs": 0.10234400000001642,
+      "selectMs": 0.09406300000000556,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11039,7 +11039,7 @@
       "culledFrustum": 134,
       "triangles": 184320,
       "maxLevel": 6,
-      "selectMs": 0.10011499999995976,
+      "selectMs": 0.09745799999996052,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11074,7 +11074,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.10079799999994066,
+      "selectMs": 0.09008499999993091,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11109,7 +11109,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.10014499999999771,
+      "selectMs": 0.08671000000003914,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11144,7 +11144,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.1456949999999324,
+      "selectMs": 0.08672999999998865,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11179,7 +11179,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.13057100000003175,
+      "selectMs": 0.09145100000000639,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11214,7 +11214,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.10100899999997637,
+      "selectMs": 0.08763099999998758,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11249,7 +11249,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.10073699999998098,
+      "selectMs": 0.10883400000000165,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11284,7 +11284,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.09938399999998637,
+      "selectMs": 0.08936100000005354,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11319,7 +11319,7 @@
       "culledFrustum": 136,
       "triangles": 180224,
       "maxLevel": 6,
-      "selectMs": 0.10113200000000688,
+      "selectMs": 0.08848100000000159,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11354,7 +11354,7 @@
       "culledFrustum": 137,
       "triangles": 174080,
       "maxLevel": 6,
-      "selectMs": 0.11785799999995561,
+      "selectMs": 0.08761900000001788,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11389,7 +11389,7 @@
       "culledFrustum": 136,
       "triangles": 176128,
       "maxLevel": 6,
-      "selectMs": 0.11695099999997183,
+      "selectMs": 0.08495800000002873,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11424,7 +11424,7 @@
       "culledFrustum": 136,
       "triangles": 172032,
       "maxLevel": 6,
-      "selectMs": 0.11198000000001684,
+      "selectMs": 0.08557499999994889,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11459,7 +11459,7 @@
       "culledFrustum": 132,
       "triangles": 172032,
       "maxLevel": 6,
-      "selectMs": 0.09830999999996948,
+      "selectMs": 0.08726500000000215,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11494,7 +11494,7 @@
       "culledFrustum": 130,
       "triangles": 163840,
       "maxLevel": 6,
-      "selectMs": 0.0950750000000653,
+      "selectMs": 0.11849300000005769,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11529,7 +11529,7 @@
       "culledFrustum": 125,
       "triangles": 165888,
       "maxLevel": 6,
-      "selectMs": 0.09243900000001304,
+      "selectMs": 0.08668499999998858,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11564,7 +11564,7 @@
       "culledFrustum": 131,
       "triangles": 157696,
       "maxLevel": 6,
-      "selectMs": 0.12173300000006293,
+      "selectMs": 0.08056499999997868,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11599,7 +11599,7 @@
       "culledFrustum": 144,
       "triangles": 155648,
       "maxLevel": 6,
-      "selectMs": 0.10610699999995177,
+      "selectMs": 0.08636100000001079,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11634,7 +11634,7 @@
       "culledFrustum": 140,
       "triangles": 151552,
       "maxLevel": 6,
-      "selectMs": 0.0953829999999698,
+      "selectMs": 0.08252700000002733,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11669,7 +11669,7 @@
       "culledFrustum": 124,
       "triangles": 147456,
       "maxLevel": 6,
-      "selectMs": 0.10071500000003653,
+      "selectMs": 0.07605100000000675,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11704,7 +11704,7 @@
       "culledFrustum": 119,
       "triangles": 141312,
       "maxLevel": 6,
-      "selectMs": 0.09209900000007565,
+      "selectMs": 0.07453499999996893,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11739,7 +11739,7 @@
       "culledFrustum": 122,
       "triangles": 135168,
       "maxLevel": 6,
-      "selectMs": 0.1550720000000183,
+      "selectMs": 0.09016000000008262,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11774,7 +11774,7 @@
       "culledFrustum": 122,
       "triangles": 129024,
       "maxLevel": 6,
-      "selectMs": 0.12334399999997459,
+      "selectMs": 0.07453700000007757,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11809,7 +11809,7 @@
       "culledFrustum": 117,
       "triangles": 122880,
       "maxLevel": 6,
-      "selectMs": 0.08805900000004385,
+      "selectMs": 0.08398399999998674,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11844,7 +11844,7 @@
       "culledFrustum": 121,
       "triangles": 122880,
       "maxLevel": 6,
-      "selectMs": 0.11444200000005367,
+      "selectMs": 0.10515399999997044,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11879,7 +11879,7 @@
       "culledFrustum": 121,
       "triangles": 116736,
       "maxLevel": 6,
-      "selectMs": 0.08691699999997127,
+      "selectMs": 0.10607700000002751,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11914,7 +11914,7 @@
       "culledFrustum": 118,
       "triangles": 108544,
       "maxLevel": 6,
-      "selectMs": 0.13080999999999676,
+      "selectMs": 0.07043399999997746,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11949,7 +11949,7 @@
       "culledFrustum": 115,
       "triangles": 108544,
       "maxLevel": 6,
-      "selectMs": 0.13187700000003133,
+      "selectMs": 0.06798300000002655,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -11984,7 +11984,7 @@
       "culledFrustum": 123,
       "triangles": 92160,
       "maxLevel": 6,
-      "selectMs": 0.11443800000006377,
+      "selectMs": 0.12202899999999772,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12019,7 +12019,7 @@
       "culledFrustum": 121,
       "triangles": 98304,
       "maxLevel": 7,
-      "selectMs": 0.09044600000004266,
+      "selectMs": 0.08850300000005973,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12054,7 +12054,7 @@
       "culledFrustum": 113,
       "triangles": 94208,
       "maxLevel": 7,
-      "selectMs": 0.07569200000000365,
+      "selectMs": 0.06532700000002478,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12089,7 +12089,7 @@
       "culledFrustum": 111,
       "triangles": 112640,
       "maxLevel": 7,
-      "selectMs": 0.1511359999999513,
+      "selectMs": 0.1291400000000067,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12124,7 +12124,7 @@
       "culledFrustum": 115,
       "triangles": 120832,
       "maxLevel": 7,
-      "selectMs": 0.15487100000007104,
+      "selectMs": 0.13734900000008565,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12159,7 +12159,7 @@
       "culledFrustum": 108,
       "triangles": 129024,
       "maxLevel": 7,
-      "selectMs": 0.11651999999992313,
+      "selectMs": 0.09136999999998352,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12194,7 +12194,7 @@
       "culledFrustum": 100,
       "triangles": 126976,
       "maxLevel": 7,
-      "selectMs": 0.08954699999992499,
+      "selectMs": 0.07739900000001398,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12229,7 +12229,7 @@
       "culledFrustum": 97,
       "triangles": 143360,
       "maxLevel": 7,
-      "selectMs": 0.1355950000000803,
+      "selectMs": 0.11919599999998809,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12264,7 +12264,7 @@
       "culledFrustum": 103,
       "triangles": 135168,
       "maxLevel": 7,
-      "selectMs": 0.11672799999996641,
+      "selectMs": 0.09692299999994702,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12299,7 +12299,7 @@
       "culledFrustum": 95,
       "triangles": 135168,
       "maxLevel": 7,
-      "selectMs": 0.1650489999999536,
+      "selectMs": 0.09937800000000152,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12334,7 +12334,7 @@
       "culledFrustum": 109,
       "triangles": 133120,
       "maxLevel": 7,
-      "selectMs": 0.15014100000007602,
+      "selectMs": 0.1469560000000456,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12369,7 +12369,7 @@
       "culledFrustum": 105,
       "triangles": 147456,
       "maxLevel": 7,
-      "selectMs": 0.12913700000001427,
+      "selectMs": 0.10448399999995672,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12404,7 +12404,7 @@
       "culledFrustum": 106,
       "triangles": 137216,
       "maxLevel": 7,
-      "selectMs": 0.13489299999992,
+      "selectMs": 0.1319260000000213,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12439,7 +12439,7 @@
       "culledFrustum": 107,
       "triangles": 139264,
       "maxLevel": 7,
-      "selectMs": 0.19553700000005847,
+      "selectMs": 0.13205500000003667,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12474,7 +12474,7 @@
       "culledFrustum": 100,
       "triangles": 141312,
       "maxLevel": 7,
-      "selectMs": 0.16903200000001561,
+      "selectMs": 0.11360899999999674,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12509,7 +12509,7 @@
       "culledFrustum": 97,
       "triangles": 135168,
       "maxLevel": 7,
-      "selectMs": 0.13104899999996178,
+      "selectMs": 0.1542699999999968,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12544,7 +12544,7 @@
       "culledFrustum": 90,
       "triangles": 133120,
       "maxLevel": 7,
-      "selectMs": 0.1404009999999971,
+      "selectMs": 0.1510279999999966,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12579,7 +12579,7 @@
       "culledFrustum": 111,
       "triangles": 118784,
       "maxLevel": 7,
-      "selectMs": 0.14451899999994566,
+      "selectMs": 0.780542999999966,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12614,7 +12614,7 @@
       "culledFrustum": 110,
       "triangles": 122880,
       "maxLevel": 7,
-      "selectMs": 0.13286300000004303,
+      "selectMs": 0.1581669999999349,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12649,7 +12649,7 @@
       "culledFrustum": 112,
       "triangles": 112640,
       "maxLevel": 7,
-      "selectMs": 0.12698499999999058,
+      "selectMs": 0.11182499999995343,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12684,7 +12684,7 @@
       "culledFrustum": 122,
       "triangles": 98304,
       "maxLevel": 7,
-      "selectMs": 0.18972800000005918,
+      "selectMs": 0.13140899999996236,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12719,7 +12719,7 @@
       "culledFrustum": 117,
       "triangles": 100352,
       "maxLevel": 7,
-      "selectMs": 0.10535200000003897,
+      "selectMs": 0.08628000000010161,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12754,7 +12754,7 @@
       "culledFrustum": 109,
       "triangles": 90112,
       "maxLevel": 7,
-      "selectMs": 0.14994200000001,
+      "selectMs": 0.12454400000001442,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12789,7 +12789,7 @@
       "culledFrustum": 119,
       "triangles": 90112,
       "maxLevel": 7,
-      "selectMs": 0.14870599999994738,
+      "selectMs": 0.13372800000001916,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12824,7 +12824,7 @@
       "culledFrustum": 116,
       "triangles": 83968,
       "maxLevel": 7,
-      "selectMs": 0.10942099999999755,
+      "selectMs": 0.09477700000002187,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12859,7 +12859,7 @@
       "culledFrustum": 119,
       "triangles": 81920,
       "maxLevel": 7,
-      "selectMs": 0.1302050000000463,
+      "selectMs": 0.13944699999990462,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12894,7 +12894,7 @@
       "culledFrustum": 115,
       "triangles": 75776,
       "maxLevel": 7,
-      "selectMs": 0.1568409999999858,
+      "selectMs": 0.10536699999988741,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12929,7 +12929,7 @@
       "culledFrustum": 107,
       "triangles": 73728,
       "maxLevel": 7,
-      "selectMs": 0.1171399999999494,
+      "selectMs": 0.10159599999997226,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12964,7 +12964,7 @@
       "culledFrustum": 104,
       "triangles": 67584,
       "maxLevel": 7,
-      "selectMs": 0.10401699999999892,
+      "selectMs": 0.09153100000003178,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -12999,7 +12999,7 @@
       "culledFrustum": 111,
       "triangles": 65536,
       "maxLevel": 7,
-      "selectMs": 0.16378999999994903,
+      "selectMs": 0.14149700000007215,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13034,7 +13034,7 @@
       "culledFrustum": 106,
       "triangles": 67584,
       "maxLevel": 7,
-      "selectMs": 0.11200699999994868,
+      "selectMs": 0.10038999999994758,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13069,7 +13069,7 @@
       "culledFrustum": 112,
       "triangles": 61440,
       "maxLevel": 7,
-      "selectMs": 0.11030599999992319,
+      "selectMs": 0.0983009999999922,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13104,7 +13104,7 @@
       "culledFrustum": 107,
       "triangles": 59392,
       "maxLevel": 7,
-      "selectMs": 0.0973030000000108,
+      "selectMs": 0.10639500000002045,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13139,7 +13139,7 @@
       "culledFrustum": 118,
       "triangles": 55296,
       "maxLevel": 7,
-      "selectMs": 0.16903500000000804,
+      "selectMs": 0.1260060000000749,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13174,7 +13174,7 @@
       "culledFrustum": 114,
       "triangles": 67584,
       "maxLevel": 8,
-      "selectMs": 0.13629900000000816,
+      "selectMs": 0.10973200000000816,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13209,7 +13209,7 @@
       "culledFrustum": 113,
       "triangles": 71680,
       "maxLevel": 8,
-      "selectMs": 0.1413430000000062,
+      "selectMs": 0.1133710000000292,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13244,7 +13244,7 @@
       "culledFrustum": 108,
       "triangles": 75776,
       "maxLevel": 8,
-      "selectMs": 0.11604299999999057,
+      "selectMs": 0.10168899999996484,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13279,7 +13279,7 @@
       "culledFrustum": 117,
       "triangles": 73728,
       "maxLevel": 8,
-      "selectMs": 0.2366829999999709,
+      "selectMs": 0.14303300000005947,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13314,7 +13314,7 @@
       "culledFrustum": 111,
       "triangles": 75776,
       "maxLevel": 8,
-      "selectMs": 0.1701420000000553,
+      "selectMs": 0.15673200000003362,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13349,7 +13349,7 @@
       "culledFrustum": 116,
       "triangles": 81920,
       "maxLevel": 8,
-      "selectMs": 0.1704140000000507,
+      "selectMs": 0.18184899999994286,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13384,7 +13384,7 @@
       "culledFrustum": 108,
       "triangles": 88064,
       "maxLevel": 8,
-      "selectMs": 0.14041099999997186,
+      "selectMs": 0.11630400000001373,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13419,7 +13419,7 @@
       "culledFrustum": 111,
       "triangles": 88064,
       "maxLevel": 8,
-      "selectMs": 0.14552800000001298,
+      "selectMs": 0.12763300000005984,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13454,7 +13454,7 @@
       "culledFrustum": 120,
       "triangles": 88064,
       "maxLevel": 8,
-      "selectMs": 0.1833800000000565,
+      "selectMs": 0.1613079999999627,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13489,7 +13489,7 @@
       "culledFrustum": 113,
       "triangles": 90112,
       "maxLevel": 8,
-      "selectMs": 0.1063050000000203,
+      "selectMs": 0.09703600000000279,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13524,7 +13524,7 @@
       "culledFrustum": 111,
       "triangles": 88064,
       "maxLevel": 8,
-      "selectMs": 0.1907979999999725,
+      "selectMs": 0.14351699999997436,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13559,7 +13559,7 @@
       "culledFrustum": 111,
       "triangles": 83968,
       "maxLevel": 8,
-      "selectMs": 0.1231119999999919,
+      "selectMs": 0.12787100000002738,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13594,7 +13594,7 @@
       "culledFrustum": 100,
       "triangles": 102400,
       "maxLevel": 8,
-      "selectMs": 0.1410040000000663,
+      "selectMs": 0.11370499999998174,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13629,7 +13629,7 @@
       "culledFrustum": 100,
       "triangles": 90112,
       "maxLevel": 8,
-      "selectMs": 0.09733699999992496,
+      "selectMs": 0.07983600000000024,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13664,7 +13664,7 @@
       "culledFrustum": 104,
       "triangles": 88064,
       "maxLevel": 8,
-      "selectMs": 0.13110100000005787,
+      "selectMs": 0.11067000000002736,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13699,7 +13699,7 @@
       "culledFrustum": 100,
       "triangles": 90112,
       "maxLevel": 8,
-      "selectMs": 0.11674599999992097,
+      "selectMs": 0.0972510000000284,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13734,7 +13734,7 @@
       "culledFrustum": 107,
       "triangles": 86016,
       "maxLevel": 8,
-      "selectMs": 0.1641389999999774,
+      "selectMs": 0.10975100000007387,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13769,7 +13769,7 @@
       "culledFrustum": 115,
       "triangles": 88064,
       "maxLevel": 8,
-      "selectMs": 0.134832000000074,
+      "selectMs": 0.11688200000003235,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13804,7 +13804,7 @@
       "culledFrustum": 108,
       "triangles": 96256,
       "maxLevel": 8,
-      "selectMs": 0.11347900000009759,
+      "selectMs": 0.09382800000003044,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13839,7 +13839,7 @@
       "culledFrustum": 113,
       "triangles": 86016,
       "maxLevel": 8,
-      "selectMs": 0.10276900000008027,
+      "selectMs": 0.09464300000001913,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13874,7 +13874,7 @@
       "culledFrustum": 114,
       "triangles": 77824,
       "maxLevel": 8,
-      "selectMs": 0.092057000000068,
+      "selectMs": 0.0825919999999769,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13909,7 +13909,7 @@
       "culledFrustum": 110,
       "triangles": 86016,
       "maxLevel": 8,
-      "selectMs": 0.09528600000010101,
+      "selectMs": 0.08069699999998647,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13944,7 +13944,7 @@
       "culledFrustum": 105,
       "triangles": 83968,
       "maxLevel": 8,
-      "selectMs": 0.06897200000003068,
+      "selectMs": 0.058867999999961285,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -13979,7 +13979,7 @@
       "culledFrustum": 105,
       "triangles": 83968,
       "maxLevel": 8,
-      "selectMs": 0.11771799999996801,
+      "selectMs": 0.07414299999993545,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14014,7 +14014,7 @@
       "culledFrustum": 105,
       "triangles": 83968,
       "maxLevel": 8,
-      "selectMs": 0.07022699999993165,
+      "selectMs": 0.057544000000007145,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14049,7 +14049,7 @@
       "culledFrustum": 105,
       "triangles": 83968,
       "maxLevel": 8,
-      "selectMs": 0.06892900000002555,
+      "selectMs": 0.05668800000000829,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14084,7 +14084,7 @@
       "culledFrustum": 105,
       "triangles": 83968,
       "maxLevel": 8,
-      "selectMs": 0.06496399999991809,
+      "selectMs": 0.05660299999999552,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14119,7 +14119,7 @@
       "culledFrustum": 106,
       "triangles": 81920,
       "maxLevel": 8,
-      "selectMs": 0.07114799999999377,
+      "selectMs": 0.06066499999997177,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14154,7 +14154,7 @@
       "culledFrustum": 104,
       "triangles": 86016,
       "maxLevel": 8,
-      "selectMs": 0.06828399999994872,
+      "selectMs": 0.061005000000022847,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14189,7 +14189,7 @@
       "culledFrustum": 108,
       "triangles": 83968,
       "maxLevel": 8,
-      "selectMs": 0.34624799999994593,
+      "selectMs": 0.28261699999995926,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14224,7 +14224,7 @@
       "culledFrustum": 109,
       "triangles": 81920,
       "maxLevel": 8,
-      "selectMs": 0.12029900000004545,
+      "selectMs": 0.062002000000006774,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14259,7 +14259,7 @@
       "culledFrustum": 108,
       "triangles": 77824,
       "maxLevel": 8,
-      "selectMs": 0.0706279999999424,
+      "selectMs": 0.06348000000002685,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14294,7 +14294,7 @@
       "culledFrustum": 111,
       "triangles": 77824,
       "maxLevel": 8,
-      "selectMs": 0.08239099999991595,
+      "selectMs": 0.07042599999999766,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14329,7 +14329,7 @@
       "culledFrustum": 108,
       "triangles": 77824,
       "maxLevel": 8,
-      "selectMs": 0.08181700000000092,
+      "selectMs": 0.07288900000003196,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14364,7 +14364,7 @@
       "culledFrustum": 112,
       "triangles": 81920,
       "maxLevel": 8,
-      "selectMs": 0.098824000000036,
+      "selectMs": 0.08041600000001381,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14399,7 +14399,7 @@
       "culledFrustum": 113,
       "triangles": 73728,
       "maxLevel": 8,
-      "selectMs": 0.18870700000002216,
+      "selectMs": 0.05684299999995801,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14434,7 +14434,7 @@
       "culledFrustum": 112,
       "triangles": 75776,
       "maxLevel": 8,
-      "selectMs": 0.07743599999992057,
+      "selectMs": 0.13292899999999008,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14469,7 +14469,7 @@
       "culledFrustum": 105,
       "triangles": 77824,
       "maxLevel": 8,
-      "selectMs": 0.06443699999999808,
+      "selectMs": 0.084536000000071,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14504,7 +14504,7 @@
       "culledFrustum": 111,
       "triangles": 73728,
       "maxLevel": 8,
-      "selectMs": 0.10936499999991156,
+      "selectMs": 0.07209899999998015,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14539,7 +14539,7 @@
       "culledFrustum": 120,
       "triangles": 73728,
       "maxLevel": 8,
-      "selectMs": 0.2598169999999982,
+      "selectMs": 0.09178899999994883,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14574,7 +14574,7 @@
       "culledFrustum": 120,
       "triangles": 69632,
       "maxLevel": 8,
-      "selectMs": 0.11756400000001577,
+      "selectMs": 0.055215999999973064,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14609,7 +14609,7 @@
       "culledFrustum": 124,
       "triangles": 67584,
       "maxLevel": 8,
-      "selectMs": 0.090328999999997,
+      "selectMs": 0.06618600000001607,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14644,7 +14644,7 @@
       "culledFrustum": 123,
       "triangles": 63488,
       "maxLevel": 8,
-      "selectMs": 0.0763209999998935,
+      "selectMs": 0.07953499999996438,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14679,7 +14679,7 @@
       "culledFrustum": 121,
       "triangles": 61440,
       "maxLevel": 8,
-      "selectMs": 0.08431799999993927,
+      "selectMs": 0.07528200000001561,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14714,7 +14714,7 @@
       "culledFrustum": 115,
       "triangles": 61440,
       "maxLevel": 8,
-      "selectMs": 0.0721849999999904,
+      "selectMs": 0.05358400000000074,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14749,7 +14749,7 @@
       "culledFrustum": 111,
       "triangles": 63488,
       "maxLevel": 8,
-      "selectMs": 0.059944999999970605,
+      "selectMs": 0.05122500000004493,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14784,7 +14784,7 @@
       "culledFrustum": 115,
       "triangles": 61440,
       "maxLevel": 8,
-      "selectMs": 0.08728600000006281,
+      "selectMs": 0.07279299999993327,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14819,7 +14819,7 @@
       "culledFrustum": 117,
       "triangles": 57344,
       "maxLevel": 8,
-      "selectMs": 0.08085400000004483,
+      "selectMs": 0.06679399999995894,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14854,7 +14854,7 @@
       "culledFrustum": 112,
       "triangles": 55296,
       "maxLevel": 8,
-      "selectMs": 0.07418700000005174,
+      "selectMs": 0.07142900000008012,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14889,7 +14889,7 @@
       "culledFrustum": 113,
       "triangles": 55296,
       "maxLevel": 8,
-      "selectMs": 0.08159900000009657,
+      "selectMs": 0.07104900000001635,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14924,7 +14924,7 @@
       "culledFrustum": 109,
       "triangles": 57344,
       "maxLevel": 8,
-      "selectMs": 0.06872800000007828,
+      "selectMs": 0.05942100000004302,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14959,7 +14959,7 @@
       "culledFrustum": 115,
       "triangles": 49152,
       "maxLevel": 8,
-      "selectMs": 0.14195399999994152,
+      "selectMs": 0.08769000000006599,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -14994,7 +14994,7 @@
       "culledFrustum": 109,
       "triangles": 49152,
       "maxLevel": 8,
-      "selectMs": 0.06336699999997109,
+      "selectMs": 0.05067999999994299,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15029,7 +15029,7 @@
       "culledFrustum": 115,
       "triangles": 43008,
       "maxLevel": 8,
-      "selectMs": 0.10926400000005287,
+      "selectMs": 0.06821800000000167,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15064,7 +15064,7 @@
       "culledFrustum": 108,
       "triangles": 51200,
       "maxLevel": 9,
-      "selectMs": 0.07045699999991939,
+      "selectMs": 0.060135000000059335,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15099,7 +15099,7 @@
       "culledFrustum": 110,
       "triangles": 47104,
       "maxLevel": 9,
-      "selectMs": 0.08043999999995322,
+      "selectMs": 0.08298700000000281,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15134,7 +15134,7 @@
       "culledFrustum": 114,
       "triangles": 47104,
       "maxLevel": 9,
-      "selectMs": 0.11060099999997419,
+      "selectMs": 0.09593900000004396,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15169,7 +15169,7 @@
       "culledFrustum": 119,
       "triangles": 49152,
       "maxLevel": 9,
-      "selectMs": 0.08315999999990709,
+      "selectMs": 0.0721290000000181,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15204,7 +15204,7 @@
       "culledFrustum": 116,
       "triangles": 40960,
       "maxLevel": 9,
-      "selectMs": 0.06929800000000341,
+      "selectMs": 0.08351200000004155,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15239,7 +15239,7 @@
       "culledFrustum": 117,
       "triangles": 45056,
       "maxLevel": 9,
-      "selectMs": 0.08720199999993383,
+      "selectMs": 0.08302200000002813,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15274,7 +15274,7 @@
       "culledFrustum": 115,
       "triangles": 38912,
       "maxLevel": 9,
-      "selectMs": 0.06462299999998322,
+      "selectMs": 0.057861000000002605,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15309,7 +15309,7 @@
       "culledFrustum": 109,
       "triangles": 49152,
       "maxLevel": 9,
-      "selectMs": 0.07495600000004288,
+      "selectMs": 0.0665559999999914,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15344,7 +15344,7 @@
       "culledFrustum": 113,
       "triangles": 47104,
       "maxLevel": 9,
-      "selectMs": 0.10835399999996298,
+      "selectMs": 0.06607499999995525,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15379,7 +15379,7 @@
       "culledFrustum": 114,
       "triangles": 51200,
       "maxLevel": 9,
-      "selectMs": 0.09750999999994292,
+      "selectMs": 0.07608699999991586,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15414,7 +15414,7 @@
       "culledFrustum": 118,
       "triangles": 47104,
       "maxLevel": 9,
-      "selectMs": 0.12107299999991028,
+      "selectMs": 0.08449299999995219,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15449,7 +15449,7 @@
       "culledFrustum": 114,
       "triangles": 43008,
       "maxLevel": 9,
-      "selectMs": 0.09688500000004296,
+      "selectMs": 0.07629600000007031,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15484,7 +15484,7 @@
       "culledFrustum": 114,
       "triangles": 49152,
       "maxLevel": 9,
-      "selectMs": 0.10244399999999132,
+      "selectMs": 0.8208939999999529,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15519,7 +15519,7 @@
       "culledFrustum": 117,
       "triangles": 49152,
       "maxLevel": 9,
-      "selectMs": 0.09507000000007793,
+      "selectMs": 0.11311200000000099,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15554,7 +15554,7 @@
       "culledFrustum": 112,
       "triangles": 49152,
       "maxLevel": 9,
-      "selectMs": 0.08103000000005522,
+      "selectMs": 0.07010600000000977,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15589,7 +15589,7 @@
       "culledFrustum": 107,
       "triangles": 40960,
       "maxLevel": 9,
-      "selectMs": 0.07453400000008514,
+      "selectMs": 0.09902999999997064,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15624,7 +15624,7 @@
       "culledFrustum": 109,
       "triangles": 43008,
       "maxLevel": 9,
-      "selectMs": 0.08532999999999902,
+      "selectMs": 0.11560099999996964,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15659,7 +15659,7 @@
       "culledFrustum": 115,
       "triangles": 49152,
       "maxLevel": 9,
-      "selectMs": 0.14509799999996176,
+      "selectMs": 0.09780299999999897,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15694,7 +15694,7 @@
       "culledFrustum": 114,
       "triangles": 43008,
       "maxLevel": 9,
-      "selectMs": 0.08031700000003639,
+      "selectMs": 0.06632200000001376,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15729,7 +15729,7 @@
       "culledFrustum": 98,
       "triangles": 45056,
       "maxLevel": 9,
-      "selectMs": 0.05182300000001305,
+      "selectMs": 0.04546699999991688,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15764,7 +15764,7 @@
       "culledFrustum": 109,
       "triangles": 36864,
       "maxLevel": 9,
-      "selectMs": 0.11457100000006903,
+      "selectMs": 0.08963500000004387,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15799,7 +15799,7 @@
       "culledFrustum": 107,
       "triangles": 34816,
       "maxLevel": 9,
-      "selectMs": 0.08645999999998821,
+      "selectMs": 0.07324700000003759,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15834,7 +15834,7 @@
       "culledFrustum": 103,
       "triangles": 43008,
       "maxLevel": 9,
-      "selectMs": 0.08559600000000955,
+      "selectMs": 0.0747879999998986,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15869,7 +15869,7 @@
       "culledFrustum": 109,
       "triangles": 38912,
       "maxLevel": 9,
-      "selectMs": 0.09499600000003738,
+      "selectMs": 0.0807360000000017,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15904,7 +15904,7 @@
       "culledFrustum": 114,
       "triangles": 36864,
       "maxLevel": 9,
-      "selectMs": 0.09064900000009857,
+      "selectMs": 0.08310000000005857,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15939,7 +15939,7 @@
       "culledFrustum": 117,
       "triangles": 36864,
       "maxLevel": 10,
-      "selectMs": 0.23823499999991782,
+      "selectMs": 0.09467500000005202,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -15974,7 +15974,7 @@
       "culledFrustum": 118,
       "triangles": 28672,
       "maxLevel": 9,
-      "selectMs": 0.08447699999999259,
+      "selectMs": 0.09609100000000126,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16009,7 +16009,7 @@
       "culledFrustum": 113,
       "triangles": 38912,
       "maxLevel": 10,
-      "selectMs": 0.07947299999989355,
+      "selectMs": 0.08587499999998727,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16044,7 +16044,7 @@
       "culledFrustum": 117,
       "triangles": 36864,
       "maxLevel": 10,
-      "selectMs": 0.0835260000000062,
+      "selectMs": 0.08491800000001604,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16079,7 +16079,7 @@
       "culledFrustum": 103,
       "triangles": 34816,
       "maxLevel": 9,
-      "selectMs": 0.05711199999996097,
+      "selectMs": 0.0549949999999626,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16114,7 +16114,7 @@
       "culledFrustum": 112,
       "triangles": 34816,
       "maxLevel": 10,
-      "selectMs": 0.07870200000002114,
+      "selectMs": 0.080141000000026,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16149,7 +16149,7 @@
       "culledFrustum": 110,
       "triangles": 45056,
       "maxLevel": 10,
-      "selectMs": 0.08784799999989445,
+      "selectMs": 0.0908719999999903,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16184,7 +16184,7 @@
       "culledFrustum": 117,
       "triangles": 30720,
       "maxLevel": 10,
-      "selectMs": 0.09621400000003177,
+      "selectMs": 0.08242199999995137,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16219,7 +16219,7 @@
       "culledFrustum": 107,
       "triangles": 32768,
       "maxLevel": 10,
-      "selectMs": 0.09229800000002797,
+      "selectMs": 0.06246299999997973,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16254,7 +16254,7 @@
       "culledFrustum": 109,
       "triangles": 34816,
       "maxLevel": 10,
-      "selectMs": 0.0880610000000388,
+      "selectMs": 0.0958660000000009,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16289,7 +16289,7 @@
       "culledFrustum": 111,
       "triangles": 28672,
       "maxLevel": 10,
-      "selectMs": 0.07937799999990602,
+      "selectMs": 0.0795940000000428,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16324,7 +16324,7 @@
       "culledFrustum": 111,
       "triangles": 28672,
       "maxLevel": 10,
-      "selectMs": 0.12269400000002406,
+      "selectMs": 0.10267899999996644,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16359,7 +16359,7 @@
       "culledFrustum": 114,
       "triangles": 34816,
       "maxLevel": 10,
-      "selectMs": 0.09611400000005688,
+      "selectMs": 0.08551299999999173,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16394,7 +16394,7 @@
       "culledFrustum": 116,
       "triangles": 30720,
       "maxLevel": 10,
-      "selectMs": 0.08901000000003023,
+      "selectMs": 0.16754900000000816,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16429,7 +16429,7 @@
       "culledFrustum": 110,
       "triangles": 34816,
       "maxLevel": 10,
-      "selectMs": 0.07227500000010423,
+      "selectMs": 0.0664880000000494,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16464,7 +16464,7 @@
       "culledFrustum": 115,
       "triangles": 30720,
       "maxLevel": 10,
-      "selectMs": 0.09261900000001333,
+      "selectMs": 0.0798010000000886,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16499,7 +16499,7 @@
       "culledFrustum": 116,
       "triangles": 32768,
       "maxLevel": 10,
-      "selectMs": 0.09088699999995242,
+      "selectMs": 0.07723199999998087,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16534,7 +16534,7 @@
       "culledFrustum": 112,
       "triangles": 28672,
       "maxLevel": 10,
-      "selectMs": 0.12045799999998508,
+      "selectMs": 0.06660299999998642,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16569,7 +16569,7 @@
       "culledFrustum": 112,
       "triangles": 32768,
       "maxLevel": 10,
-      "selectMs": 0.07631499999990865,
+      "selectMs": 0.06800799999996343,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16604,7 +16604,7 @@
       "culledFrustum": 112,
       "triangles": 26624,
       "maxLevel": 10,
-      "selectMs": 0.09070899999994708,
+      "selectMs": 0.07532900000001064,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16639,7 +16639,7 @@
       "culledFrustum": 111,
       "triangles": 28672,
       "maxLevel": 10,
-      "selectMs": 0.07636500000000979,
+      "selectMs": 0.056153999999992266,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16674,7 +16674,7 @@
       "culledFrustum": 111,
       "triangles": 36864,
       "maxLevel": 10,
-      "selectMs": 0.08299999999996999,
+      "selectMs": 0.09096699999997782,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16709,7 +16709,7 @@
       "culledFrustum": 116,
       "triangles": 32768,
       "maxLevel": 10,
-      "selectMs": 0.07612700000004224,
+      "selectMs": 0.07006300000000465,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16744,7 +16744,7 @@
       "culledFrustum": 115,
       "triangles": 28672,
       "maxLevel": 10,
-      "selectMs": 0.08043399999996836,
+      "selectMs": 0.06833900000003723,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16779,7 +16779,7 @@
       "culledFrustum": 122,
       "triangles": 26624,
       "maxLevel": 10,
-      "selectMs": 0.09294399999998859,
+      "selectMs": 0.07795199999998204,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16814,7 +16814,7 @@
       "culledFrustum": 123,
       "triangles": 30720,
       "maxLevel": 10,
-      "selectMs": 0.08325600000000577,
+      "selectMs": 0.06384700000000976,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16849,7 +16849,7 @@
       "culledFrustum": 125,
       "triangles": 38912,
       "maxLevel": 11,
-      "selectMs": 0.13035999999999603,
+      "selectMs": 0.07997199999999793,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16884,7 +16884,7 @@
       "culledFrustum": 125,
       "triangles": 26624,
       "maxLevel": 10,
-      "selectMs": 0.07871699999998327,
+      "selectMs": 0.060651000000007116,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16919,7 +16919,7 @@
       "culledFrustum": 122,
       "triangles": 26624,
       "maxLevel": 10,
-      "selectMs": 0.07245599999998831,
+      "selectMs": 0.05831100000000333,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16954,7 +16954,7 @@
       "culledFrustum": 120,
       "triangles": 36864,
       "maxLevel": 11,
-      "selectMs": 0.10442700000010063,
+      "selectMs": 0.07760900000005222,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -16989,7 +16989,7 @@
       "culledFrustum": 115,
       "triangles": 36864,
       "maxLevel": 11,
-      "selectMs": 0.07029999999997472,
+      "selectMs": 0.06249399999990146,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17024,7 +17024,7 @@
       "culledFrustum": 121,
       "triangles": 30720,
       "maxLevel": 11,
-      "selectMs": 0.07384400000000824,
+      "selectMs": 0.073174999999992,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17059,7 +17059,7 @@
       "culledFrustum": 120,
       "triangles": 26624,
       "maxLevel": 10,
-      "selectMs": 0.07406400000002122,
+      "selectMs": 0.07413499999995565,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17094,7 +17094,7 @@
       "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 11,
-      "selectMs": 0.07543999999995776,
+      "selectMs": 0.06255399999997735,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17129,7 +17129,7 @@
       "culledFrustum": 125,
       "triangles": 28672,
       "maxLevel": 11,
-      "selectMs": 0.08848999999997886,
+      "selectMs": 0.0735740000000078,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17164,7 +17164,7 @@
       "culledFrustum": 124,
       "triangles": 36864,
       "maxLevel": 11,
-      "selectMs": 0.06953699999996843,
+      "selectMs": 0.060094000000049164,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17199,7 +17199,7 @@
       "culledFrustum": 116,
       "triangles": 34816,
       "maxLevel": 11,
-      "selectMs": 0.106995999999981,
+      "selectMs": 0.06271399999991445,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17234,7 +17234,7 @@
       "culledFrustum": 118,
       "triangles": 30720,
       "maxLevel": 11,
-      "selectMs": 0.08181100000001607,
+      "selectMs": 0.06581600000004073,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17269,7 +17269,7 @@
       "culledFrustum": 116,
       "triangles": 28672,
       "maxLevel": 11,
-      "selectMs": 0.05602900000008049,
+      "selectMs": 0.048127000000022235,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17304,7 +17304,7 @@
       "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 11,
-      "selectMs": 0.07268299999998362,
+      "selectMs": 0.06381099999998696,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17339,7 +17339,7 @@
       "culledFrustum": 116,
       "triangles": 28672,
       "maxLevel": 11,
-      "selectMs": 0.06333300000005693,
+      "selectMs": 0.047052000000007865,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17374,7 +17374,7 @@
       "culledFrustum": 113,
       "triangles": 28672,
       "maxLevel": 11,
-      "selectMs": 0.07195600000000013,
+      "selectMs": 0.05621599999994942,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17409,7 +17409,7 @@
       "culledFrustum": 111,
       "triangles": 32768,
       "maxLevel": 11,
-      "selectMs": 0.055607000000009066,
+      "selectMs": 0.0473020000000588,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17444,7 +17444,7 @@
       "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 11,
-      "selectMs": 0.06067099999995662,
+      "selectMs": 0.05351000000007389,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17479,7 +17479,7 @@
       "culledFrustum": 114,
       "triangles": 38912,
       "maxLevel": 11,
-      "selectMs": 0.11137300000007144,
+      "selectMs": 0.07415400000002137,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17514,7 +17514,7 @@
       "culledFrustum": 114,
       "triangles": 38912,
       "maxLevel": 11,
-      "selectMs": 0.06304000000000087,
+      "selectMs": 0.05543499999998858,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17539,9 +17539,9 @@
     },
     {
       "t": 50.1,
-      "altitude": 5985.701678736135,
-      "speed": 237.7524462499698,
-      "lat": 0.4799999999999999,
+      "altitude": 5984.465412692167,
+      "speed": 258.29718381875733,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
       "visible": 19,
       "visited": 214,
@@ -17549,7 +17549,7 @@
       "culledFrustum": 114,
       "triangles": 38912,
       "maxLevel": 11,
-      "selectMs": 0.0538930000000164,
+      "selectMs": 0.05062599999996564,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17574,17 +17574,17 @@
     },
     {
       "t": 50.2,
-      "altitude": 5943.391499958001,
-      "speed": 514.553044103478,
-      "lat": 0.4799999999999999,
-      "lon": -0.32,
+      "altitude": 5938.515841171145,
+      "speed": 558.7112779917379,
+      "lat": 0.48000000000000004,
+      "lon": -0.32000000000000006,
       "visible": 19,
       "visited": 214,
       "culledHorizon": 29,
       "culledFrustum": 114,
       "triangles": 38912,
       "maxLevel": 11,
-      "selectMs": 0.07952999999997701,
+      "selectMs": 0.05611399999997957,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17609,9 +17609,9 @@
     },
     {
       "t": 50.3,
-      "altitude": 5874.227844351903,
-      "speed": 778.5661561774259,
-      "lat": 0.4799999999999999,
+      "altitude": 5863.463988165371,
+      "speed": 844.5812508103974,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
       "visible": 19,
       "visited": 214,
@@ -17619,7 +17619,7 @@
       "culledFrustum": 114,
       "triangles": 38912,
       "maxLevel": 11,
-      "selectMs": 0.05966399999999794,
+      "selectMs": 0.048029999999926076,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17644,44 +17644,9 @@
     },
     {
       "t": 50.4,
-      "altitude": 5779.711222620681,
-      "speed": 1026.5156030483931,
-      "lat": 0.48000000000000004,
-      "lon": -0.32,
-      "visible": 19,
-      "visited": 214,
-      "culledHorizon": 29,
-      "culledFrustum": 114,
-      "triangles": 38912,
-      "maxLevel": 11,
-      "selectMs": 0.0645519999999351,
-      "budgetPatches": 900,
-      "budgetExhausted": false,
-      "lodCounts": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        2,
-        2,
-        3
-      ],
-      "appeared": 0,
-      "disappeared": 0,
-      "poolHits": 208,
-      "poolMisses": 0
-    },
-    {
-      "t": 50.5,
-      "altitude": 5661.638309814967,
-      "speed": 1255.6022569181018,
-      "lat": 0.48000000000000015,
+      "altitude": 5761.024574025534,
+      "speed": 1112.063866177428,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 18,
       "visited": 214,
@@ -17689,7 +17654,7 @@
       "culledFrustum": 115,
       "triangles": 36864,
       "maxLevel": 11,
-      "selectMs": 0.05860700000005181,
+      "selectMs": 0.04745300000001862,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17713,9 +17678,9 @@
       "poolMisses": 0
     },
     {
-      "t": 50.6,
-      "altitude": 5522.05155793298,
-      "speed": 1463.5422778252635,
+      "t": 50.5,
+      "altitude": 5633.258151607588,
+      "speed": 1357.8999253434572,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 18,
@@ -17724,7 +17689,42 @@
       "culledFrustum": 115,
       "triangles": 36864,
       "maxLevel": 11,
-      "selectMs": 0.08257000000003245,
+      "selectMs": 0.04717700000003333,
+      "budgetPatches": 900,
+      "budgetExhausted": false,
+      "lodCounts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        2,
+        3
+      ],
+      "appeared": 0,
+      "disappeared": 0,
+      "poolHits": 208,
+      "poolMisses": 0
+    },
+    {
+      "t": 50.6,
+      "altitude": 5482.509314822964,
+      "speed": 1579.4624496738143,
+      "lat": 0.47999999999999987,
+      "lon": -0.32,
+      "visible": 18,
+      "visited": 214,
+      "culledHorizon": 29,
+      "culledFrustum": 115,
+      "triangles": 36864,
+      "maxLevel": 11,
+      "selectMs": 0.04658899999992627,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17749,8 +17749,8 @@
     },
     {
       "t": 50.7,
-      "altitude": 5363.186175133102,
-      "speed": 1648.5875444146623,
+      "altitude": 5311.341657562181,
+      "speed": 1774.781399722908,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 18,
@@ -17759,7 +17759,7 @@
       "culledFrustum": 115,
       "triangles": 36864,
       "maxLevel": 11,
-      "selectMs": 0.05610500000000229,
+      "selectMs": 0.04842000000007829,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17784,8 +17784,8 @@
     },
     {
       "t": 50.8,
-      "altitude": 5187.416205752641,
-      "speed": 1809.5290478130466,
+      "altitude": 5122.471765030175,
+      "speed": 1942.5459988791386,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 18,
@@ -17794,7 +17794,7 @@
       "culledFrustum": 115,
       "triangles": 36864,
       "maxLevel": 11,
-      "selectMs": 0.05331499999999778,
+      "selectMs": 0.046542000000044936,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17819,9 +17819,9 @@
     },
     {
       "t": 50.9,
-      "altitude": 4997.201327616349,
-      "speed": 1945.6846158059232,
-      "lat": 0.4800000000000001,
+      "altitude": 4918.704355026595,
+      "speed": 2082.086575567717,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 17,
       "visited": 214,
@@ -17829,7 +17829,7 @@
       "culledFrustum": 116,
       "triangles": 34816,
       "maxLevel": 11,
-      "selectMs": 0.08898899999996956,
+      "selectMs": 0.053306000000020504,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17854,17 +17854,17 @@
     },
     {
       "t": 51,
-      "altitude": 4795.035813980736,
-      "speed": 2056.872807998093,
-      "lat": 0.4800000000000001,
+      "altitude": 4702.8704497255385,
+      "speed": 2193.3385013779807,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 16,
-      "visited": 214,
+      "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 117,
+      "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 11,
-      "selectMs": 0.058163000000035936,
+      "selectMs": 0.04747999999995045,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17884,22 +17884,22 @@
       ],
       "appeared": 0,
       "disappeared": 1,
-      "poolHits": 208,
+      "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 51.1,
-      "altitude": 4583.4008992360905,
-      "speed": 2143.3751691122225,
-      "lat": 0.48000000000000004,
-      "lon": -0.32000000000000006,
+      "altitude": 4477.770167850889,
+      "speed": 2276.791274159314,
+      "lat": 0.4800000000000001,
+      "lon": -0.32,
       "visible": 16,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 11,
-      "selectMs": 0.10270900000000438,
+      "selectMs": 0.046345000000087566,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17924,17 +17924,17 @@
     },
     {
       "t": 51.2,
-      "altitude": 4364.721553867683,
-      "speed": 2205.8892372485775,
-      "lat": 0.4799999999999999,
-      "lon": -0.31999999999999995,
+      "altitude": 4246.121402493678,
+      "speed": 2333.4260697990253,
+      "lat": 0.47999999999999987,
+      "lon": -0.32,
       "visible": 16,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 11,
-      "selectMs": 0.061937000000057196,
+      "selectMs": 0.06509599999992588,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -17959,52 +17959,17 @@
     },
     {
       "t": 51.3,
-      "altitude": 4141.328427769244,
-      "speed": 2245.4747906495363,
+      "altitude": 4010.515310002491,
+      "speed": 2364.6451785262807,
       "lat": 0.4800000000000001,
       "lon": -0.32,
-      "visible": 16,
-      "visited": 210,
-      "culledHorizon": 29,
-      "culledFrustum": 114,
-      "triangles": 32768,
-      "maxLevel": 11,
-      "selectMs": 0.05667900000003101,
-      "budgetPatches": 900,
-      "budgetExhausted": false,
-      "lodCounts": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        2,
-        2,
-        3
-      ],
-      "appeared": 0,
-      "disappeared": 0,
-      "poolHits": 204,
-      "poolMisses": 0
-    },
-    {
-      "t": 51.4,
-      "altitude": 3915.425474071875,
-      "speed": 2263.49578374266,
-      "lat": 0.4799999999999999,
-      "lon": -0.32000000000000006,
       "visible": 15,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 115,
       "triangles": 30720,
       "maxLevel": 11,
-      "selectMs": 0.05185699999992721,
+      "selectMs": 0.0763960000000452,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18028,10 +17993,10 @@
       "poolMisses": 0
     },
     {
-      "t": 51.5,
-      "altitude": 3689.0635283682495,
-      "speed": 2261.5602959648677,
-      "lat": 0.4800000000000001,
+      "t": 51.4,
+      "altitude": 3773.3791979663074,
+      "speed": 2372.1966619749933,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 15,
       "visited": 210,
@@ -18039,7 +18004,42 @@
       "culledFrustum": 115,
       "triangles": 30720,
       "maxLevel": 11,
-      "selectMs": 0.05372699999998076,
+      "selectMs": 0.04751699999997072,
+      "budgetPatches": 900,
+      "budgetExhausted": false,
+      "lodCounts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        2,
+        3
+      ],
+      "appeared": 0,
+      "disappeared": 0,
+      "poolHits": 204,
+      "poolMisses": 0
+    },
+    {
+      "t": 51.5,
+      "altitude": 3536.947079980746,
+      "speed": 2358.0973531264185,
+      "lat": 0.4799999999999999,
+      "lon": -0.32,
+      "visible": 15,
+      "visited": 210,
+      "culledHorizon": 29,
+      "culledFrustum": 115,
+      "triangles": 30720,
+      "maxLevel": 11,
+      "selectMs": 0.04732500000000073,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18064,9 +18064,9 @@
     },
     {
       "t": 51.6,
-      "altitude": 3464.119899588637,
-      "speed": 2241.4606034032763,
-      "lat": 0.4800000000000001,
+      "altitude": 3303.2378740245476,
+      "speed": 2324.556991334988,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 15,
       "visited": 210,
@@ -18074,7 +18074,7 @@
       "culledFrustum": 115,
       "triangles": 30720,
       "maxLevel": 11,
-      "selectMs": 0.06219299999997929,
+      "selectMs": 0.04555700000003071,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18099,17 +18099,17 @@
     },
     {
       "t": 51.7,
-      "altitude": 3242.2838349966332,
-      "speed": 2205.1152192889103,
-      "lat": 0.4799999999999999,
-      "lon": -0.32000000000000006,
+      "altitude": 3074.040968569927,
+      "speed": 2273.905879541227,
+      "lat": 0.48000000000000004,
+      "lon": -0.32,
       "visible": 15,
       "visited": 206,
       "culledHorizon": 29,
       "culledFrustum": 112,
       "triangles": 30720,
       "maxLevel": 11,
-      "selectMs": 0.054979000000003,
+      "selectMs": 0.045018000000027314,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18134,44 +18134,9 @@
     },
     {
       "t": 51.8,
-      "altitude": 3025.047557846643,
-      "speed": 2154.5144365978053,
-      "lat": 0.4799999999999999,
-      "lon": -0.32,
-      "visible": 15,
-      "visited": 206,
-      "culledHorizon": 29,
-      "culledFrustum": 112,
-      "triangles": 30720,
-      "maxLevel": 11,
-      "selectMs": 0.05423200000007,
-      "budgetPatches": 900,
-      "budgetExhausted": false,
-      "lodCounts": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        2,
-        2,
-        3
-      ],
-      "appeared": 0,
-      "disappeared": 0,
-      "poolHits": 200,
-      "poolMisses": 0
-    },
-    {
-      "t": 51.9,
-      "altitude": 2813.7024443838745,
-      "speed": 2091.6705826282814,
-      "lat": 0.4799999999999999,
+      "altitude": 2850.9086719425395,
+      "speed": 2208.527995485989,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 17,
       "visited": 210,
@@ -18179,7 +18144,7 @@
       "culledFrustum": 113,
       "triangles": 34816,
       "maxLevel": 12,
-      "selectMs": 0.06503399999996873,
+      "selectMs": 0.05599100000006274,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18203,18 +18168,18 @@
       "poolMisses": 4
     },
     {
-      "t": 52,
-      "altitude": 2609.339807949029,
-      "speed": 2018.5738648059678,
+      "t": 51.9,
+      "altitude": 2635.15489859879,
+      "speed": 2130.8010180814804,
       "lat": 0.48000000000000004,
       "lon": -0.32,
-      "visible": 16,
+      "visible": 17,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 114,
-      "triangles": 32768,
+      "culledFrustum": 113,
+      "triangles": 34816,
       "maxLevel": 12,
-      "selectMs": 0.057421999999974105,
+      "selectMs": 0.04662800000005518,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18233,23 +18198,23 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 1,
+      "disappeared": 0,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
-      "t": 52.1,
-      "altitude": 2412.8556911656633,
-      "speed": 1937.154372388656,
+      "t": 52,
+      "altitude": 2427.8593311375007,
+      "speed": 2043.0442642725216,
       "lat": 0.4799999999999999,
-      "lon": -0.31999999999999995,
+      "lon": -0.32,
       "visible": 15,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 115,
       "triangles": 30720,
       "maxLevel": 12,
-      "selectMs": 0.05277100000000701,
+      "selectMs": 0.047298999999952684,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18268,14 +18233,14 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 1,
+      "disappeared": 2,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
-      "t": 52.2,
-      "altitude": 2224.9590303571895,
-      "speed": 1849.2505078953325,
+      "t": 52.1,
+      "altitude": 2229.8762266924605,
+      "speed": 1947.4750935979475,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 15,
@@ -18284,7 +18249,7 @@
       "culledFrustum": 112,
       "triangles": 30720,
       "maxLevel": 12,
-      "selectMs": 0.05149000000005799,
+      "selectMs": 0.0453300000000354,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18308,10 +18273,10 @@
       "poolMisses": 0
     },
     {
-      "t": 52.3,
-      "altitude": 2046.1825463371351,
-      "speed": 1756.5838644204239,
-      "lat": 0.47999999999999987,
+      "t": 52.2,
+      "altitude": 2041.8470070911571,
+      "speed": 1846.1739481788454,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 16,
       "visited": 210,
@@ -18319,7 +18284,7 @@
       "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 12,
-      "selectMs": 0.12685499999997774,
+      "selectMs": 0.05228199999999106,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18343,10 +18308,10 @@
       "poolMisses": 4
     },
     {
-      "t": 52.4,
-      "altitude": 1876.8957288712263,
-      "speed": 1660.7403490645688,
-      "lat": 0.4800000000000001,
+      "t": 52.3,
+      "altitude": 1864.2157785156742,
+      "speed": 1741.057854445391,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 16,
       "visited": 210,
@@ -18354,7 +18319,7 @@
       "culledFrustum": 114,
       "triangles": 32768,
       "maxLevel": 12,
-      "selectMs": 0.06520399999999427,
+      "selectMs": 0.04575599999998303,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18378,10 +18343,10 @@
       "poolMisses": 0
     },
     {
-      "t": 52.5,
-      "altitude": 1717.3193141948432,
-      "speed": 1563.1571753733067,
-      "lat": 0.4800000000000001,
+      "t": 52.4,
+      "altitude": 1697.2469624271616,
+      "speed": 1633.8619402088482,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 15,
       "visited": 210,
@@ -18389,7 +18354,7 @@
       "culledFrustum": 115,
       "triangles": 30720,
       "maxLevel": 12,
-      "selectMs": 0.058298000000036154,
+      "selectMs": 0.050753999999983535,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18413,9 +18378,9 @@
       "poolMisses": 0
     },
     {
-      "t": 52.6,
-      "altitude": 1567.540701797232,
-      "speed": 1465.1152153573084,
+      "t": 52.5,
+      "altitude": 1541.0442789308727,
+      "speed": 1526.1283070151499,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 15,
@@ -18424,7 +18389,42 @@
       "culledFrustum": 115,
       "triangles": 30720,
       "maxLevel": 12,
-      "selectMs": 0.05358400000000074,
+      "selectMs": 0.045531999999980144,
+      "budgetPatches": 900,
+      "budgetExhausted": false,
+      "lodCounts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        2,
+        3
+      ],
+      "appeared": 0,
+      "disappeared": 0,
+      "poolHits": 204,
+      "poolMisses": 0
+    },
+    {
+      "t": 52.6,
+      "altitude": 1395.570400180295,
+      "speed": 1419.2014468143482,
+      "lat": 0.4800000000000001,
+      "lon": -0.32,
+      "visible": 15,
+      "visited": 210,
+      "culledHorizon": 29,
+      "culledFrustum": 115,
+      "triangles": 30720,
+      "maxLevel": 12,
+      "selectMs": 0.04617100000007213,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18449,44 +18449,9 @@
     },
     {
       "t": 52.7,
-      "altitude": 1427.5298140803352,
-      "speed": 1367.7361100143492,
+      "altitude": 1260.6666790256277,
+      "speed": 1314.2293013670173,
       "lat": 0.48000000000000004,
-      "lon": -0.32,
-      "visible": 15,
-      "visited": 210,
-      "culledHorizon": 29,
-      "culledFrustum": 115,
-      "triangles": 30720,
-      "maxLevel": 12,
-      "selectMs": 0.05250499999999647,
-      "budgetPatches": 900,
-      "budgetExhausted": false,
-      "lodCounts": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        2,
-        2,
-        3
-      ],
-      "appeared": 0,
-      "disappeared": 0,
-      "poolHits": 204,
-      "poolMisses": 0
-    },
-    {
-      "t": 52.8,
-      "altitude": 1297.1549666104838,
-      "speed": 1271.983480073303,
-      "lat": 0.47999999999999987,
       "lon": -0.32,
       "visible": 13,
       "visited": 210,
@@ -18494,7 +18459,7 @@
       "culledFrustum": 117,
       "triangles": 26624,
       "maxLevel": 12,
-      "selectMs": 0.05243600000005699,
+      "selectMs": 0.0658699999999044,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18518,10 +18483,10 @@
       "poolMisses": 0
     },
     {
-      "t": 52.9,
-      "altitude": 1176.1983839962631,
-      "speed": 1178.667560798674,
-      "lat": 0.48000000000000004,
+      "t": 52.8,
+      "altitude": 1136.0724514545873,
+      "speed": 1212.169020497186,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 12,
       "visited": 210,
@@ -18529,7 +18494,42 @@
       "culledFrustum": 118,
       "triangles": 24576,
       "maxLevel": 12,
-      "selectMs": 0.05377500000008695,
+      "selectMs": 0.047969000000080086,
+      "budgetPatches": 900,
+      "budgetExhausted": false,
+      "lodCounts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        2,
+        3
+      ],
+      "appeared": 0,
+      "disappeared": 1,
+      "poolHits": 204,
+      "poolMisses": 0
+    },
+    {
+      "t": 52.9,
+      "altitude": 1021.4435058366507,
+      "speed": 1113.7964774259692,
+      "lat": 0.4799999999999999,
+      "lon": -0.32,
+      "visible": 11,
+      "visited": 210,
+      "culledHorizon": 29,
+      "culledFrustum": 119,
+      "triangles": 22528,
+      "maxLevel": 12,
+      "selectMs": 0.04630900000006477,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18554,17 +18554,17 @@
     },
     {
       "t": 53,
-      "altitude": 1064.3710641404614,
-      "speed": 1088.452585659089,
-      "lat": 0.4800000000000001,
+      "altitude": 916.3694037627429,
+      "speed": 1019.7186403624349,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
-      "visible": 12,
+      "visible": 11,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 118,
-      "triangles": 24576,
+      "culledFrustum": 119,
+      "triangles": 22528,
       "maxLevel": 12,
-      "selectMs": 0.06026900000006208,
+      "selectMs": 0.0449989999999616,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18589,52 +18589,17 @@
     },
     {
       "t": 53.1,
-      "altitude": 961.3267589276657,
-      "speed": 1001.8662783316021,
-      "lat": 0.4799999999999999,
-      "lon": -0.32,
+      "altitude": 820.3894233312458,
+      "speed": 930.3879612000928,
+      "lat": 0.4800000000000001,
+      "lon": -0.32000000000000006,
       "visible": 11,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 119,
       "triangles": 22528,
       "maxLevel": 12,
-      "selectMs": 0.052448000000026695,
-      "budgetPatches": 900,
-      "budgetExhausted": false,
-      "lodCounts": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        2,
-        2,
-        3
-      ],
-      "appeared": 0,
-      "disappeared": 1,
-      "poolHits": 204,
-      "poolMisses": 0
-    },
-    {
-      "t": 53.2,
-      "altitude": 866.6749009061605,
-      "speed": 919.3108537932366,
-      "lat": 0.47999999999999987,
-      "lon": -0.32,
-      "visible": 11,
-      "visited": 210,
-      "culledHorizon": 29,
-      "culledFrustum": 119,
-      "triangles": 22528,
-      "maxLevel": 12,
-      "selectMs": 0.08297400000003563,
+      "selectMs": 0.05862999999999374,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18658,18 +18623,53 @@
       "poolMisses": 0
     },
     {
-      "t": 53.3,
-      "altitude": 779.9923612885177,
-      "speed": 841.0749916647618,
-      "lat": 0.48000000000000004,
+      "t": 53.2,
+      "altitude": 733.006973949261,
+      "speed": 846.1180300071129,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
-      "visible": 11,
+      "visible": 10,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 119,
-      "triangles": 22528,
+      "culledFrustum": 120,
+      "triangles": 20480,
       "maxLevel": 12,
-      "selectMs": 0.05517499999996289,
+      "selectMs": 0.044671999999991385,
+      "budgetPatches": 900,
+      "budgetExhausted": false,
+      "lodCounts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        2,
+        3
+      ],
+      "appeared": 0,
+      "disappeared": 1,
+      "poolHits": 204,
+      "poolMisses": 0
+    },
+    {
+      "t": 53.3,
+      "altitude": 653.702400627546,
+      "speed": 767.0998380887116,
+      "lat": 0.48000000000000004,
+      "lon": -0.32000000000000006,
+      "visible": 10,
+      "visited": 210,
+      "culledHorizon": 29,
+      "culledFrustum": 120,
+      "triangles": 20480,
+      "maxLevel": 12,
+      "selectMs": 0.04444899999998597,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18694,17 +18694,17 @@
     },
     {
       "t": 53.4,
-      "altitude": 700.8339741248637,
-      "speed": 767.3463084191584,
-      "lat": 0.4799999999999999,
-      "lon": -0.32,
+      "altitude": 581.9441546145827,
+      "speed": 693.4180954079666,
+      "lat": 0.48000000000000004,
+      "lon": -0.32000000000000006,
       "visible": 10,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 120,
       "triangles": 20480,
       "maxLevel": 12,
-      "selectMs": 0.054281000000059976,
+      "selectMs": 0.04803999999990083,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18723,14 +18723,14 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 1,
+      "disappeared": 0,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 53.5,
-      "altitude": 628.741804051213,
-      "speed": 698.223926592362,
+      "altitude": 517.1983558246866,
+      "speed": 625.067150377813,
       "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 10,
@@ -18739,7 +18739,7 @@
       "culledFrustum": 120,
       "triangles": 20480,
       "maxLevel": 12,
-      "selectMs": 0.05176599999992959,
+      "selectMs": 0.04462499999999636,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18764,9 +18764,9 @@
     },
     {
       "t": 53.6,
-      "altitude": 563.2531705815345,
-      "speed": 633.7308092970022,
-      "lat": 0.47999999999999987,
+      "altitude": 458.93681117054075,
+      "speed": 561.9661572903259,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 10,
       "visited": 210,
@@ -18774,7 +18774,7 @@
       "culledFrustum": 120,
       "triangles": 20480,
       "maxLevel": 12,
-      "selectMs": 0.05314699999996719,
+      "selectMs": 0.04632600000002185,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18799,17 +18799,17 @@
     },
     {
       "t": 53.7,
-      "altitude": 503.9074705224484,
-      "speed": 573.8255951098636,
-      "lat": 0.48000000000000004,
+      "altitude": 406.6435821335763,
+      "speed": 503.9732295716538,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
-      "visible": 10,
+      "visible": 9,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 120,
-      "triangles": 20480,
+      "culledFrustum": 121,
+      "triangles": 18432,
       "maxLevel": 12,
-      "selectMs": 0.05964500000004591,
+      "selectMs": 0.044560000000046784,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18828,23 +18828,23 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 0,
+      "disappeared": 1,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 53.8,
-      "altitude": 450.25186232477427,
-      "speed": 518.413732978247,
-      "lat": 0.48000000000000004,
+      "altitude": 359.8202156778425,
+      "speed": 450.8983970908957,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
-      "visible": 10,
+      "visible": 9,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 120,
-      "triangles": 20480,
+      "culledFrustum": 121,
+      "triangles": 18432,
       "maxLevel": 12,
-      "selectMs": 0.05714999999997872,
+      "selectMs": 0.04437300000006417,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18869,9 +18869,9 @@
     },
     {
       "t": 53.9,
-      "altitude": 401.8458922794089,
-      "speed": 467.3577736397883,
-      "lat": 0.4799999999999999,
+      "altitude": 317.9897658172995,
+      "speed": 402.5152591448036,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 9,
       "visited": 210,
@@ -18879,7 +18879,7 @@
       "culledFrustum": 121,
       "triangles": 18432,
       "maxLevel": 12,
-      "selectMs": 0.05600599999991118,
+      "selectMs": 0.0730750000000171,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18898,15 +18898,15 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 1,
+      "disappeared": 0,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 54,
-      "altitude": 358.26515346672386,
-      "speed": 420.4867253462826,
-      "lat": 0.48000000000000004,
+      "altitude": 280.6997399237007,
+      "speed": 358.5712846096244,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 9,
       "visited": 210,
@@ -18914,7 +18914,7 @@
       "culledFrustum": 121,
       "triangles": 18432,
       "maxLevel": 12,
-      "selectMs": 0.05245199999990291,
+      "selectMs": 0.12524800000005598,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18939,17 +18939,17 @@
     },
     {
       "t": 54.1,
-      "altitude": 319.1040745554492,
-      "speed": 377.6044247897211,
-      "lat": 0.48000000000000004,
+      "altitude": 247.52410534676164,
+      "speed": 318.79675952874015,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
-      "visible": 9,
+      "visible": 8,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 121,
-      "triangles": 18432,
+      "culledFrustum": 122,
+      "triangles": 16384,
       "maxLevel": 12,
-      "selectMs": 0.05194399999993493,
+      "selectMs": 0.10315400000001773,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -18968,23 +18968,23 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 0,
+      "disappeared": 1,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 54.2,
-      "altitude": 283.97793801967055,
-      "speed": 338.49691072629537,
-      "lat": 0.4799999999999999,
-      "lon": -0.32,
-      "visible": 9,
+      "altitude": 218.06448913831264,
+      "speed": 282.9124231668322,
+      "lat": 0.4800000000000001,
+      "lon": -0.32000000000000006,
+      "visible": 8,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 121,
-      "triangles": 18432,
+      "culledFrustum": 122,
+      "triangles": 16384,
       "maxLevel": 12,
-      "selectMs": 0.05189299999995001,
+      "selectMs": 0.07132000000001426,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19009,8 +19009,8 @@
     },
     {
       "t": 54.3,
-      "altitude": 252.52422654721886,
-      "speed": 302.938817698594,
+      "altitude": 191.9506975673139,
+      "speed": 250.63586204128006,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 8,
@@ -19019,7 +19019,7 @@
       "culledFrustum": 122,
       "triangles": 16384,
       "maxLevel": 12,
-      "selectMs": 0.05315399999994952,
+      "selectMs": 0.05328800000006595,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19038,15 +19038,15 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 1,
+      "disappeared": 0,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 54.4,
-      "altitude": 224.4033931856975,
-      "speed": 270.6988285872123,
-      "lat": 0.47999999999999987,
+      "altitude": 168.840673699975,
+      "speed": 221.6867529389153,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 8,
       "visited": 210,
@@ -19054,7 +19054,7 @@
       "culledFrustum": 122,
       "triangles": 16384,
       "maxLevel": 12,
-      "selectMs": 0.05169699999999011,
+      "selectMs": 0.048953999999980624,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19079,9 +19079,9 @@
     },
     {
       "t": 54.5,
-      "altitude": 199.2991455718875,
-      "speed": 241.54424380924905,
-      "lat": 0.48000000000000004,
+      "altitude": 148.42000133451074,
+      "speed": 195.7910585637847,
+      "lat": 0.47999999999999987,
       "lon": -0.32,
       "visible": 8,
       "visited": 210,
@@ -19089,7 +19089,7 @@
       "culledFrustum": 122,
       "triangles": 16384,
       "maxLevel": 12,
-      "selectMs": 0.05185999999991964,
+      "selectMs": 0.044523000000026514,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19114,9 +19114,9 @@
     },
     {
       "t": 54.6,
-      "altitude": 176.9183281827718,
-      "speed": 215.24473502765804,
-      "lat": 0.48000000000000004,
+      "altitude": 130.4010525420308,
+      "speed": 172.68428765295903,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 8,
       "visited": 210,
@@ -19124,7 +19124,7 @@
       "culledFrustum": 122,
       "triangles": 16384,
       "maxLevel": 12,
-      "selectMs": 0.08563100000003487,
+      "selectMs": 0.04515500000002248,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19149,17 +19149,17 @@
     },
     {
       "t": 54.7,
-      "altitude": 156.99047913774848,
-      "speed": 191.57535827349793,
-      "lat": 0.48000000000000004,
+      "altitude": 114.52186482958496,
+      "speed": 152.11393355982676,
+      "lat": 0.47999999999999987,
       "lon": -0.32,
-      "visible": 8,
+      "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 122,
-      "triangles": 16384,
+      "culledFrustum": 123,
+      "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05668700000001081,
+      "selectMs": 0.04476699999997891,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19178,23 +19178,23 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 0,
+      "disappeared": 1,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 54.8,
-      "altitude": 139.26713029760867,
-      "speed": 170.31890678477734,
+      "altitude": 100.54482262209058,
+      "speed": 133.8412020917961,
       "lat": 0.4799999999999999,
       "lon": -0.32,
-      "visible": 8,
+      "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
-      "culledFrustum": 122,
-      "triangles": 16384,
+      "culledFrustum": 123,
+      "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05125199999997676,
+      "selectMs": 0.044358999999985826,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19219,9 +19219,9 @@
     },
     {
       "t": 54.9,
-      "altitude": 123.52091144397855,
-      "speed": 151.26768243354675,
-      "lat": 0.4799999999999999,
+      "altitude": 88.25520694535226,
+      "speed": 117.6421363581415,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19229,7 +19229,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05160599999999249,
+      "selectMs": 0.04566699999998036,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19248,15 +19248,15 @@
         3
       ],
       "appeared": 0,
-      "disappeared": 1,
+      "disappeared": 0,
       "poolHits": 204,
       "poolMisses": 0
     },
     {
       "t": 55,
-      "altitude": 109.54451150074601,
-      "speed": 134.2247626398405,
-      "lat": 0.4799999999999999,
+      "altitude": 77.4596669236198,
+      "speed": 103.30823770474996,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19264,7 +19264,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05235100000004422,
+      "selectMs": 0.04485799999997653,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19289,17 +19289,17 @@
     },
     {
       "t": 55.1,
-      "altitude": 97.14954220782965,
-      "speed": 119.00483800395328,
+      "altitude": 67.98465730901808,
+      "speed": 90.64667420861862,
       "lat": 0.48000000000000004,
-      "lon": -0.32000000000000006,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.060218000000077154,
+      "selectMs": 0.04490600000008271,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19324,8 +19324,8 @@
     },
     {
       "t": 55.2,
-      "altitude": 86.16534263640642,
-      "speed": 105.43468841957149,
+      "altitude": 59.67487776558846,
+      "speed": 79.48015887820291,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
@@ -19334,7 +19334,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.057049000000006345,
+      "selectMs": 0.051311000000055174,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19359,9 +19359,9 @@
     },
     {
       "t": 55.3,
-      "altitude": 76.43775639031082,
-      "speed": 93.35336110977273,
-      "lat": 0.4799999999999999,
+      "altitude": 52.39174203854054,
+      "speed": 69.64656981539582,
+      "lat": 0.47999999999999987,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19369,7 +19369,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05466200000000754,
+      "selectMs": 0.05131600000004255,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19394,9 +19394,9 @@
     },
     {
       "t": 55.4,
-      "altitude": 67.82790750544518,
-      "speed": 82.6121075584806,
-      "lat": 0.47999999999999987,
+      "altitude": 46.01189854554832,
+      "speed": 60.998375096304784,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19404,7 +19404,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05097699999998895,
+      "selectMs": 0.06735100000003058,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19429,17 +19429,17 @@
     },
     {
       "t": 55.5,
-      "altitude": 60.21099571418017,
-      "speed": 73.07412923384973,
+      "altitude": 40.42581825889647,
+      "speed": 53.40191657524237,
       "lat": 0.48000000000000004,
-      "lon": -0.32,
+      "lon": -0.32000000000000006,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05197300000008909,
+      "selectMs": 0.0984009999999671,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19464,17 +19464,17 @@
     },
     {
       "t": 55.6,
-      "altitude": 53.475127222947776,
-      "speed": 64.61417705802845,
+      "altitude": 35.5364609034732,
+      "speed": 46.736597830181616,
       "lat": 0.48000000000000004,
-      "lon": -0.32,
+      "lon": -0.32000000000000006,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05130599999995411,
+      "selectMs": 0.07087200000000848,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19499,9 +19499,9 @@
     },
     {
       "t": 55.7,
-      "altitude": 47.520193067379296,
-      "speed": 57.11804162946872,
-      "lat": 0.48000000000000004,
+      "altitude": 31.258026544936,
+      "speed": 40.8940131146689,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19509,7 +19509,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.051282000000014705,
+      "selectMs": 0.0716380000000072,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19534,17 +19534,17 @@
     },
     {
       "t": 55.8,
-      "altitude": 42.256803763099015,
-      "speed": 50.48196707980714,
-      "lat": 0.4799999999999999,
-      "lon": -0.31999999999999995,
+      "altitude": 27.514796304516494,
+      "speed": 35.777049015105405,
+      "lat": 0.48000000000000004,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05261499999994612,
+      "selectMs": 0.06818199999997887,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19569,17 +19569,17 @@
     },
     {
       "t": 55.9,
-      "altitude": 37.60528603941202,
-      "speed": 44.612015475752216,
-      "lat": 0.4799999999999999,
-      "lon": -0.31999999999999995,
+      "altitude": 24.240063372068107,
+      "speed": 31.298981361070577,
+      "lat": 0.48000000000000004,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.051812000000040825,
+      "selectMs": 0.09400900000002821,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19604,9 +19604,9 @@
     },
     {
       "t": 56,
-      "altitude": 33.49474511668086,
-      "speed": 39.42340403795491,
-      "lat": 0.4800000000000001,
+      "altitude": 21.375153398141265,
+      "speed": 27.382588069471492,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19614,7 +19614,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.0856579999999667,
+      "selectMs": 0.04670799999996689,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19639,9 +19639,9 @@
     },
     {
       "t": 56.1,
-      "altitude": 29.862194016575813,
-      "speed": 34.839832461788134,
-      "lat": 0.47999999999999987,
+      "altitude": 18.868531772866845,
+      "speed": 23.959290735092733,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19649,7 +19649,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05273799999997664,
+      "selectMs": 0.048090000000001965,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19674,9 +19674,9 @@
     },
     {
       "t": 56.2,
-      "altitude": 26.651749840006232,
-      "speed": 30.792816119446183,
-      "lat": 0.48000000000000004,
+      "altitude": 16.67499417345971,
+      "speed": 20.968335807053855,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19684,7 +19684,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05068900000003396,
+      "selectMs": 0.044499999999970896,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19709,17 +19709,17 @@
     },
     {
       "t": 56.3,
-      "altitude": 23.81389580760151,
-      "speed": 27.221034517599886,
-      "lat": 0.4799999999999999,
-      "lon": -0.32000000000000006,
+      "altitude": 14.754935927689075,
+      "speed": 18.356022244668054,
+      "lat": 0.48000000000000004,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.053169000000025335,
+      "selectMs": 0.04441699999995308,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19744,8 +19744,8 @@
     },
     {
       "t": 56.4,
-      "altitude": 21.304806837812066,
-      "speed": 24.069704311597736,
+      "altitude": 13.07369523216039,
+      "speed": 16.074980265956818,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
@@ -19754,7 +19754,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05123100000002978,
+      "selectMs": 0.04491799999993873,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19779,8 +19779,8 @@
     },
     {
       "t": 56.5,
-      "altitude": 19.085735865868628,
-      "speed": 21.28998238593516,
+      "altitude": 11.600964953191578,
+      "speed": 14.083503538582152,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
@@ -19789,7 +19789,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.058847000000014305,
+      "selectMs": 0.04445500000008451,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19814,8 +19814,8 @@
     },
     {
       "t": 56.6,
-      "altitude": 17.122457589954138,
-      "speed": 18.838403394070063,
+      "altitude": 10.310267663560808,
+      "speed": 12.344934331894029,
       "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
@@ -19824,7 +19824,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05365600000004633,
+      "selectMs": 0.044666000000006534,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19849,9 +19849,9 @@
     },
     {
       "t": 56.7,
-      "altitude": 15.384766050614417,
-      "speed": 16.6763535227736,
-      "lat": 0.48000000000000004,
+      "altitude": 9.178488549776375,
+      "speed": 10.827102845104838,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19859,7 +19859,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.054329000000052474,
+      "selectMs": 0.04439500000000862,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19884,17 +19884,17 @@
     },
     {
       "t": 56.8,
-      "altitude": 13.846022293902934,
-      "speed": 14.769582391941157,
+      "altitude": 8.185461001470685,
+      "speed": 9.501817023122026,
       "lat": 0.48000000000000004,
-      "lon": -0.32,
+      "lon": -0.32000000000000006,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05201599999998052,
+      "selectMs": 0.044534999999996217,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19919,9 +19919,9 @@
     },
     {
       "t": 56.9,
-      "altitude": 12.48274833522737,
-      "speed": 13.087752743804467,
-      "lat": 0.48000000000000004,
+      "altitude": 7.313599894754589,
+      "speed": 8.344402110714444,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19929,7 +19929,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05062299999997322,
+      "selectMs": 0.0505359999999655,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19954,9 +19954,9 @@
     },
     {
       "t": 57,
-      "altitude": 11.274263651110232,
-      "speed": 11.604027450967589,
-      "lat": 0.47999999999999987,
+      "altitude": 6.547577838413417,
+      "speed": 7.333285847925456,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19964,7 +19964,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.050791000000003805,
+      "selectMs": 0.04517200000009325,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -19989,9 +19989,9 @@
     },
     {
       "t": 57.1,
-      "altitude": 10.202360555529594,
-      "speed": 10.294692578380468,
-      "lat": 0.4800000000000001,
+      "altitude": 5.874039988964796,
+      "speed": 6.449627177030594,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -19999,7 +19999,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.050974999999994,
+      "selectMs": 0.044875000000047294,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20024,17 +20024,17 @@
     },
     {
       "t": 57.2,
-      "altitude": 9.251014959067106,
-      "speed": 9.1388149595048,
-      "lat": 0.4799999999999999,
-      "lon": -0.31999999999999995,
+      "altitude": 5.281353306956589,
+      "speed": 5.6769848042242534,
+      "lat": 0.4800000000000001,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.050627000000076805,
+      "selectMs": 0.044568000000026586,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20059,8 +20059,8 @@
     },
     {
       "t": 57.3,
-      "altitude": 8.406129161827266,
-      "speed": 8.11793263096651,
+      "altitude": 4.759386520832777,
+      "speed": 5.001022070420361,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
@@ -20069,7 +20069,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05316199999992932,
+      "selectMs": 0.0849870000000692,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20094,9 +20094,9 @@
     },
     {
       "t": 57.4,
-      "altitude": 7.65530361328274,
-      "speed": 7.215774929038746,
-      "lat": 0.4800000000000001,
+      "altitude": 4.299317324534059,
+      "speed": 4.409245420780921,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20104,7 +20104,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.08273600000006809,
+      "selectMs": 0.04558499999996002,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20129,17 +20129,17 @@
     },
     {
       "t": 57.5,
-      "altitude": 6.987634681165218,
-      "speed": 6.418012010192288,
+      "altitude": 3.8934637252241373,
+      "speed": 3.8907728042333596,
       "lat": 0.48000000000000004,
-      "lon": -0.32,
+      "lon": -0.32000000000000006,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05242600000008224,
+      "selectMs": 0.04450499999995827,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20164,9 +20164,9 @@
     },
     {
       "t": 57.6,
-      "altitude": 6.39353577978909,
-      "speed": 5.7120294395957485,
-      "lat": 0.48000000000000004,
+      "altitude": 3.53513668384403,
+      "speed": 3.4361296489049105,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20174,7 +20174,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.051404000000047745,
+      "selectMs": 0.04437800000005154,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20199,9 +20199,9 @@
     },
     {
       "t": 57.7,
-      "altitude": 5.864579395391047,
-      "speed": 5.086727301275458,
-      "lat": 0.47999999999999987,
+      "altitude": 3.2185115423053503,
+      "speed": 3.0370688509162465,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20209,7 +20209,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05109400000003461,
+      "selectMs": 0.04693699999995715,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20234,9 +20234,9 @@
     },
     {
       "t": 57.8,
-      "altitude": 5.393357736058533,
-      "speed": 4.532340890858627,
-      "lat": 0.4799999999999999,
+      "altitude": 2.938515950925648,
+      "speed": 2.6864128624368644,
+      "lat": 0.47999999999999987,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20244,7 +20244,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05278099999998176,
+      "selectMs": 0.04519199999992907,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20269,8 +20269,8 @@
     },
     {
       "t": 57.9,
-      "altitude": 4.973360008560121,
-      "speed": 4.040280959959414,
+      "altitude": 2.6907323049381375,
+      "speed": 2.3779149286657417,
       "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
@@ -20279,7 +20279,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05862000000001899,
+      "selectMs": 0.04553899999996247,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20304,17 +20304,17 @@
     },
     {
       "t": 58,
-      "altitude": 4.598864419385791,
-      "speed": 3.6029922675732977,
-      "lat": 0.47999999999999987,
-      "lon": -0.32,
+      "altitude": 2.4713128646835685,
+      "speed": 2.106137783273242,
+      "lat": 0.4800000000000001,
+      "lon": -0.32000000000000006,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.0553620000000592,
+      "selectMs": 0.04510199999992892,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20339,17 +20339,17 @@
     },
     {
       "t": 58.1,
-      "altitude": 4.264843292534351,
-      "speed": 3.213827535716997,
+      "altitude": 2.276905999518931,
+      "speed": 1.866347420433251,
       "lat": 0.48000000000000004,
-      "lon": -0.32000000000000006,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.054329000000052474,
+      "selectMs": 0.04471300000000156,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20374,9 +20374,9 @@
     },
     {
       "t": 58.2,
-      "altitude": 3.966879782266915,
-      "speed": 2.8669362966006715,
-      "lat": 0.48000000000000004,
+      "altitude": 2.1045921463519335,
+      "speed": 1.6544201966334822,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20384,7 +20384,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05107599999996637,
+      "selectMs": 0.044638999999961015,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20409,9 +20409,9 @@
     },
     {
       "t": 58.3,
-      "altitude": 3.7010948481038213,
-      "speed": 2.5571664054714756,
-      "lat": 0.4800000000000001,
+      "altitude": 1.9518282487988472,
+      "speed": 1.4667619040885196,
+      "lat": 0.47999999999999987,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20419,7 +20419,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.05272300000001451,
+      "selectMs": 0.04509900000005018,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20444,9 +20444,9 @@
     },
     {
       "t": 58.4,
-      "altitude": 3.464083330705762,
-      "speed": 2.2799766959783763,
-      "lat": 0.4799999999999999,
+      "altitude": 1.8163996133953333,
+      "speed": 1.3002369530984919,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20454,7 +20454,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.0515379999999368,
+      "selectMs": 0.04466899999999896,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20479,9 +20479,9 @@
     },
     {
       "t": 58.5,
-      "altitude": 3.2528580501675606,
-      "speed": 2.031359956871883,
-      "lat": 0.48000000000000004,
+      "altitude": 1.6963782226666808,
+      "speed": 1.1521065641386175,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20489,7 +20489,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.06105200000001787,
+      "selectMs": 0.05038399999989451,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20514,9 +20514,9 @@
     },
     {
       "t": 58.6,
-      "altitude": 3.0648010224103928,
-      "speed": 1.8077747748064945,
-      "lat": 0.48000000000000004,
+      "altitude": 1.590086679905653,
+      "speed": 1.0199752402349933,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20524,7 +20524,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.0519769999999653,
+      "selectMs": 0.08883900000000722,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20549,17 +20549,17 @@
     },
     {
       "t": 58.7,
-      "altitude": 2.8976209461688995,
-      "speed": 1.6060852346629373,
+      "altitude": 1.4960670974105597,
+      "speed": 0.9017431365379158,
       "lat": 0.48000000000000004,
-      "lon": -0.32000000000000006,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.07716499999992266,
+      "selectMs": 0.05009200000006331,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20584,17 +20584,17 @@
     },
     {
       "t": 58.8,
-      "altitude": 2.7493162732571363,
-      "speed": 1.4235074531392398,
-      "lat": 0.4800000000000001,
-      "lon": -0.32000000000000006,
+      "altitude": 1.4130542743951082,
+      "speed": 0.7955656750666894,
+      "lat": 0.4799999999999999,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.07190299999990657,
+      "selectMs": 0.07542999999998301,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20619,9 +20619,9 @@
     },
     {
       "t": 58.9,
-      "altitude": 2.6181432213634253,
-      "speed": 1.2575619061310004,
-      "lat": 0.48000000000000004,
+      "altitude": 1.3399526486173272,
+      "speed": 0.69981682390837,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20629,7 +20629,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.07105599999999868,
+      "selectMs": 0.04660799999999199,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20654,8 +20654,8 @@
     },
     {
       "t": 59,
-      "altitude": 2.5025881892070174,
-      "speed": 1.1060311879752414,
+      "altitude": 1.2758165588602424,
+      "speed": 0.6130576875821762,
       "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
@@ -20664,7 +20664,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.06683299999997416,
+      "selectMs": 0.044628000000102475,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20689,9 +20689,9 @@
     },
     {
       "t": 59.1,
-      "altitude": 2.401344113983214,
-      "speed": 0.9669219504381984,
-      "lat": 0.48000000000000004,
+      "altitude": 1.2198334280401468,
+      "speed": 0.5340086421958048,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20699,7 +20699,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.07382400000005873,
+      "selectMs": 0.04600699999991775,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20724,9 +20724,9 @@
     },
     {
       "t": 59.2,
-      "altitude": 2.313290379010141,
-      "speed": 0.8384304802042297,
-      "lat": 0.4799999999999999,
+      "altitude": 1.1713095298036933,
+      "speed": 0.46152405197090307,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20734,7 +20734,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.07079099999998562,
+      "selectMs": 0.051638999999909174,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20759,9 +20759,9 @@
     },
     {
       "t": 59.3,
-      "altitude": 2.2374759344384074,
-      "speed": 0.7189117976676821,
-      "lat": 0.47999999999999987,
+      "altitude": 1.1296580759808421,
+      "speed": 0.39457030290805695,
+      "lat": 0.4799999999999999,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20769,7 +20769,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.06769599999995535,
+      "selectMs": 0.04457999999999629,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20794,8 +20794,8 @@
     },
     {
       "t": 59.4,
-      "altitude": 2.1731053879484534,
-      "speed": 0.6068505576461908,
+      "altitude": 1.094389384612441,
+      "speed": 0.3322054956437344,
       "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
@@ -20804,7 +20804,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.06838299999992614,
+      "selectMs": 0.044247000000041226,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20829,9 +20829,9 @@
     },
     {
       "t": 59.5,
-      "altitude": 2.119527836330235,
-      "speed": 0.5008341290872808,
-      "lat": 0.4800000000000001,
+      "altitude": 1.0651029720902443,
+      "speed": 0.2735606081075459,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20839,7 +20839,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.06681800000001203,
+      "selectMs": 0.04428600000005645,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20864,17 +20864,17 @@
     },
     {
       "t": 59.6,
-      "altitude": 2.0762282982468605,
-      "speed": 0.3995271586401436,
-      "lat": 0.4800000000000001,
-      "lon": -0.32000000000000006,
+      "altitude": 1.0414814101532102,
+      "speed": 0.21782240481151435,
+      "lat": 0.48000000000000004,
+      "lon": -0.32,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.066962999999987,
+      "selectMs": 0.04502100000001974,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20899,9 +20899,9 @@
     },
     {
       "t": 59.7,
-      "altitude": 2.042821681126952,
-      "speed": 0.301646263565146,
-      "lat": 0.47999999999999987,
+      "altitude": 1.0232858946546912,
+      "speed": 0.16421634288016515,
+      "lat": 0.4800000000000001,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -20909,7 +20909,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.06751099999996768,
+      "selectMs": 0.04515500000002248,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20934,17 +20934,17 @@
     },
     {
       "t": 59.8,
-      "altitude": 2.0190492244437337,
-      "speed": 0.20593534476548,
-      "lat": 0.47999999999999987,
-      "lon": -0.32,
+      "altitude": 1.010353454388678,
+      "speed": 0.11199036459483526,
+      "lat": 0.48000000000000004,
+      "lon": -0.32000000000000006,
       "visible": 7,
       "visited": 210,
       "culledHorizon": 29,
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.06808200000000397,
+      "selectMs": 0.044315999999980704,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -20969,8 +20969,8 @@
     },
     {
       "t": 59.9,
-      "altitude": 2.004777491092682,
-      "speed": 0.11113969993309192,
+      "altitude": 1.002595817670226,
+      "speed": 0.060398122744767635,
       "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
@@ -20979,7 +20979,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.07575200000007953,
+      "selectMs": 0.044988999999986845,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [
@@ -21004,9 +21004,9 @@
     },
     {
       "t": 60,
-      "altitude": 1.9999999990686774,
-      "speed": 0.015979296338678794,
-      "lat": 0.4800000000000001,
+      "altitude": 0.9999999990686774,
+      "speed": 0.008681448335583009,
+      "lat": 0.48000000000000004,
       "lon": -0.32,
       "visible": 7,
       "visited": 210,
@@ -21014,7 +21014,7 @@
       "culledFrustum": 123,
       "triangles": 14336,
       "maxLevel": 12,
-      "selectMs": 0.07033400000000256,
+      "selectMs": 0.04455000000007203,
       "budgetPatches": 900,
       "budgetExhausted": false,
       "lodCounts": [

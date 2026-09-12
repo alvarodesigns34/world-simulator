@@ -10,7 +10,7 @@
  * cube L11 and 1.97 MB on geodesic n6.
  */
 
-import { assert } from '@ws/core';
+import { invariant } from '@ws/core';
 
 export type GridId = string & { readonly __brand: 'GridId' };
 
@@ -59,7 +59,7 @@ const BY_ID = new Map(GRIDS.map((g) => [g.id, g]));
 
 export function grid(id: GridId | string): GridDescriptor {
   const g = BY_ID.get(id as GridId);
-  assert(g !== undefined, `unknown grid: ${String(id)}`);
+  invariant(g !== undefined, `unknown grid: ${String(id)}`);
   return g as GridDescriptor;
 }
 

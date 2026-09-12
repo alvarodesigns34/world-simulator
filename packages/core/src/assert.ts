@@ -16,8 +16,42 @@ export class AssertionError extends Error {
   }
 }
 
+/**
+ * DEV-ONLY diagnostic. Compiled out of production builds.
+ *
+ * Use for conditions where a violation produces visibly wrong output and the
+ * check is on a hot path: coordinate range checks, internal postconditions of
+ * our own arithmetic. If a stripped check would let the system continue with
+ * corrupted or silently wrong authoritative state, it is not this — use
+ * `invariant`.
+ */
 export function assert(condition: unknown, message: string): asserts condition {
   if (DEV && !condition) throw new AssertionError(message);
+}
+
+export class InvariantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvariantError';
+  }
+}
+
+/**
+ * PRODUCTION SAFETY INVARIANT. Throws in every build, including production.
+ *
+ * The distinction from `assert` is not stylistic (T-0075). Grok found that
+ * DEC-013's single-writer rule ran through `assert()`, so ownership enforcement
+ * vanished in the only build that ships. A sweep found ten more of the same
+ * shape — most importantly the whole of `validateDescriptor`, which is DEC-028's
+ * enforcement: stripped, an `i16`-centimetres elevation field ships and
+ * silently truncates Everest.
+ *
+ * The rule: if the system would CONTINUE, with wrong state, when the check is
+ * removed, it is an invariant. If it would fail obviously anyway, it is an
+ * assert.
+ */
+export function invariant(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new InvariantError(message);
 }
 
 /** Rejects NaN and ±Infinity. The most common silent simulation failure. */

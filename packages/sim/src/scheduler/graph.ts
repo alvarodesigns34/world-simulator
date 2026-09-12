@@ -220,15 +220,33 @@ function sortPhase(subsystems: readonly Subsystem[], phase: Phase): readonly Sub
     indegree.set(id, 0);
     outgoing.set(id, []);
   }
+  const addEdge = (from: string, to: string, seen: Set<string>): void => {
+    if (from === to || seen.has(from)) return;
+    seen.add(from);
+    indegree.set(to, (indegree.get(to) as number) + 1);
+    (outgoing.get(from) as string[]).push(to);
+  };
+
   for (const s of subsystems) {
     const reader = s.id as string;
     const seen = new Set<string>();
     for (const f of s.reads) {
       const w = writerOf.get(f as string);
-      if (w === undefined || w === reader || seen.has(w)) continue;
-      seen.add(w);
-      indegree.set(reader, (indegree.get(reader) as number) + 1);
-      (outgoing.get(w) as string[]).push(reader);
+      if (w === undefined) continue;
+      addEdge(w, reader, seen);
+    }
+    // An everyNOf follower reads its leader's step count. That is a real
+    // dependency even though no field carries it, so it belongs in the graph.
+    //
+    // Declaring it here ORDERS the pair. Without it the ordering fell out of
+    // the lexical tie-break, so whether a valid configuration built at all
+    // depended on whether the follower's id happened to sort after the
+    // leader's — renaming a subsystem could break the build. The post-sort
+    // check further down then becomes a belt-and-braces assertion instead of
+    // the mechanism.
+    const c = s.cadence;
+    if (c.kind === 'everyNOf' && indegree.has(c.of as string)) {
+      addEdge(c.of as string, reader, seen);
     }
   }
 

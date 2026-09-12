@@ -211,15 +211,17 @@ describe('FieldStore: storage, ownership and commit', () => {
   it('tracks dirty blocks rather than cells', () => {
     const s = build();
     const f = s.mut(fieldId('elevation'), OWNER);
-    expect(f.dirty.dirtyBlockCount).toBe(0);
+    expect(f.pendingReplication.dirtyBlockCount).toBe(0);
     f.set(0, 1);
     f.set(10_000, 1);
-    expect(f.dirty.dirtyBlockCount).toBe(2);
+    expect(f.pendingReplication.dirtyBlockCount).toBe(2);
     const blocks: number[] = [];
-    f.dirty.forEachDirtyBlock((b) => blocks.push(b));
+    f.pendingReplication.forEachDirtyBlock((b) => blocks.push(b));
     expect(blocks).toEqual([...blocks].sort((a, b) => a - b)); // ascending, deterministic
-    f.dirty.clear();
-    expect(f.dirty.dirtyBlockCount).toBe(0);
+    // The replication set is now cleared by commit, not by the consumer — a
+    // writer-visible clear() was the hazard that let a stale sibling republish.
+    f.commit();
+    expect(f.pendingReplication.dirtyBlockCount).toBe(0);
   });
 
   it('is a closed registry: no fields after seal, no unknown fields', () => {
@@ -289,10 +291,13 @@ describe('FieldStore: storage, ownership and commit', () => {
     expect(typeof v.rawMut).not.toBe('function');
     expect(typeof v.commit).not.toBe('function');
     expect(typeof v.get).toBe('function');
-    const dirty = v.dirty as Record<string, unknown>;
-    expect(typeof dirty.markCell).not.toBe('function');
-    expect(typeof dirty.clear).not.toBe('function');
-    expect(typeof dirty.markAll).not.toBe('function');
+    // T-0070: the read handle now contains no live memory at all.
+    expect(typeof v.raw).not.toBe('function');
+    expect(typeof v.handles).not.toBe('function');
+    expect(typeof v.consistentRead).not.toBe('function');
+    expect(typeof v.markDirty).not.toBe('function');
+    expect(typeof v.copyRange).toBe('function');
+    expect(typeof v.changedBlocksSince).toBe('function');
   });
 
   it('share() exposes worker handles without a writable view', () => {

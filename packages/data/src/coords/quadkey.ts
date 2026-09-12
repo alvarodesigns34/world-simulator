@@ -11,7 +11,7 @@
  * That is the unification DEC-007 is about.
  */
 
-import { assert, assertInteger } from '@ws/core';
+import { assert, assertInteger, invariant } from '@ws/core';
 import type { CubeFace } from './frames.js';
 
 export interface QuadKey {
@@ -97,7 +97,13 @@ export function equals(a: QuadKey, b: QuadKey): boolean {
  * because the result exceeds 32 bits.
  */
 export function packId(k: QuadKey): number {
-  assert(k.level <= MAX_PACKABLE_LEVEL, `level ${String(k.level)} exceeds MAX_PACKABLE_LEVEL`);
+  // Production invariant, not a diagnostic: a silently wrapped id collides
+  // tile-cache keys across levels, which serves wrong terrain rather than
+  // failing (T-0075).
+  invariant(
+    k.level <= MAX_PACKABLE_LEVEL,
+    `level ${String(k.level)} exceeds MAX_PACKABLE_LEVEL`,
+  );
   return ((k.face * 32 + k.level) * 2 ** 20 + k.x) * 2 ** 20 + k.y;
 }
 

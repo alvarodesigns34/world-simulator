@@ -11,6 +11,17 @@
  * That is the price of being asynchronous and deterministic at once, and it is
  * cheap: the only cost is latency, invisible at simulation time scales.
  *
+ * everyNOf `dt` is the SPAN the follower integrates, measured from its own
+ * `coveredThrough` to the leader's — not `leader.lastDt * n` (T-0072).
+ *
+ * `(time, dt)` is the half-open span `[time, time + dt)` for every `every`
+ * subsystem, and a follower's spans must tile the leader's timeline with no gap
+ * and no overlap. `lastDt * n` satisfies that only while the leader's cadence
+ * never varies, and DEC-030 regimes exist to vary it: a leader stepping
+ * 1 d, 1 d, 10 d has covered 12 days, not 30. It was also wrong at the boundary
+ * today — the first follower span started mid-timeline and left [0, 2d)
+ * uncovered.
+ *
  * everyNOf means "every N steps of X", not "lastDt * n". Followers are not
  * in the due-time scan; they run in the same inner loop as their leader, after
  * it (build-time validated), when `leader.steps % n === 0`. A zero dt therefore
@@ -23,9 +34,10 @@
 
 import {
   addDuration,
-  assert,
   compare,
+  diff,
   duration,
+  invariant,
   type Calendar,
   type Duration,
   type SimTime,
@@ -55,6 +67,12 @@ interface Slot {
   steps: number;
   lastDt: Duration;
   lastRun: SimTime | null;
+  /**
+   * End of the simulated span this slot has integrated, i.e. the exclusive
+   * upper bound of the last `[time, time + dt)` it ran. An everyNOf follower
+   * derives its span from the difference between its own and its leader's.
+   */
+  coveredThrough: SimTime;
 }
 
 export class Scheduler {
@@ -79,7 +97,7 @@ export class Scheduler {
   }
 
   register(s: Subsystem): this {
-    assert(!this.built, `cannot register '${String(s.id)}' after build()`);
+    invariant(!this.built, `cannot register '${String(s.id)}' after build()`);
     this.registered.push(s);
     return this;
   }
@@ -89,10 +107,17 @@ export class Scheduler {
    * or an unknown field (DEC-031 rule 3).
    */
   build(): this {
-    assert(!this.built, 'scheduler already built');
+    invariant(!this.built, 'scheduler already built');
     this.schedule = buildSchedule(this.registered, this.store);
     for (const entry of this.schedule) {
-      const slot: Slot = { entry, due: this._time, steps: 0, lastDt: duration(0), lastRun: null };
+      const slot: Slot = {
+        entry,
+        due: this._time,
+        steps: 0,
+        lastDt: duration(0),
+        lastRun: null,
+        coveredThrough: this._time,
+      };
       this.slots.push(slot);
       this.byId.set(entry.subsystem.id as string, slot);
     }
@@ -125,9 +150,9 @@ export class Scheduler {
    * span was reached, only on the schedule.
    */
   advance(dt: Duration): void {
-    assert(this.built, 'call build() before advance()');
+    invariant(this.built, 'call build() before advance()');
     if (this._state !== 'running') return;
-    assert(dt >= 0, 'cannot advance simulation time backwards');
+    invariant(dt >= 0, 'cannot advance simulation time backwards');
 
     const target = addDuration(this._time, dt, this.calendar);
 
@@ -180,9 +205,13 @@ export class Scheduler {
             leader.steps > 0 &&
             leader.steps % c.n === 0
           ) {
-            const stepDt = duration(leader.lastDt * c.n);
+            // The exact span since this follower last ran, so the windows tile
+            // the leader's timeline. Works whatever the leader's cadence does.
+            const windowStart = slot.coveredThrough;
+            const stepDt = diff(leader.coveredThrough, windowStart, this.calendar);
             if (stepDt <= 0) continue;
-            this.runSlot(slot, stepDt, leader.lastRun);
+            this.runSlot(slot, stepDt, windowStart);
+            slot.coveredThrough = leader.coveredThrough;
           } else {
             continue;
           }
@@ -217,6 +246,7 @@ export class Scheduler {
     slot.lastDt = stepDt;
     slot.lastRun = time;
     slot.due = addDuration(time, stepDt, this.calendar);
+    slot.coveredThrough = slot.due;
   }
 
   pause(): void {
