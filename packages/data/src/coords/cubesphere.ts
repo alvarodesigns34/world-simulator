@@ -153,6 +153,54 @@ export function cellCount(level: number): number {
   return 6 * 4 ** level;
 }
 
+/** Cells along one face edge at a level. */
+export function cubeDim(level: number): number {
+  return 2 ** level;
+}
+
+/**
+ * Raster index of (face, x, y) at a level. Face-major, then row (v/y), then
+ * column (u/x). This is the FieldStore cell index for a cubesphere field.
+ */
+export function cubeIndex(face: number, level: number, x: number, y: number): number {
+  const n = 2 ** level;
+  return (face * n + y) * n + x;
+}
+
+export function cubeDecode(index: number, level: number): { face: number; x: number; y: number } {
+  const n = 2 ** level;
+  const n2 = n * n;
+  const face = Math.floor(index / n2);
+  const rem = index - face * n2;
+  const y = Math.floor(rem / n);
+  const x = rem - y * n;
+  return { face, x, y };
+}
+
+/**
+ * Like `cubeFaceToUnit` but permits u,v slightly outside [0, 1] so a step off
+ * a face still produces a 3-D direction. Used only by seam topology.
+ */
+export function cubeFaceToUnitRaw(face: number, u: number, v: number): PCF {
+  const a = warp(u * 2 - 1);
+  const b = warp(v * 2 - 1);
+  let x: number;
+  let y: number;
+  let z: number;
+  switch (face) {
+    case FACE.POS_X: x = 1; y = a; z = b; break;
+    case FACE.NEG_X: x = -1; y = -a; z = b; break;
+    case FACE.POS_Y: x = a; y = 1; z = -b; break;
+    case FACE.NEG_Y: x = a; y = -1; z = b; break;
+    case FACE.POS_Z: x = a; y = b; z = 1; break;
+    case FACE.NEG_Z: x = a; y = -b; z = -1; break;
+    default:
+      throw new Error(`invalid cube face: ${String(face)}`);
+  }
+  const inv = 1 / Math.sqrt(x * x + y * y + z * z);
+  return pcf(x * inv, y * inv, z * inv);
+}
+
 /** Bytes for a single-component raster at this level. Sizing arithmetic only —
  *  a real field's footprint comes from its descriptor (`fields/descriptor.ts`). */
 export function rasterBytes(level: number, bytesPerCell: number): number {
