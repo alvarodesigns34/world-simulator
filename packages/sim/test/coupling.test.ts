@@ -18,7 +18,7 @@ import {
   cubeIndex,
   geodesicGrid,
 } from '@ws/data';
-import { cubeDownsamplePlan, mapCubeCategories, mapCubeToCube, mapGeoToCube } from '@ws/sim';
+import { cubeDownsampleCategorical, cubeDownsamplePlan, mapCubeCategories, mapCubeToCube, mapGeoToCube } from '@ws/sim';
 
 /** Unit-sphere centre of a cube cell. */
 function cubeCentre(face: number, level: number, x: number, y: number) {
@@ -182,4 +182,183 @@ describe('T-0080 cross-grid spatial coupling', () => {
     expect([...a]).toEqual([4, 4, 4, 4, 4, 4]);
     expect([...b]).toEqual([...a]);
   });
+});
+
+/**
+ * T-0093. Categorical reduction: semantics AND complexity.
+ *
+ * The semantics were already right; the implementation was quadratic. The unit
+ * tests only exercised L2 -> L1, so a 9.7e9-comparison reduction at the app's
+ * default L8 -> L6 went unnoticed. These tests pin both halves, because either
+ * one alone would have let this ship.
+ */
+describe('T-0093 categorical reduction', () => {
+  /**
+   * The original implementation, kept verbatim as the reference oracle.
+   *
+   * Quadratic and therefore only usable on small grids — which is exactly what
+   * makes it a good oracle: it is obviously correct by inspection, and the fast
+   * path must agree with it on every input.
+   */
+  function referenceMode(
+    plan: ReturnType<typeof cubeDownsamplePlan>,
+    src: ArrayLike<number>,
+    out: Int32Array,
+  ): void {
+    const counts = new Map<number, number>();
+    for (let d = 0; d < plan.dstCount; d++) {
+      counts.clear();
+      let winner = 0;
+      let winnerCount = -1;
+      for (let i = 0; i < plan.srcCount; i++) {
+        if ((plan.srcToDst[i] as number) !== d) continue;
+        const category = Math.trunc(src[i] as number);
+        const count = (counts.get(category) ?? 0) + 1;
+        counts.set(category, count);
+        if (count > winnerCount || (count === winnerCount && category < winner)) {
+          winner = category;
+          winnerCount = count;
+        }
+      }
+      out[d] = winner;
+    }
+  }
+
+  /** Deterministic integer stream; no Math.random in a determinism project. */
+  function stream(seed: number): () => number {
+    let s = seed >>> 0;
+    return () => {
+      s = (Math.imul(s ^ (s >>> 15), 0x2c1b3c6d) ^ (s >>> 12)) >>> 0;
+      s = (Math.imul(s ^ (s >>> 7), 0x297a2d39) ^ (s >>> 15)) >>> 0;
+      return s;
+    };
+  }
+
+  it('agrees with the reference implementation on every label distribution', () => {
+    /* Enum-width labels (the dense path), id-width labels (the Map path),
+       negative labels, a single label, and labels that force ties. */
+    const cases: Array<{ name: string; spans: number; offset: number }> = [
+      { name: 'boundary-like enum', spans: 4, offset: 0 },
+      { name: 'binary crust-like', spans: 2, offset: 0 },
+      { name: 'single label', spans: 1, offset: 7 },
+      { name: 'negative labels', spans: 5, offset: -3 },
+      { name: 'wide id space (Map path)', spans: 9000, offset: 0 },
+    ];
+    for (const [srcLevel, dstLevel] of [[3, 1], [4, 2], [4, 1], [3, 3]] as const) {
+      const plan = cubeDownsamplePlan(srcLevel, dstLevel);
+      for (const c of cases) {
+        const next = stream(0x1234 ^ (srcLevel * 31 + dstLevel) ^ c.spans);
+        const src = new Int32Array(plan.srcCount);
+        for (let i = 0; i < src.length; i++) src[i] = c.offset + (next() % c.spans);
+        const fast = new Int32Array(plan.dstCount);
+        const slow = new Int32Array(plan.dstCount);
+        cubeDownsampleCategorical(plan, src, fast);
+        referenceMode(plan, src, slow);
+        expect(Array.from(fast), `${c.name} at L${srcLevel}->L${dstLevel}`)
+          .toEqual(Array.from(slow));
+      }
+    }
+  });
+
+  it('breaks ties on the lowest label, whatever order the labels arrive in', () => {
+    /* Two labels, exactly equal counts, arranged both ways round. The mode is
+       ambiguous; the contract says the smaller label wins, and it must not
+       depend on which one was seen first. */
+    const plan = cubeDownsamplePlan(2, 1);
+    const per = plan.srcCount / plan.dstCount;
+    expect(per % 2).toBe(0);
+    for (const flip of [false, true]) {
+      const src = new Int32Array(plan.srcCount);
+      for (let d = 0; d < plan.dstCount; d++) {
+        for (let k = 0; k < per; k++) {
+          const i = plan.childIndex[(plan.childStart[d] as number) + k] as number;
+          const first = k < per / 2;
+          src[i] = (flip ? !first : first) ? 5 : 9;
+        }
+      }
+      const out = new Int32Array(plan.dstCount);
+      cubeDownsampleCategorical(plan, src, out);
+      for (let d = 0; d < plan.dstCount; d++) expect(out[d]).toBe(5);
+    }
+  });
+
+  it('never invents a category that was not in the source', () => {
+    /* The whole reason this is a mode and not a mean: averaging boundary types
+       1 and 3 produces 2, which is a different boundary. */
+    const plan = cubeDownsamplePlan(4, 2);
+    const src = new Int32Array(plan.srcCount);
+    for (let i = 0; i < src.length; i++) src[i] = i % 2 === 0 ? 1 : 3;
+    const out = new Int32Array(plan.dstCount);
+    cubeDownsampleCategorical(plan, src, out);
+    for (let d = 0; d < plan.dstCount; d++) expect([1, 3]).toContain(out[d] as number);
+  });
+
+  it('groups every source cell under exactly one destination, in source order', () => {
+    /* The CSR grouping is what makes the reduction linear. If it ever lost or
+       duplicated a child, the mode would silently change. */
+    const plan = cubeDownsamplePlan(5, 2);
+    expect(plan.childStart.length).toBe(plan.dstCount + 1);
+    expect(plan.childStart[plan.dstCount]).toBe(plan.srcCount);
+    const seen = new Uint8Array(plan.srcCount);
+    for (let d = 0; d < plan.dstCount; d++) {
+      const from = plan.childStart[d] as number;
+      const to = plan.childStart[d + 1] as number;
+      expect(to - from).toBe(plan.dstTally[d]);
+      for (let k = from; k < to; k++) {
+        const i = plan.childIndex[k] as number;
+        expect(plan.srcToDst[i]).toBe(d);
+        expect(seen[i]).toBe(0);
+        seen[i] = 1;
+        if (k > from) expect(i).toBeGreaterThan(plan.childIndex[k - 1] as number);
+      }
+    }
+    for (let i = 0; i < plan.srcCount; i++) expect(seen[i]).toBe(1);
+  });
+
+  it('reduces the DEFAULT application scale (L8 -> L6) in well under a second', () => {
+    /* The regression this exists to catch. The quadratic version took 29.3 s
+       for this exact call, and the application makes two of them on every
+       geological refresh. A budget of 1 s is ~3 orders of magnitude clear of
+       the linear cost and ~30x inside the quadratic one, so it cannot pass by
+       accident on a fast machine. */
+    const plan = cubeDownsamplePlan(8, 6);
+    expect(plan.srcCount).toBe(393_216);
+    expect(plan.dstCount).toBe(24_576);
+    const src = new Int32Array(plan.srcCount);
+    for (let i = 0; i < src.length; i++) src[i] = i % 4;
+    const out = new Int32Array(plan.dstCount);
+    const t0 = Date.now();
+    cubeDownsampleCategorical(plan, src, out);
+    const ms = Date.now() - t0;
+    expect(ms).toBeLessThan(1000);
+  }, 120000);
+
+  it('scales linearly in the source, not with source x destination', () => {
+    /* A direct complexity assertion. Holding the destination fixed and
+       quadrupling the source must roughly quadruple the work; under the old
+       implementation it quadrupled too — so the discriminating case is holding
+       the SOURCE fixed and growing the DESTINATION, which a linear algorithm
+       barely notices and a quadratic one scales with. */
+    const src = new Int32Array(cubeDownsamplePlan(7, 2).srcCount);
+    for (let i = 0; i < src.length; i++) src[i] = i % 3;
+
+    const time = (dstLevel: number): number => {
+      const plan = cubeDownsamplePlan(7, dstLevel);
+      const out = new Int32Array(plan.dstCount);
+      cubeDownsampleCategorical(plan, src, out);
+      /* Enough repetitions that Date.now()'s millisecond resolution is not
+         what is being measured. */
+      const t0 = Date.now();
+      for (let r = 0; r < 40; r++) cubeDownsampleCategorical(plan, src, out);
+      return (Date.now() - t0) / 40;
+    };
+
+    /* 4096x more destinations for the same source. */
+    const coarse = time(1);
+    const fine = time(7);
+    expect(cubeDownsamplePlan(7, 7).dstCount / cubeDownsamplePlan(7, 1).dstCount)
+      .toBeGreaterThan(4000);
+    /* Linear: within a small constant factor. Quadratic: thousands of times. */
+    expect(fine).toBeLessThan(Math.max(coarse * 12, 60));
+  }, 120000);
 });

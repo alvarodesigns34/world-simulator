@@ -32,6 +32,19 @@ export interface CubeDownsamplePlan {
   readonly dstCount: number;
   readonly srcToDst: Int32Array;
   readonly dstTally: Int32Array;
+  /**
+   * Children of each destination, grouped (CSR layout).
+   *
+   * `childIndex[childStart[d] .. childStart[d + 1])` are the source cells that
+   * reduce into destination `d`, in ascending source order.
+   *
+   * This exists so a reduction that needs to look at one destination's children
+   * — the categorical mode, which cannot be accumulated commutatively the way a
+   * sum can — does not have to rescan the whole source array per destination.
+   * Built once per level pair, in O(srcCount), and cached with the plan.
+   */
+  readonly childStart: Int32Array;
+  readonly childIndex: Int32Array;
 }
 
 const DOWN_PLANS = new Map<string, CubeDownsamplePlan>();
@@ -71,7 +84,24 @@ export function cubeDownsamplePlan(srcLevel: number, dstLevel: number): CubeDown
     }
   }
 
-  const plan: CubeDownsamplePlan = { srcLevel, dstLevel, srcCount, dstCount, srcToDst, dstTally };
+  /* CSR grouping: prefix-sum the tally, then place each source cell. Two
+     linear passes, no sort, and the ascending-source order within a destination
+     is what keeps the categorical tie-break identical to a full scan. */
+  const childStart = new Int32Array(dstCount + 1);
+  for (let d = 0; d < dstCount; d++) {
+    childStart[d + 1] = (childStart[d] as number) + (dstTally[d] as number);
+  }
+  const childIndex = new Int32Array(srcCount);
+  const cursor = new Int32Array(dstCount);
+  for (let i = 0; i < srcCount; i++) {
+    const d = srcToDst[i] as number;
+    childIndex[(childStart[d] as number) + (cursor[d] as number)] = i;
+    cursor[d] = (cursor[d] as number) + 1;
+  }
+
+  const plan: CubeDownsamplePlan = {
+    srcLevel, dstLevel, srcCount, dstCount, srcToDst, dstTally, childStart, childIndex,
+  };
   DOWN_PLANS.set(key, plan);
   return plan;
 }
@@ -105,20 +135,99 @@ export function cubeDownsampleIntensive(
  * 1 and 3 into 2 invents a category that never existed.  Equal-frequency
  * ties are resolved to the numerically smallest label so the result is
  * independent of traversal and worker order.
+ *
+ * COMPLEXITY (T-0093). The first version of this was correct and quadratic: for
+ * each destination it rescanned every source cell looking for its own children,
+ * giving O(srcCount x dstCount). The unit tests used L2 -> L1 — 96 x 24 cells —
+ * so nothing showed. At the application's DEFAULT configuration the same call
+ * is L8 -> L6, which is 393,216 x 24,576 = 9.7e9 comparisons, and
+ * `refreshResources` makes two of them (boundaryType and crustType) on every
+ * geological refresh. Measured: **29.3 s per reduction**, so roughly a minute of
+ * the default world's construction, repeated on every geology step.
+ *
+ * It is now O(srcCount): the plan's CSR grouping gives each destination its own
+ * children directly, so every source cell is visited exactly once in total. The
+ * counting table is dense when the label range is small — which is the real case
+ * for enums like boundaryType (0..3) and crustType (0..1) — and only the labels
+ * actually touched are reset, so clearing costs no more than counting.
+ *
+ * The tie-break is preserved EXACTLY, including its incremental form: children
+ * are visited in ascending source order, the running argmax is updated with the
+ * same comparison, and the result is therefore identical to the old scan's for
+ * every input.
  */
+
+/** Label range above which the dense counting table stops being worthwhile. */
+const DENSE_LABEL_LIMIT = 4096;
+
+/* Reused across calls so a per-tick reduction allocates nothing. */
+let denseCounts: Int32Array = new Int32Array(0);
+let denseTouched: Int32Array = new Int32Array(0);
+
 export function cubeDownsampleCategorical(
   plan: CubeDownsamplePlan,
   src: ArrayLike<number>,
   out: Int32Array | Float64Array,
 ): void {
+  const { childStart, childIndex, dstCount } = plan;
+
+  /* One pass to size the counting table. Enum fields land in a handful of
+     labels; ids like basin or territory can be wide, hence the fallback. */
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < plan.srcCount; i++) {
+    const c = Math.trunc(src[i] as number);
+    if (c < lo) lo = c;
+    if (c > hi) hi = c;
+  }
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+    out.fill(0);
+    return;
+  }
+  const span = hi - lo + 1;
+
+  if (span <= DENSE_LABEL_LIMIT) {
+    if (denseCounts.length < span) denseCounts = new Int32Array(span);
+    if (denseTouched.length < span) denseTouched = new Int32Array(span);
+    const counts = denseCounts;
+    const touched = denseTouched;
+    for (let d = 0; d < dstCount; d++) {
+      const from = childStart[d] as number;
+      const to = childStart[d + 1] as number;
+      if (from === to) { out[d] = 0; continue; }
+      let nTouched = 0;
+      let winner = 0;
+      let winnerCount = -1;
+      for (let k = from; k < to; k++) {
+        const category = Math.trunc(src[childIndex[k] as number] as number);
+        const slot = category - lo;
+        const count = (counts[slot] as number) + 1;
+        if (count === 1) { touched[nTouched] = slot; nTouched++; }
+        counts[slot] = count;
+        if (count > winnerCount || (count === winnerCount && category < winner)) {
+          winner = category;
+          winnerCount = count;
+        }
+      }
+      /* Reset only what was used: O(children), not O(span). */
+      for (let t = 0; t < nTouched; t++) counts[touched[t] as number] = 0;
+      out[d] = winner;
+    }
+    return;
+  }
+
+  /* Wide, sparse label space (ids rather than enums). Same algorithm with a
+     Map; still one visit per source cell, still the same tie-break. */
   const counts = new Map<number, number>();
-  for (let d = 0; d < plan.dstCount; d++) {
+  for (let d = 0; d < dstCount; d++) {
+    const from = childStart[d] as number;
+    const to = childStart[d + 1] as number;
+    if (from === to) { out[d] = 0; continue; }
     counts.clear();
     let winner = 0;
     let winnerCount = -1;
-    for (let i = 0; i < plan.srcCount; i++) {
-      if ((plan.srcToDst[i] as number) !== d) continue;
-      const category = Math.trunc(src[i] as number);
+    for (let k = from; k < to; k++) {
+      const category = Math.trunc(src[childIndex[k] as number] as number);
       const count = (counts.get(category) ?? 0) + 1;
       counts.set(category, count);
       if (count > winnerCount || (count === winnerCount && category < winner)) {
