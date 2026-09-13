@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
       - name: Build
         run: pnpm run build
 
@@ -47,6 +50,11 @@ jobs:
           path: ./dist
 
   deploy:
+    # Agent/Claude branches build and upload an inspectable artifact only.
+    # Keep the public Pages deployment on the integration branch so a preview
+    # cannot overwrite the published site or depend on an unavailable Pages
+    # environment on an ephemeral branch.
+    if: github.ref == 'refs/heads/dev'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
