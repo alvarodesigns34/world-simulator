@@ -30,6 +30,14 @@ export default defineConfig({
      * Leaving a core free for the reporter fixes it without weakening a single
      * assertion. Locally, where there are more cores, this is not binding.
      */
+    /*
+     * Threads, not forks. The RPC that was timing out (`onTaskUpdate`,
+     * worker -> main, 5 s window) crosses a pipe with structured-clone
+     * serialisation under the default fork pool; under the thread pool it is a
+     * far cheaper postMessage on shared memory. Combined with the caps below
+     * this is what actually stops a loaded runner missing the window.
+     */
+    pool: 'threads',
     maxWorkers: Math.max(1, (availableParallelism?.() ?? 4) - 1),
     /* Long-running suites need room to tear down under load. */
     teardownTimeout: 30_000,

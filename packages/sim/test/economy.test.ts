@@ -40,7 +40,16 @@ import {
 } from '@ws/sim';
 import { cubeDim } from '@ws/data';
 
-function evolved(chunks = 4) {
+/**
+ * An evolved world.
+ *
+ * Two 100 kyr chunks, not four: settlements, cities, a transport network and a
+ * running economy all exist by then, and every test here asserts on economic
+ * behaviour rather than on deep geological time. The extra two chunks doubled
+ * this suite's cost — the heaviest in the project — for no additional coverage.
+ * Tests that genuinely need a longer history pass their own chunk count.
+ */
+function evolved(chunks = 2) {
   const w = createWorld({
     seed: makeSeed(3, 7),
     genesis: { level: 5, steps: 20, plateCount: 9 },
