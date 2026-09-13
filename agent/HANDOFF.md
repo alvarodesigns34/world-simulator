@@ -6,6 +6,104 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-13 · Opus 5 → Grok / Astra · M8–M10 built and integrated
+
+**Branch:** `agent/claude/m8-m10-integrated`, based on `agent/chatgpt/m1-m7-integrated`
+@ `6cec7eff15a3128d58e479294c49529cbb9a1602` (PR #9, stacked on PR #8).
+**Tests:** 537 (from 440). **Checks:** types, boundaries, boundary self-test, WGSL — green.
+
+### What is done
+
+**Phase A — three structural blockers in M1–M7**, then straight into M8.
+
+- T-0080 cross-grid coupling was proportional indexing (`src[i*srcLen/dstLen]`),
+  which erodes an arbitrary continent with another one's rainfall while every
+  array shape agrees. New `sim/coupling.ts` is the only sanctioned path between
+  grids; forcing now crosses APIs *with* its grid attached. DEC-038.
+- T-0081 the crust budget set `consumed = created`, so the residual was
+  identically zero by construction and the test asserted `<= 1e-12`, which it
+  could not fail. Now derived independently from ridge/trench length and real
+  rates. It reports ridge ~63,700 km (Earth ~60,000) and does NOT close —
+  residual 0.3–0.85 — which is a real property of the reduced kernel and is now
+  visible. DEC-039.
+- T-0082 the determinism digest covered M2 + M4 on a stride; all of M5/M6/M7 was
+  invisible to it. Now complete and unstrided, coverage enforced by a test that
+  perturbs one cell of every authoritative array. DEC-040.
+
+**Phase B — M8, M9, M10.** See DEC-041 … DEC-047 and the four benchmarks under
+`tools/bench/`.
+
+### Where the seams are — read these first
+
+1. **`EntityStore` closes DEC-012's gate, and the honest answer surprised me.**
+   Iteration did *not* decide it: at 10⁴ entities objects are 0.102 ms against
+   SoA's 0.095 ms. Transfer decided it (5.4 ms vs 151.7 ms). The gate REOPENS if
+   M11+ puts entities with disjoint component sets in one store; entity count
+   alone is not the trigger. DEC-041.
+2. **A settlement is a POLITY, not a city.** Taking its population as a city's
+   produced a 553-million-person "city" and a request for 241 million buildings.
+   City population is `settlementPop × urbanFraction(tech) × PRIMATE_SHARE`.
+   M9 realises the primate city only; secondary cities are M11+ work and the
+   rank-size law is already the mechanism. DEC-044.
+3. **M10's economy was inert three separate times, and never looked it.** Units
+   out by 650×; prices pinned at the cap so all prices were equal so trade was
+   exactly zero over 1,000 years; freight cost 4.0 against goods worth 1.
+   Each was found by a benchmark, none by reading the code. Everything is now
+   defined relative to the simulation (food output IS M8's carrying capacity;
+   other commodities scale by endowment relative to the planetary mean). If you
+   change the endowment model, the calibration should survive — that was the
+   point. DEC-046.
+4. **`ABUNDANCE` is 8, not the ~1.15 an average territory implies.** That gap is
+   an emergent result: polities settle where the farmland is, and good farmland
+   is flat and low while ore is on steep convergent margins that M8's
+   habitability rates poorly. Settled land is systematically ore-poor. I believe
+   this is right but it is the number I would most like a second opinion on.
+5. **Food prices are uniform across polities at equilibrium.** Not a bug: M8
+   drives every population to its own carrying capacity, so there is no food gap
+   to arbitrage. Dispersion appears only away from equilibrium. The traded
+   commodities are the ones whose supply is set by the ground.
+6. **DEC-047 is the one to learn from.** My own DEC-042 soil fix left
+   evapotranspiration as the only loss, so the only route from rain to river was
+   saturation excess — which needs supply to beat infiltration within one step.
+   At hourly cadence that happens every storm and every M5 test passed. At
+   100 kyr it never happens, and *every river on the planet had zero discharge
+   at paleo time scales*. Ten green milestone suites, broken chain. Only the
+   integration test caught it.
+
+### What is NOT done
+
+- **No GPU, no browser, no Astra.** Every visual claim here is a headless pixel
+  test or a data assertion. The city plan renderer, the five new globe layers
+  and the `y` panel are **unverified on real hardware** — that is Astra's pass,
+  and I have deliberately not spent her.
+- **M8 at L8 exceeds its per-step budget** (41.0 ms p95 vs 20 ms), though it is
+  ~6.7 ms amortised. Cause is the O(cells) territory BFS running every 8th tick.
+  Fixing it means splitting the BFS across ticks. Recorded, not done. Default L6
+  is 2.56 ms (13%).
+- **Long-run soil drift remains**: mean soil moisture falls 0.100 → 0.044 over
+  800 kyr. Far slower than the original collapse and not catastrophic, but it is
+  a real trend and I have not chased it to a cause.
+- **Enum fields resampled across cube levels are area-averaged**, which is
+  meaningless for a code like `boundaryType`. It is harmless today because the
+  consumers round with a tolerance and the levels usually match, but it is a
+  latent trap. `coupling.ts` should grow a nearest-neighbour path for enums.
+- **M9 realises one city per polity** and secondary cities are not modelled.
+- **M11–M14 untouched**, as instructed.
+
+### What specifically needs checking
+
+- **Grok:** the ABUNDANCE=8 justification (seam 4); whether the crust residual
+  band (0.3–0.85) is the right diagnostic to ship; whether `MAX_DISTRICTS = 40`
+  and `MAX_ERA = 12` are caps or hidden model limits; and whether three
+  arbitrage passes per tick is enough for price propagation at continental
+  scale, or whether it hides a cadence dependence.
+- **Astra:** the five new globe layers and the city plan panel (`y`), on real
+  hardware. Specifically: does the territory ramp actually separate neighbouring
+  polities, are bridges legible at plan scale, and does a city on a slope read
+  as being on a slope.
+
+---
+
 ## 2026-09-12 · ChatGPT → next block · M1–M7 causal integration
 
 **Branch:** `agent/chatgpt/m1-m7-integrated`, based exactly on PR #8 HEAD
