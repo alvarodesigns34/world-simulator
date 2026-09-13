@@ -232,7 +232,8 @@ describe('M8 determinism (DEC-017)', () => {
     expect(a.civilisation.store.count).toBe(b.civilisation.store.count);
     expect(a.civilisation.foundedTotal).toBe(b.civilisation.foundedTotal);
     expect(a.digest()).toBe(b.digest());
-  });
+    /* Builds two complete worlds and evolves each through 300 kyr. */
+  }, 30000);
 
   it('is visible to the world digest', () => {
     const w = run(world(), 2);
@@ -254,7 +255,7 @@ describe('M8 determinism (DEC-017)', () => {
     const b = run(world(), 2);
     expect(a.civilisation.detail).toBe(b.civilisation.detail);
     expect(a.digest()).toBe(b.digest());
-  });
+  }, 30000);
 });
 
 function pickBest(suit: Float32Array, ocean: Uint8Array): number {

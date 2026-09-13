@@ -38,7 +38,28 @@ export default defineConfig({
      * this is what actually stops a loaded runner missing the window.
      */
     pool: 'threads',
-    maxWorkers: Math.max(1, (availableParallelism?.() ?? 4) - 1),
+    /*
+     * ON CI, TEST FILES RUN ONE AT A TIME.
+     *
+     * This project asserts WALL-CLOCK BUDGETS inside its test suite — the M4
+     * climate step must fit 40 ms at n6, the LOD selection must fit its frame
+     * slice, and so on. Those assertions are only meaningful if the process is
+     * not competing with itself: under file parallelism the n6 step measured
+     * 50.5 ms on a runner where it takes ~12 ms alone, and the number said
+     * nothing about the code.
+     *
+     * Running files sequentially makes every budget assertion measure the thing
+     * it names. It is STRICTER, not weaker — nothing is skipped, no threshold is
+     * relaxed — and it also removes the worker/reporter contention that had been
+     * failing the job after 537/537 passed.
+     *
+     * Locally the suite stays parallel: a developer wants the fast signal, and
+     * the budget numbers that matter are the ones CI records.
+     */
+    fileParallelism: process.env.CI === undefined,
+    maxWorkers: process.env.CI === undefined
+      ? Math.max(1, (availableParallelism?.() ?? 4) - 1)
+      : 1,
     /* Long-running suites need room to tear down under load. */
     teardownTimeout: 30_000,
     /*
