@@ -33,6 +33,8 @@ export interface HudInput {
   readonly seaLevel?: number;
   readonly meanT?: number;
   readonly visualField?: string;
+  /** M13 city pass: instances drawn, buildings capped, build cost. */
+  readonly city?: { instances: number; buildings: number; dropped: number; ms: number } | null;
 }
 
 const STYLE = `
@@ -106,6 +108,10 @@ export class Hud {
       input.regime ? `regime     ${input.regime}  scale ${input.timeScale ?? 1}` : ``,
       input.meanT !== undefined ? `mean T     ${input.meanT.toFixed(1)} K   sea ${input.seaLevel?.toFixed(0) ?? '—'} m` : ``,
       input.visualField ? `field      ${input.visualField}` : ``,
+      input.city
+        ? `city 3D    ${input.city.instances} inst  ${input.city.buildings} bldg` +
+          `${input.city.dropped > 0 ? ` (+${input.city.dropped} capped)` : ''}  ${input.city.ms.toFixed(1)} ms`
+        : ``,
       ``,
       `patches    ${s.drawnPatches} / ${s.budgetPatches}  ${bar(s.drawnPatches, s.budgetPatches)}`,
       `triangles  ${(s.triangles / 1000).toFixed(0)}k   ${budget.trianglesPerPatch}/patch   ${pxTri.toFixed(2)} px/tri`,

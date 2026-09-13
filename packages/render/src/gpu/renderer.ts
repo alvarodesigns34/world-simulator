@@ -37,6 +37,9 @@ import {
   VERTEX_ATTR,
 } from './layout.js';
 import { WINDING_UNKNOWN, type WindingProbeOutcome } from './winding.js';
+import { CityRenderer, type CityInstanceBatch } from './city-renderer.js';
+
+const EMPTY_INSTANCES = new Float32Array(0);
 
 /** Reversed-Z (DEC-033 rule 3): near maps to 1.0, far to 0.0, clear to 0.0. */
 export const DEPTH_CLEAR_VALUE = 0.0;
@@ -120,6 +123,18 @@ export class PlanetRenderer {
   surfaceAt: SurfaceSampler | null = null;
   /** Filmic grade/bloom approximation. Disabled for scientific layers. */
   cinematic = false;
+
+  /**
+   * City and infrastructure boxes for the next frame, camera-relative (M13,
+   * T-0101). Set it to a batch from `buildCityScene`, or null to draw none.
+   *
+   * SIMULATION STATE != RENDERING STATE. This is a per-frame handoff of derived
+   * geometry, not world state: the renderer keeps no city, and dropping the
+   * batch changes nothing anyone can observe in the simulation.
+   */
+  cityScene: CityInstanceBatch | null = null;
+
+  private city: CityRenderer | null = null;
 
   constructor(gpu: GpuContext, opts: RendererOptions) {
     this.gpu = gpu;
@@ -340,6 +355,15 @@ export class PlanetRenderer {
     );
     device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
 
+    /* Created on first use: a session that never looks at a city pays for no
+       pipeline, no box mesh and no instance buffer. */
+    if (this.cityScene !== null && this.cityScene.count > 0) {
+      this.city ??= new CityRenderer(this.gpu, this.uniformBuffer);
+      this.city.upload(this.cityScene);
+    } else if (this.city !== null) {
+      this.city.upload({ data: EMPTY_INSTANCES, count: 0 });
+    }
+
     const encoder = device.createCommandEncoder({ label: 'frame' });
     const stamp =
       this.querySet !== null
@@ -370,6 +394,10 @@ export class PlanetRenderer {
       pass.setIndexBuffer(this.indexBuffer, 'uint32');
       pass.drawIndexed(this.indexCount, visible.length);
     }
+    /* Cities share this pass, and therefore this depth buffer, so terrain and
+       buildings occlude each other. A separate pass would composite instead,
+       and the city -> terrain transition M9 claims would be a seam. */
+    this.city?.draw(pass);
     pass.end();
 
     if (this.querySet !== null && this.queryResolve !== null && this.queryRead !== null && !this.gpuReadPending) {
@@ -429,7 +457,12 @@ export class PlanetRenderer {
     );
   }
 
+  /** Instances the city pass drew last frame. Diagnostic. */
+  get cityInstancesDrawn(): number { return this.city?.lastDrawn ?? 0; }
+
   destroy(): void {
+    this.city?.destroy();
+    this.city = null;
     this.instanceBuffer?.destroy();
     this.depthTexture?.destroy();
     this.uniformBuffer.destroy();

@@ -47,6 +47,7 @@ import {
   scientificField,
   sunState,
 } from '@ws/sim';
+import { CitySceneAdapter } from './city-scene-adapter.js';
 import { Hud } from './hud.js';
 import { openOpfsTileStore } from './opfs.js';
 import { sampleStreamedTile, TileStreamer } from './tile-streamer.js';
@@ -158,6 +159,11 @@ async function main(): Promise<void> {
   };
   renderer.surfaceAt = surfaceSampler;
 
+  /* M13 city and infrastructure geometry. The adapter is the only thing in the
+     process that reads a `sim` city and writes a `render` instance; the
+     renderer receives a batch of boxes and knows nothing else about it. */
+  const cityScene = new CitySceneAdapter({ radiusM: PLANET.radius });
+
   const hud = new Hud(document.body);
   const overlay = new FieldOverlay(document.body);
   const timeline = new TimelinePanel(document.body, world, download);
@@ -176,6 +182,9 @@ async function main(): Promise<void> {
   );
   document.body.appendChild(cityCanvas);
   let cityVisible = false;
+  /* On by default: M9 and M13 both claim a city you can fly into, so the
+     default path has to be the one that shows it. `u` turns it off. */
+  let cities3d = true;
   const telemetry = new Telemetry(16_384, budgets.QUALITY.maxFrameMsDuringDescent);
 
   let cam: CameraState = lookAtCentre(
@@ -244,6 +253,7 @@ async function main(): Promise<void> {
       cityVisible = !cityVisible;
       cityCanvas.style.display = cityVisible ? 'block' : 'none';
     }
+    if (e.key === 'u' || e.key === 'U') cities3d = !cities3d;
     if (e.key === 'c' || e.key === 'C') {
       const i = VISUAL_FIELDS.indexOf(world.visualField as (typeof VISUAL_FIELDS)[number]);
       const next = VISUAL_FIELDS[(i + 1) % VISUAL_FIELDS.length] as string;
@@ -344,6 +354,13 @@ async function main(): Promise<void> {
     }
 
     renderer.debugMode = debugMode;
+    /* Cities are geometry, not chrome: they belong in the planet's pass and its
+       depth buffer. Suppressed while a scientific overlay is up, where built
+       structures would sit on top of the field being read. */
+    const built = cities3d && !overlay.visible
+      ? cityScene.build(world, cam.position)
+      : null;
+    renderer.cityScene = built === null ? null : built.scene;
     tileStreamer.beginFrame(world.dynamicGeology.generation, world.ocean.seaLevel);
     const stats = renderer.render(cam, context.getCurrentTexture().createView(), width, height);
     tileStreamer.endFrame();
@@ -382,6 +399,12 @@ async function main(): Promise<void> {
       seaLevel: world.ocean.seaLevel,
       meanT: meanOf(world.climate.T),
       visualField: world.visualField,
+      city: built === null ? null : {
+        instances: built.stats.instances,
+        buildings: built.stats.buildings,
+        dropped: built.stats.buildingsDropped,
+        ms: built.buildMs,
+      },
     });
     timeline.update();
     science.update();
