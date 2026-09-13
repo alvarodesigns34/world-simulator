@@ -29,7 +29,7 @@ import { CIV, type CivilisationState } from '../civilisation/system.js';
 import type { HydrologyState } from '../hydrology/system.js';
 import { acos, tan } from '@ws/core';
 import { DIR, cubeDim, cubeIndex, neighbor } from '@ws/data';
-import { findNavigablePort, routeLandInfrastructure, seaRoute, type PhysicalRoute } from './routing.js';
+import { findCoastalOutlet, oceanBasinLabels, portsShareOcean, routeLandInfrastructure, seaRoute, type PhysicalRoute } from './routing.js';
 
 const DIRS = [DIR.POS_U, DIR.NEG_U, DIR.POS_V, DIR.NEG_V] as const;
 
@@ -157,10 +157,14 @@ export function rebuildTopology(
   const seen = new Set<number>();
   const adjacency: number[][] = nodes.map(() => []);
   const portsBySettlement = new Map<number, number>();
+  /* One flood fill per topology rebuild answers every navigability question
+     below. Without it, two towns on opposite shores of a landlocked sea were
+     given a sea lane and goods moved along a route no ship could take. */
+  let basins: Int32Array | null = null;
   const portFor = (settlement: number): number => {
     const hit = portsBySettlement.get(settlement);
     if (hit !== undefined) return hit;
-    const port = findNavigablePort(h, cellCol[settlement] as number);
+    const port = findCoastalOutlet(h, cellCol[settlement] as number);
     portsBySettlement.set(settlement, port);
     return port;
   };
@@ -186,6 +190,10 @@ export function rebuildTopology(
       /* Two inland centres can share the same coastal outlet. That is one
          port, not a zero-length sea lane between two fictional ports. */
       if (portA < 0 || portB < 0 || portA === portB) return;
+      basins ??= oceanBasinLabels(h);
+      /* Both ends have a coast. That is not the same as a sea route between
+         them existing (T-0105). */
+      if (!portsShareOcean(h, basins, portA, portB)) return;
       distanceM = greatCircleBetween(portA, portB, civ.level);
       const routeKey = `sea:${String(Math.min(portA, portB))}:${String(Math.max(portA, portB))}`;
       route = net.routeCache.get(routeKey) ?? seaRoute(h, portA, portB, distanceM);

@@ -196,7 +196,16 @@ export interface EconomyState {
   routingBasis: number;
   steps: number;
   year: number;
-  /** Diagnostics. */
+  /**
+   * Diagnostics.
+   *
+   * `totalTrade` is PER STEP — it is reset at the top of every `stepEconomy`.
+   * A reader who samples it once after several steps is reading the last step
+   * alone, and a converged market legitimately reports zero there while having
+   * moved a great deal of freight getting to that equilibrium. A ten-seed
+   * diagnostic did exactly that and recorded one world as having no trade at
+   * all (T-0106). Sum it across steps for a cumulative figure.
+   */
   totalTrade: number;
   totalProduction: number;
   worstShortage: number;
@@ -803,6 +812,118 @@ export function updateLandUse(e: EconomyState, civ: CivilisationState): void {
  * configuration; they are folded because it is free and a mismatch there means
  * two incomparable worlds are being compared.
  */
+/**
+ * Why is trade what it is? (T-0106)
+ *
+ * A ten-seed diagnostic reported one world with `trade: 0` and nothing else.
+ * Zero trade is not automatically a bug — a scattered world of self-sufficient
+ * hamlets with no price gap worth a cart is a correct outcome, and calibrating
+ * until every seed shows a positive number would be tuning the model to make a
+ * diagnostic look tidy. But an UNEXPLAINED zero is indistinguishable from a
+ * broken market, and "it is probably fine" is not a finding.
+ *
+ * So the question is answered structurally: walk the same edges and commodities
+ * the arbitrage pass walks, and report which precondition failed. Every zero
+ * then has a reason attached, and a reason that is not on this list is a bug
+ * worth chasing.
+ *
+ * READ-ONLY. It writes nothing and is not part of any digest.
+ */
+export const TRADE_STATUS = {
+  /** Goods moved. */
+  TRADING: 'trading',
+  /** Fewer than two settlements are in the network. Nobody to trade with. */
+  NO_COUNTERPARTIES: 'no-counterparties',
+  /** Settlements exist but nothing links them: no shared border, no shared sea. */
+  NO_LINKS: 'no-links',
+  /** Links exist and nobody has anything to ship. */
+  NO_STOCK: 'no-stock',
+  /**
+   * Links, stock and prices all exist, and no price gap anywhere covers the
+   * cost of carriage. This is the model working: transport cost is what makes
+   * geography matter, and sometimes geography says stay home.
+   */
+  GAPS_BELOW_CARRIAGE: 'gaps-below-carriage',
+  /**
+   * Gaps wide enough to pay for carriage exist, but at the cheap end of every
+   * one of them the warehouse is empty. Also the model working — a price gap
+   * you cannot supply is not a trade — and distinct from the case above,
+   * because the two have different causes and different fixes.
+   */
+  EXPORTERS_EMPTY: 'exporters-empty',
+  /**
+   * Links, stock, and a fundable gap with goods behind it, and still nothing
+   * moved. Nothing should produce this. It is here so that the impossible case
+   * has a name instead of being absorbed into a plausible one.
+   */
+  UNEXPLAINED: 'unexplained',
+} as const;
+export type TradeStatus = (typeof TRADE_STATUS)[keyof typeof TRADE_STATUS];
+
+export interface TradeDiagnosis {
+  readonly status: TradeStatus;
+  readonly nodes: number;
+  readonly edges: number;
+  /** Largest |price gap| / carriage cost seen on any edge. >1 permits trade. */
+  readonly bestGapRatio: number;
+  /** The same, but only where the exporting end actually has stock to ship. */
+  readonly bestActionableGapRatio: number;
+  /** Total tradeable stock held by settlements in the network. */
+  readonly tradeableStock: number;
+  readonly totalTrade: number;
+}
+
+export function diagnoseTrade(e: EconomyState, civ: CivilisationState): TradeDiagnosis {
+  const net = e.network;
+  const store = civ.store;
+  let bestGapRatio = 0;
+  let bestActionableGapRatio = 0;
+  let tradeableStock = 0;
+  let liveNodes = 0;
+
+  for (let n = 0; n < net.nodes.length; n++) {
+    const i = net.nodes[n] as number;
+    if (!store.aliveAt(i)) continue;
+    liveNodes++;
+    for (let k = 0; k < COMMODITY_COUNT; k++) {
+      if (k === COMMODITY.ENERGY) continue;
+      tradeableStock += e.stock[at(e, k, i)] as number;
+    }
+  }
+
+  for (const edge of net.edges) {
+    const ai = net.nodes[edge.a] as number;
+    const bi = net.nodes[edge.b] as number;
+    if (!store.aliveAt(ai) || !store.aliveAt(bi)) continue;
+    for (let k = 0; k < COMMODITY_COUNT; k++) {
+      if (k === COMMODITY.ENERGY) continue;
+      const pa = e.price[at(e, k, ai)] as number;
+      const pb = e.price[at(e, k, bi)] as number;
+      const signed = pb - pa;
+      const cost = edge.unitCost * (BULK[k] as number);
+      const ratio = Math.abs(signed) / Math.max(1e-12, cost);
+      if (ratio > bestGapRatio) bestGapRatio = ratio;
+      /* Goods flow from the cheap end to the dear one, so it is the CHEAP
+         end's warehouse that decides whether a gap is actionable. */
+      const exporter = signed > 0 ? ai : bi;
+      if ((e.stock[at(e, k, exporter)] as number) > 0 && ratio > bestActionableGapRatio) {
+        bestActionableGapRatio = ratio;
+      }
+    }
+  }
+
+  const status: TradeStatus = e.totalTrade > 0 ? TRADE_STATUS.TRADING
+    : liveNodes < 2 ? TRADE_STATUS.NO_COUNTERPARTIES
+    : net.edges.length === 0 ? TRADE_STATUS.NO_LINKS
+    : tradeableStock <= 0 ? TRADE_STATUS.NO_STOCK
+    : bestActionableGapRatio > 1 ? TRADE_STATUS.UNEXPLAINED
+    : bestGapRatio > 1 ? TRADE_STATUS.EXPORTERS_EMPTY
+    : TRADE_STATUS.GAPS_BELOW_CARRIAGE;
+
+  return { status, nodes: liveNodes, edges: net.edges.length,
+    bestGapRatio, bestActionableGapRatio, tradeableStock, totalTrade: e.totalTrade };
+}
+
 export function economyDigest(e: EconomyState): number {
   const mix = (h: number, v: number): number => {
     let x = (h ^ Math.imul(v | 0, 0x9e3779b1)) >>> 0;

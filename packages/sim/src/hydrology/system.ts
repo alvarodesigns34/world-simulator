@@ -192,10 +192,20 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
   const elapsedSeconds = dtSeconds;
   dtSeconds = Math.min(dtSeconds, 365.25 * 86400);
   resampleClimate(climate, state.level, state.temperatureK, state.precipitationRate);
-  /* A direct hydrology diagnostic can be handed a millennial window without a
-     preceding atmosphere tick. If the atmospheric mean is effectively empty,
-     use the same reduced-column closure as paleo climate; this keeps soil
-     moisture a property of the simulated interval, not of call ordering. */
+  /*
+   * A direct hydrology diagnostic can be handed a millennial window without a
+   * preceding atmosphere tick. If the atmospheric mean is effectively empty,
+   * use the same reduced-column closure as paleo climate; this keeps soil
+   * moisture a property of the simulated interval, not of call ordering.
+   *
+   * DECLARED DISCONTINUITY (T-0107). The trigger is a HARD threshold on window
+   * length, so 1 x 1000 years and 1000 x 1 year are driven by different
+   * rainfall and land two orders of magnitude apart. That is measured and
+   * pinned in `soil-path-independence.test.ts`. It is confined to this
+   * diagnostic entry point: a world advanced through the scheduler runs the
+   * atmosphere first, so no cell is dry enough to fall back, and the same test
+   * asserts that too.
+   */
   if (elapsedSeconds >= 1_000 * 365.25 * 86400) {
     for (let i = 0; i < state.cellCount; i++) {
       if ((state.precipitationRate[i] as number) < 1e-8) {
@@ -257,8 +267,23 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
      *     S(t+dt) = Seq + (S - Seq) exp(-k dt),  k = (E0 + D0)/C,  Seq = R/k
      *
      * which relaxes toward the climate's equilibrium moisture instead of
-     * draining to nothing. One 100 kyr step and 10^5 one-year steps now agree,
-     * which is the path-independence DEC-030 requires of slow state.
+     * draining to nothing.
+     *
+     * WHAT PATH-INDEPENDENCE THIS BUYS, EXACTLY (T-0107). Under a FIXED
+     * forcing the exponentials compose, so any chunking of the same interval
+     * gives the same answer — one 32-year step and 32 one-year steps agree to
+     * the last bit, and `soil-path-independence.test.ts` asserts it at chunk
+     * sizes that span the ~7-year relaxation time, where an Euler step or a
+     * recharge-then-evaporate sequence would visibly diverge. That is the
+     * path-independence DEC-030 requires of slow state.
+     *
+     * It does NOT mean the answer is independent of how coarsely the FORCING
+     * is sampled. A 100 kyr step reads one temperature and one rainfall for
+     * the whole interval; that is temporal LOD changing results, which DEC-030
+     * states as a property rather than hiding. And the reduced-column
+     * substitution below is a hard threshold on window length, so it is a real
+     * discontinuity at 1000 years — measured and pinned by that same test
+     * rather than described as absent.
      *
      * THE DRAINAGE TERM IS NOT DECORATION (T-0084). Without it the only way
      * water reached a river was saturation excess — recharge overflowing the

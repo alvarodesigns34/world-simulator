@@ -24,7 +24,18 @@ export interface PhysicalRoute {
   readonly maxGradient: number;
 }
 
-export function findNavigablePort(h: HydrologyState, origin: number): number {
+/**
+ * The nearest coastal outlet a settlement can reach OVER LAND.
+ *
+ * HONESTY (T-0105). This used to be called `findNavigablePort`, which claimed
+ * more than it delivered twice over: the search is a breadth-first walk across
+ * land, so it finds a coast, not a harbour, and finding a coast for two
+ * settlements says nothing about whether a ship can sail between them. Two
+ * towns on opposite shores of a landlocked inland sea both have an outlet and
+ * no sea route at all. The name now says what the function does, and
+ * `oceanBasinLabels` answers the question the old name was pretending to.
+ */
+export function findCoastalOutlet(h: HydrologyState, origin: number): number {
   if (origin < 0 || origin >= h.cellCount || h.ocean[origin] !== 0) return -1;
   const queue = new Int32Array(h.cellCount);
   const seen = new Uint8Array(h.cellCount);
@@ -114,12 +125,89 @@ export function routeLandInfrastructure(
   };
 }
 
+/**
+ * A sea link between two coastal outlets.
+ *
+ * WHAT `distanceM` IS. A great-circle separation, which is a LOWER BOUND on
+ * the sailed distance: no cape is rounded, no strait is threaded, no continent
+ * is gone around. That is a deliberate reduction — detailed global sea
+ * navigation is not in scope — but it must be named, because a route this
+ * cheap makes sea carriage look better than it is around an obstructed coast.
+ *
+ * WHAT IT NOW REQUIRES. The caller must have established that the two outlets
+ * touch the SAME body of water (`portsShareOcean`). Before that check existed,
+ * two towns on opposite sides of a landlocked sea were given a sea lane with a
+ * great-circle distance, and goods moved along a route no ship could take.
+ */
 export function seaRoute(h: HydrologyState, portA: number, portB: number, distanceM: number): PhysicalRoute {
   if (!isCoastalLand(h, portA) || !isCoastalLand(h, portB)) {
-    throw new Error('sea route requires navigable coastal land ports');
+    throw new Error('sea route requires coastal land outlets at both ends');
   }
   return { cells: Int32Array.from([portA, portB]), bridgeCells: new Int32Array(0),
     portA, portB, distanceM, maxGradient: 0 };
+}
+
+/**
+ * Connected components of water, one label per cell, -1 on land.
+ *
+ * A flood fill over the ocean mask. O(cells) and computed once per topology
+ * rebuild, which is what makes a real navigability test affordable — the
+ * alternative, a path search per settlement pair, is the global pathfinding
+ * DEC forbids.
+ *
+ * Deterministic: cells are visited in ascending index order, so component ids
+ * are assigned in the same order on every run of the same world.
+ */
+export function oceanBasinLabels(h: HydrologyState): Int32Array {
+  const labels = new Int32Array(h.cellCount).fill(-1);
+  const queue = new Int32Array(h.cellCount);
+  let next = 0;
+  for (let seed = 0; seed < h.cellCount; seed++) {
+    if (h.ocean[seed] === 0 || labels[seed] !== -1) continue;
+    const label = next++;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = seed;
+    labels[seed] = label;
+    while (head < tail) {
+      const cell = queue[head++] as number;
+      for (const nb of neighbours(cell, h.level)) {
+        if (h.ocean[nb] === 0 || labels[nb] !== -1) continue;
+        labels[nb] = label;
+        queue[tail++] = nb;
+      }
+    }
+  }
+  return labels;
+}
+
+/**
+ * Can a ship get from one coastal outlet to the other at all?
+ *
+ * True when the two outlets touch a common body of water. It does not claim
+ * the crossing is short, safe or ice-free — only that it exists. Ruling out
+ * the impossible is cheap; ruling in the optimal is the search we do not do.
+ */
+export function portsShareOcean(
+  h: HydrologyState, labels: Int32Array, portA: number, portB: number,
+): boolean {
+  if (portA === portB) return true;
+  const a = adjacentBasins(h, labels, portA);
+  if (a.length === 0) return false;
+  for (const label of adjacentBasins(h, labels, portB)) {
+    if (a.includes(label)) return true;
+  }
+  return false;
+}
+
+function adjacentBasins(h: HydrologyState, labels: Int32Array, cell: number): number[] {
+  if (cell < 0 || cell >= h.cellCount) return [];
+  const out: number[] = [];
+  for (const nb of neighbours(cell, h.level)) {
+    const label = labels[nb] as number;
+    if (label >= 0 && !out.includes(label)) out.push(label);
+  }
+  return out;
 }
 
 export function isCoastalLand(h: HydrologyState, cell: number): boolean {

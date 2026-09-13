@@ -36,6 +36,7 @@
     ,"test:save-migration": "vitest run packages/sim/test/timeline.test.ts -t migrates"
     ,"test:m12-visualiser": "vitest run packages/sim/test/scientific-visualisation.test.ts"
     ,"test:m13-cinematic": "vitest run packages/render/test/cinematic.test.ts"
+    ,"test:soil-path": "vitest run packages/sim/test/soil-path-independence.test.ts"
     ,"diagnose:integration": "vitest run packages/sim/test/consolidation-diagnostics.test.ts --reporter=verbose"
   },
   "devDependencies": {
