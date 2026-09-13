@@ -19,12 +19,13 @@ on:
 #
 # This does not weaken CI. It removes a duplicate run that was competing with
 # itself; exactly one full run still gates every commit, and nothing is skipped.
-# `head_ref` is set only for pull_request events (the source branch); `ref` is
-# used for pushes. Keying on the first that exists puts BOTH events for the same
-# branch in one group — keying on `ref` alone does not, because a PR event's ref
-# is `refs/pull/N/merge`, so the two runs never saw each other.
+# `head_ref` is set only for pull_request events (the source branch); `ref_name`
+# is the short branch name for pushes. Keying on the source branch for PRs and
+# the short push branch puts BOTH events for the same branch in one group —
+# keying on `ref` alone does not, because a PR event's ref is
+# `refs/pull/N/merge`, so the two runs never saw each other.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref }}
+  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
