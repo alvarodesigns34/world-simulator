@@ -76,6 +76,22 @@ interface Slot {
   coveredThrough: SimTime;
 }
 
+export interface SchedulerSnapshot {
+  readonly schema: 1;
+  readonly time: SimTime;
+  readonly tick: number;
+  readonly state: RunState;
+  readonly slots: readonly {
+    readonly id: string;
+    readonly cadence: Cadence;
+    readonly due: SimTime;
+    readonly steps: number;
+    readonly lastDt: Duration;
+    readonly lastRun: SimTime | null;
+    readonly coveredThrough: SimTime;
+  }[];
+}
+
 export class Scheduler {
   readonly calendar: Calendar;
   private readonly slots: Slot[] = [];
@@ -269,6 +285,42 @@ export class Scheduler {
 
   cadenceOf(id: SubsystemId): Cadence | undefined {
     return this.byId.get(id as string)?.cadence;
+  }
+
+  snapshot(): SchedulerSnapshot {
+    return {
+      schema: 1,
+      time: this._time,
+      tick: this._tick,
+      state: this._state,
+      slots: this.slots.map((slot) => ({
+        id: slot.entry.subsystem.id as string,
+        cadence: slot.cadence,
+        due: slot.due,
+        steps: slot.steps,
+        lastDt: slot.lastDt,
+        lastRun: slot.lastRun,
+        coveredThrough: slot.coveredThrough,
+      })),
+    };
+  }
+
+  restore(snapshot: SchedulerSnapshot): void {
+    invariant(snapshot.schema === 1, `unsupported scheduler snapshot schema ${String(snapshot.schema)}`);
+    invariant(snapshot.slots.length === this.slots.length, 'scheduler snapshot topology mismatch');
+    this._time = snapshot.time;
+    this._tick = snapshot.tick;
+    this._state = snapshot.state;
+    for (const saved of snapshot.slots) {
+      const slot = this.byId.get(saved.id);
+      invariant(slot !== undefined, `scheduler snapshot has unknown subsystem '${saved.id}'`);
+      slot.cadence = saved.cadence;
+      slot.due = saved.due;
+      slot.steps = saved.steps;
+      slot.lastDt = saved.lastDt;
+      slot.lastRun = saved.lastRun;
+      slot.coveredThrough = saved.coveredThrough;
+    }
   }
 
   pause(): void {

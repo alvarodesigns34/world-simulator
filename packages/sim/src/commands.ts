@@ -9,21 +9,48 @@ export type Command =
   | { readonly kind: 'resume' }
   | { readonly kind: 'setRegime'; readonly regime: 'explicit' | 'synoptic' | 'climatology' | 'paleo' }
   | { readonly kind: 'setVisualField'; readonly field: string }
-  | { readonly kind: 'stepOnce' };
+  | { readonly kind: 'stepOnce' }
+  | { readonly kind: 'advance'; readonly seconds: number }
+  | { readonly kind: 'advanceDeepTime'; readonly years: number }
+  | { readonly kind: 'bookmark'; readonly label: string };
 
-export interface CommandLog {
-  readonly entries: readonly { readonly seq: number; readonly cmd: Command }[];
-  push(cmd: Command): void;
+export interface LoggedCommand {
+  readonly seq: number;
+  readonly time: { readonly year: number; readonly seconds: number };
+  readonly cmd: Command;
 }
 
-export function createCommandLog(): CommandLog {
-  const entries: { seq: number; cmd: Command }[] = [];
+export interface CommandLog {
+  readonly entries: readonly LoggedCommand[];
+  push(cmd: Command): void;
+  restore(entries: readonly LoggedCommand[]): void;
+}
+
+export function createCommandLog(now: () => { readonly year: number; readonly seconds: number }): CommandLog {
+  const entries: LoggedCommand[] = [];
   return {
     get entries() {
       return entries;
     },
     push(cmd: Command): void {
-      entries.push({ seq: entries.length, cmd });
+      if (cmd.kind === 'advance') {
+        const last = entries[entries.length - 1];
+        if (last?.cmd.kind === 'advance') {
+          entries[entries.length - 1] = {
+            ...last,
+            cmd: { kind: 'advance', seconds: last.cmd.seconds + cmd.seconds },
+          };
+          return;
+        }
+      }
+      entries.push({ seq: entries.length, time: { ...now() }, cmd });
+    },
+    restore(saved: readonly LoggedCommand[]): void {
+      entries.splice(0, entries.length, ...saved.map((entry, seq) => ({
+        seq,
+        time: { ...entry.time },
+        cmd: { ...entry.cmd },
+      })));
     },
   };
 }

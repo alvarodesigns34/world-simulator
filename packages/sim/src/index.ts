@@ -22,4 +22,7 @@ export * from './tiles/cache.js';
 export * from './commands.js';
 export * from './coupling.js';
 export * from './hash.js';
+export * from './timeline/history.js';
+export * from './timeline/persistence.js';
+export * from './visualisation/scientific.js';
 export * from './world.js';

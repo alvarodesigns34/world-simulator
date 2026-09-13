@@ -114,6 +114,19 @@ export interface EntitySchema {
   readonly shared?: boolean;
 }
 
+export interface EntityStoreSnapshot {
+  readonly schema: 1;
+  readonly capacity: number;
+  readonly highWater: number;
+  readonly liveCount: number;
+  readonly freeCount: number;
+  readonly structuralVersion: number;
+  readonly generations: readonly number[];
+  readonly alive: readonly number[];
+  readonly freeList: readonly number[];
+  readonly columns: Readonly<Record<string, readonly number[]>>;
+}
+
 function makeColumn(dtype: Dtype, buffer: ArrayBufferLike, byteOffset: number, length: number): EntityColumn {
   switch (dtype) {
     case 'i8': return new Int8Array(buffer, byteOffset, length);
@@ -328,5 +341,43 @@ export class EntityStore {
       }
     }
     return h >>> 0;
+  }
+
+  /** Authoritative, renderer-free state used by M11 snapshot saves. */
+  snapshot(): EntityStoreSnapshot {
+    const columns: Record<string, readonly number[]> = {};
+    const ids = [...this.tables.keys()].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+    for (const id of ids) columns[id as string] = Array.from(this.table(id).data);
+    return {
+      schema: 1,
+      capacity: this.capacity,
+      highWater: this.highWater,
+      liveCount: this.liveCount,
+      freeCount: this.freeCount,
+      structuralVersion: this.structuralVersion,
+      generations: Array.from(this.generations),
+      alive: Array.from(this.aliveFlags),
+      freeList: Array.from(this.freeList),
+      columns,
+    };
+  }
+
+  restore(snapshot: EntityStoreSnapshot): void {
+    invariant(snapshot.schema === 1, `unsupported EntityStore snapshot schema ${String(snapshot.schema)}`);
+    invariant(snapshot.capacity === this.capacity, 'EntityStore snapshot capacity mismatch');
+    invariant(snapshot.highWater >= 0 && snapshot.highWater <= this.capacity, 'invalid EntityStore highWater');
+    this.generations.set(snapshot.generations);
+    this.aliveFlags.set(snapshot.alive);
+    this.freeList.set(snapshot.freeList);
+    this.highWater = snapshot.highWater;
+    this.liveCount = snapshot.liveCount;
+    this.freeCount = snapshot.freeCount;
+    this.structuralVersion = snapshot.structuralVersion;
+    for (const [id, values] of Object.entries(snapshot.columns)) {
+      const table = this.tables.get(id as ComponentId);
+      invariant(table !== undefined, `snapshot contains unknown component ${id}`);
+      invariant(values.length === table.data.length, `snapshot component ${id} length mismatch`);
+      table.data.set(values);
+    }
   }
 }

@@ -91,6 +91,7 @@ import {
 } from './economy/index.js';
 import { TileCache } from './tiles/cache.js';
 import { MemoryTileStore } from './tiles/storage.js';
+import { HistoryStore, WORLD_HISTORY_SERIES } from './timeline/history.js';
 
 export const OWNER_GEOLOGY = subsystemId('geology');
 export const OWNER_TERRAIN = subsystemId('terrain');
@@ -150,6 +151,16 @@ export interface WorldOptions {
   readonly hydrologyLevel?: number;
 }
 
+export interface SerializableWorldOptions {
+  readonly seed: Seed;
+  readonly genesis: Omit<GenesisConfig, 'seed'>;
+  readonly terrainLevel: number;
+  readonly climateN: number;
+  readonly hydrologyLevel: number;
+  readonly erode: boolean;
+  readonly civilisation: Omit<CivConfig, 'seed'>;
+}
+
 export interface World {
   readonly seed: Seed;
   readonly calendar: Calendar;
@@ -167,10 +178,14 @@ export interface World {
   readonly economy: EconomyState;
   readonly tiles: TileCache;
   readonly commands: CommandLog;
+  readonly history: HistoryStore;
   readonly terrainLevel: number;
+  readonly creationOptions: SerializableWorldOptions;
   timeScale: number;
   visualField: string;
   apply(cmd: Command): void;
+  advance(dt: number): void;
+  advanceDeepTime(years: number): void;
   digest(): number;
 }
 
@@ -188,6 +203,8 @@ interface WorldRuntimeRef {
   civConfig: CivConfig;
   cities: CityRegistry;
   economy: EconomyState;
+  history: HistoryStore;
+  geologyEventCursor: number;
   /** Reusable per-settlement forcing buffers; sized once, never per tick. */
   capMul: Float64Array;
   techMul: Float64Array;
@@ -283,7 +300,7 @@ export function createWorld(opts: WorldOptions = {}): World {
   publishEconomy(store, economy);
 
   const tiles = new TileCache({ storage: opts.tileStorage ?? new MemoryTileStore(), capacity: 2048 });
-  const commands = createCommandLog();
+  const history = new HistoryStore(WORLD_HISTORY_SERIES);
   const worldRef: WorldRuntimeRef = {
     timeScale: 1,
     visualField: 'elevation',
@@ -298,6 +315,8 @@ export function createWorld(opts: WorldOptions = {}): World {
     civConfig,
     cities,
     economy,
+    history,
+    geologyEventCursor: 0,
     capMul: new Float64Array(civilisation.store.capacity).fill(1),
     techMul: new Float64Array(civilisation.store.capacity).fill(1),
     windOnCube: {
@@ -321,6 +340,21 @@ export function createWorld(opts: WorldOptions = {}): World {
     .register(makeEconomy(store, worldRef, calendar))
     .register(makeRotation(store))
     .build();
+  const commands = createCommandLog(() => scheduler.time);
+  const creationOptions: SerializableWorldOptions = {
+    seed,
+    genesis: {
+      level: genesisCfg.level,
+      plateCount: genesisCfg.plateCount,
+      steps: genesisCfg.steps,
+      continentFraction: genesisCfg.continentFraction,
+    },
+    terrainLevel,
+    climateN,
+    hydrologyLevel: hydrology.level,
+    erode: opts.erode !== false,
+    civilisation: { ...(opts.civilisation ?? {}) },
+  };
 
   const world: World = {
     seed,
@@ -339,7 +373,9 @@ export function createWorld(opts: WorldOptions = {}): World {
     economy,
     tiles,
     commands,
+    history,
     terrainLevel,
+    creationOptions,
     get timeScale() {
       return worldRef.timeScale;
     },
@@ -355,6 +391,15 @@ export function createWorld(opts: WorldOptions = {}): World {
     apply(cmd: Command): void {
       commands.push(cmd);
       applyCommand(world, worldRef, cmd);
+    },
+    advance(dt: number): void {
+      commands.push({ kind: 'advance', seconds: dt });
+      scheduler.advance(duration(dt));
+      recordHistory(world);
+    },
+    advanceDeepTime(years: number): void {
+      commands.push({ kind: 'advanceDeepTime', years });
+      advanceDeepTime(world, worldRef, years);
     },
     digest(): number {
       /* T-0082: every authoritative subsystem, not just geology + climate.
@@ -401,8 +446,68 @@ function applyCommand(
       break;
     case 'stepOnce':
       world.scheduler.advance(HOUR);
+      recordHistory(world);
+      break;
+    case 'advance':
+      world.scheduler.advance(duration(cmd.seconds));
+      recordHistory(world);
+      break;
+    case 'advanceDeepTime':
+      advanceDeepTime(world, ref, cmd.years);
+      break;
+    case 'bookmark':
+      world.history.bookmark(world.scheduler.time, cmd.label);
+      world.history.addEvent(world.scheduler.time, 'timeline', cmd.label, 0.9);
       break;
   }
+}
+
+function advanceDeepTime(world: World, ref: WorldRuntimeRef, years: number): void {
+  if (!(years > 0) || !Number.isFinite(years)) throw new Error('deep-time advance requires finite positive years');
+  transitionRegime(world, ref, 'paleo');
+  const secondsPerYear = world.calendar.secondsPerYear;
+  const macro = duration(1_000_000 * secondsPerYear);
+  for (const owner of [OWNER_GEOLOGY, OWNER_CLIMATE, OWNER_HYDROLOGY, OWNER_BIOSPHERE,
+    OWNER_CIVILISATION, OWNER_ECONOMY, OWNER_ROTATION] as const) {
+    world.scheduler.setCadence(owner, { kind: 'every', dt: macro });
+  }
+  let remaining = years;
+  while (remaining > 0) {
+    const chunkYears = Math.min(remaining, 500_000_000);
+    world.scheduler.advance(duration(chunkYears * secondsPerYear));
+    remaining -= chunkYears;
+  }
+  world.scheduler.setCadence(OWNER_GEOLOGY, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
+  world.scheduler.setCadence(OWNER_CLIMATE, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
+  world.scheduler.setCadence(OWNER_HYDROLOGY, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
+  world.scheduler.setCadence(OWNER_BIOSPHERE, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
+  world.scheduler.setCadence(OWNER_CIVILISATION, { kind: 'every', dt: duration(500 * secondsPerYear) });
+  world.scheduler.setCadence(OWNER_ECONOMY, { kind: 'every', dt: duration(500 * secondsPerYear) });
+  world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
+  recordHistory(world);
+  world.history.addEvent(world.scheduler.time, 'timeline', `Deep-time jump ${years.toExponential(3)} years`, 1);
+}
+
+function recordHistory(world: World): void {
+  world.history.record(world.scheduler.time, {
+    population: world.civilisation.totalPopulation,
+    settlements: world.civilisation.store.count,
+    cities: world.cities.cities.length,
+    temperature: mean(world.climate.T),
+    seaLevel: world.hydrology.seaLevelM,
+    ice: mean(world.climate.ice),
+    biomass: mean(world.biosphere.biomassKgM2),
+    trade: world.economy.totalTrade,
+    production: world.economy.totalProduction,
+    pollution: mean(world.economy.pollution),
+  });
+}
+
+function mean(values: ArrayLike<number>): number {
+  if (values.length === 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) sum += values[i] as number;
+  return sum / values.length;
 }
 
 /** T0..T4 transitions are explicit command-log boundaries. Fast transients
@@ -553,6 +658,12 @@ function makeGeology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar
       /* What is in the ground changed, so what the ground is worth changed.
          Move a plate boundary and the mining regions move with it. */
       refreshEconomyResources(ref.economy, ref.geology, ref.hydrology, ref.biosphere, { seed });
+      const newEvents = ref.dynamicGeology.events.length - ref.geologyEventCursor;
+      if (newEvents > 0) {
+        const latest = ref.dynamicGeology.events[ref.dynamicGeology.events.length - 1]!;
+        ref.history.addEvent(ctx.time, 'geology', `${String(newEvents)} tectonic event${newEvents === 1 ? '' : 's'}`, 0.75, [latest.cell]);
+        ref.geologyEventCursor = ref.dynamicGeology.events.length;
+      }
       publishGeologyFields(store, ref.geology);
     },
   };
@@ -608,6 +719,9 @@ function makeCivilisation(store: FieldStore, ref: WorldRuntimeRef, calendar: Cal
     writes: [FID.habitability, FID.settlementPop, FID.territory],
     step: (ctx) => {
       const years = (ctx.dt as number) / calendar.secondsPerYear;
+      const founded = ref.civilisation.foundedTotal;
+      const collapsed = ref.civilisation.collapsedTotal;
+      const cityCount = ref.cities.cities.length;
       /* Habitability tracks the biosphere between geological refreshes: a
          drought that kills the NPP must empty the towns, not just the fields. */
       refreshHabitability(ref.habitability, ref.hydrology, ref.biosphere);
@@ -625,6 +739,12 @@ function makeCivilisation(store: FieldStore, ref: WorldRuntimeRef, calendar: Cal
          population from a different step. No geometry is built here — only
          authoritative city state advances. */
       stepCities(ref.cities, ref.civilisation, ref.hydrology, years);
+      if (ref.civilisation.foundedTotal > founded) ref.history.addEvent(ctx.time, 'civilisation',
+        `${String(ref.civilisation.foundedTotal - founded)} settlement founded`, 0.6);
+      if (ref.civilisation.collapsedTotal > collapsed) ref.history.addEvent(ctx.time, 'civilisation',
+        `${String(ref.civilisation.collapsedTotal - collapsed)} settlement collapsed`, 0.7);
+      if (ref.cities.cities.length > cityCount) ref.history.addEvent(ctx.time, 'city',
+        `${String(ref.cities.cities.length - cityCount)} city milestone`, 0.7);
       publishCivilisation(store, ref.civilisation);
     },
   };
@@ -686,6 +806,8 @@ function makeEconomy(
     writes: [FID.pollution, FID.oreRichness],
     step: (ctx) => {
       const years = (ctx.dt as number) / calendar.secondsPerYear;
+      const topology = ref.economy.network.topologyGeneration;
+      const railKm = ref.economy.network.railKm;
       stepEconomy(ref.economy, ref.civilisation, ref.hydrology, years);
       updateLandUse(ref.economy, ref.civilisation);
       /* Wind lives on the geodesic climate grid; pollution on the cube. The
@@ -694,6 +816,10 @@ function makeEconomy(
       mapGeoToCube(ref.climate.u, ref.climate.grid.n, ref.hydrology.level, ref.windOnCube.u);
       mapGeoToCube(ref.climate.v, ref.climate.grid.n, ref.hydrology.level, ref.windOnCube.v);
       advectPollution(ref.economy, ref.windOnCube.u, ref.windOnCube.v, years, cubeDim);
+      if (ref.economy.network.topologyGeneration > topology) ref.history.addEvent(ctx.time, 'economy',
+        'Transport network rebuilt', 0.55);
+      if (railKm === 0 && ref.economy.network.railKm > 0) ref.history.addEvent(ctx.time, 'economy',
+        'First railway', 0.9);
       publishEconomy(store, ref.economy);
     },
   };
@@ -709,6 +835,16 @@ function publishEconomy(store: FieldStore, e: EconomyState): void {
   for (let i = 0; i < n; i++) raw[i] = e.resources.endowment[base + i] as number;
   ore.markAllDirty();
   ore.commit();
+}
+
+/** Refresh derived FieldStore mirrors after loading authoritative state. */
+export function publishWorldState(world: World): void {
+  publishGeology(world.store, world.geology, world.ocean);
+  publishClimate(world.store, world.climate);
+  publishHydrology(world.store, world.hydrology);
+  publishBiosphere(world.store, world.biosphere);
+  publishCivilisation(world.store, world.civilisation);
+  publishEconomy(world.store, world.economy);
 }
 
 function makeRotation(store: FieldStore): Subsystem {
@@ -745,7 +881,6 @@ function makeClimate(
     writes: [FID.temperature, FID.humidity, FID.precip, FID.ice, FID.windU, FID.windV],
     step: (ctx) => {
       const s = ref.climate;
-      s.regime = classifyRegime(ref.timeScale);
       const sun = sunState(ctx.time, calendar, orbit);
       stepClimate(s, ctx.dt as number, sun.declination, orbit);
       publishClimate(store, s);
