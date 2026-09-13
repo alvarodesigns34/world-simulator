@@ -33,5 +33,20 @@ export default defineConfig({
     maxWorkers: Math.max(1, (availableParallelism?.() ?? 4) - 1),
     /* Long-running suites need room to tear down under load. */
     teardownTimeout: 30_000,
+    /*
+     * THE REPORTER IS THE THING THAT TIMES OUT, so on CI it is made quiet.
+     *
+     * `onTaskUpdate` is a worker->main RPC with a 5 s window. The default
+     * reporter prints a line per slow test and re-renders continuously, and on
+     * a loaded runner that work on the main thread is what misses the window —
+     * capping workers alone was not enough, and the same commit passed one run
+     * and failed the next. The dot reporter cuts that traffic to almost
+     * nothing.
+     *
+     * This changes only how results are PRINTED. Every test still runs and
+     * every failure still fails the job; a failing run prints the full
+     * diagnostics either way.
+     */
+    reporters: process.env.CI === undefined ? ['default'] : ['dot'],
   },
 });
