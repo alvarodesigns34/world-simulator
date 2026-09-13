@@ -72,6 +72,8 @@ export interface InfrastructureLink {
   readonly kind: CityKind;
   /** 0..1 build-out; drives width. */
   readonly quality: number;
+  /** Segment indices that cross rivers in the authoritative physical route. */
+  readonly bridgeSegments?: Int32Array;
 }
 
 export interface CitySceneInput {
@@ -301,10 +303,15 @@ export function buildCityScene(input: CitySceneInput, out?: Float32Array): CityS
     const points = link.points;
     const count = points.length / 3;
     if (count < 2) continue;
-    const halfWidth = (ROAD_HALF_WIDTH[link.kind] ?? 6) * (0.35 + 0.65 * link.quality);
-    const t = KIND_TINT[link.kind] ?? FALLBACK_TINT;
+    const builtScale = 0.35 + 0.65 * link.quality;
+    let bridgeCursor = 0;
     let drew = false;
     for (let i = 0; i + 1 < count; i++) {
+      while ((link.bridgeSegments?.[bridgeCursor] ?? Number.POSITIVE_INFINITY) < i) bridgeCursor++;
+      const isBridge = link.bridgeSegments?.[bridgeCursor] === i;
+      const kind = isBridge ? CITY_KIND.BRIDGE : link.kind;
+      const halfWidth = (ROAD_HALF_WIDTH[kind] ?? 6) * builtScale;
+      const t = KIND_TINT[kind] ?? FALLBACK_TINT;
       const ax = (points[i * 3] as number) - input.camX;
       const ay = (points[i * 3 + 1] as number) - input.camY;
       const az = (points[i * 3 + 2] as number) - input.camZ;
@@ -328,12 +335,13 @@ export function buildCityScene(input: CitySceneInput, out?: Float32Array): CityS
       else if (Math.abs(lx) < 0.9) { upx = 1; upy = 0; upz = 0; }
       else { upx = 0; upy = 1; upz = 0; }
       if (!push(
-        (ax + bx) / 2, (ay + by) / 2, (az + bz) / 2, link.kind,
+        (ax + bx) / 2, (ay + by) / 2, (az + bz) / 2, kind,
         lx, ly, lz, len / 2,
         ly * upz - lz * upy, lz * upx - lx * upz, lx * upy - ly * upx, halfWidth,
         upx, upy, upz, 1.2,
         t[0], t[1], t[2], 0.05,
       )) break;
+      if (isBridge) bridges++;
       drew = true;
     }
     if (drew) links++;

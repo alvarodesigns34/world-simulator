@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { makeSeed } from '@ws/core';
 import { EARTH_GEOMETRY } from '@ws/data';
 import { CITY_INSTANCE_FLOATS, CITY_INSTANCE_OFFSET, CITY_KIND } from '@ws/render';
-import { createWorld, duration, largestCity } from '@ws/sim';
+import { createWorld, duration, largestCity, MODE } from '@ws/sim';
 import { CitySceneAdapter, surfaceFrameAt } from '../src/city-scene-adapter.js';
 
 /** A world small enough to build quickly but large enough to grow cities. */
@@ -89,7 +89,9 @@ describe('T-0101 city scene adapter', () => {
     expect(built.stats.buildings + built.stats.streets).toBeGreaterThan(0);
 
     const local = new Set<number>([
-      CITY_KIND.BUILDING, CITY_KIND.STREET, CITY_KIND.ARTERIAL, CITY_KIND.BRIDGE,
+      /* BRIDGE is deliberately excluded: physical-network bridge spans can be
+         continents away, whereas these three kinds belong only to this city. */
+      CITY_KIND.BUILDING, CITY_KIND.STREET, CITY_KIND.ARTERIAL,
     ]);
     let worst = 0;
     let checked = 0;
@@ -176,6 +178,48 @@ describe('T-0101 city scene adapter', () => {
       /* Only kinds the renderer knows; nothing invented for water. */
       expect(Object.values(CITY_KIND) as number[]).toContain(kind);
     }
+  });
+
+  it('keeps land-link quality aligned when water links are omitted from the scene', () => {
+    const mixed = urbanWorld();
+    const net = mixed.economy.network;
+    const land = net.edges.find((edge) => edge.mode !== MODE.SEA
+      && edge.mode !== MODE.RIVER && edge.route.cells.length > 1);
+    expect(land).toBeDefined();
+
+    /* A sea edge precedes the land edge in the authoritative graph. The renderer
+       intentionally omits that sea corridor, but must not shift quality indices
+       and use the sea edge's zero build-out for the road/rail that follows. */
+    const renderedLand = {
+      ...land!,
+      quality: 1,
+      route: {
+        ...land!.route,
+        bridgeCells: Int32Array.of(land!.route.cells[1]!),
+      },
+    };
+    const water = {
+      ...renderedLand,
+      mode: MODE.SEA,
+      quality: 0,
+      route: { ...renderedLand.route, bridgeCells: new Int32Array(0), portA: -1, portB: -1 },
+    };
+    net.edges = [water, renderedLand];
+    net.topologyGeneration++;
+
+    const built = new CitySceneAdapter({ radiusM: R, maxCities: 0 })
+      .build(mixed, { x: 0, y: 0, z: R + 400_000 });
+    const kind = renderedLand.mode === MODE.RAIL ? CITY_KIND.RAIL : CITY_KIND.ROAD;
+    const baseHalfWidth = kind === CITY_KIND.RAIL ? 3.5 : 8;
+    let checked = 0;
+    for (let i = 0; i < built.scene.count; i++) {
+      const o = i * CITY_INSTANCE_FLOATS;
+      if (built.scene.data[o + CITY_INSTANCE_OFFSET.centre + 3] !== kind) continue;
+      expect(built.scene.data[o + CITY_INSTANCE_OFFSET.axisY + 3]).toBeCloseTo(baseHalfWidth, 5);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+    expect(built.stats.bridges).toBeGreaterThan(0);
   });
 
   it('survives a world with no cities at all', () => {

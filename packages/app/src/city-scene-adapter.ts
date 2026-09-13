@@ -65,9 +65,10 @@ interface GeometryEntry {
 interface CorridorEntry {
   /** Planet-fixed metres, 3 per point. */
   readonly points: Float64Array;
-  readonly kind: number;
-  /** Bridge sub-spans, as point indices into `points`. */
-  readonly bridgeAt: Int32Array;
+  /** Index in the authoritative network, retained because water links are not drawn. */
+  readonly edgeIndex: number;
+  /** Segment indices in the decimated polyline that cross an authoritative bridge cell. */
+  readonly bridgeSegments: Int32Array;
 }
 
 export interface CitySceneOptions {
@@ -203,7 +204,8 @@ export class CitySceneAdapter {
       this.corridors.length = 0;
       const maxPoints = this.options.maxCorridorPoints ?? 96;
       const portCells = new Set<number>();
-      for (const edge of net.edges) {
+      for (let edgeIndex = 0; edgeIndex < net.edges.length; edgeIndex++) {
+        const edge = net.edges[edgeIndex]!;
         if (edge.mode === MODE.SEA || edge.mode === MODE.RIVER) {
           if (edge.route.portA >= 0) portCells.add(edge.route.portA);
           if (edge.route.portB >= 0) portCells.add(edge.route.portB);
@@ -212,10 +214,11 @@ export class CitySceneAdapter {
         const cells = edge.route.cells;
         if (cells.length < 2) continue;
         const stride = Math.max(1, Math.ceil(cells.length / maxPoints));
-        const kept: number[] = [];
-        for (let i = 0; i < cells.length; i += stride) kept.push(cells[i] as number);
-        const last = cells[cells.length - 1] as number;
-        if (kept[kept.length - 1] !== last) kept.push(last);
+        const keptIndices: number[] = [];
+        for (let i = 0; i < cells.length; i += stride) keptIndices.push(i);
+        const lastIndex = cells.length - 1;
+        if (keptIndices[keptIndices.length - 1] !== lastIndex) keptIndices.push(lastIndex);
+        const kept = keptIndices.map((index) => cells[index] as number);
         const points = new Float64Array(kept.length * 3);
         for (let i = 0; i < kept.length; i++) {
           const cell = kept[i] as number;
@@ -225,13 +228,21 @@ export class CitySceneAdapter {
           points[i * 3 + 1] = u[1] * r;
           points[i * 3 + 2] = u[2] * r;
         }
-        const bridgeSet = new Set<number>(Array.from(edge.route.bridgeCells));
-        const bridgeAt: number[] = [];
-        for (let i = 0; i < kept.length; i++) if (bridgeSet.has(kept[i] as number)) bridgeAt.push(i);
+        const bridgeSet = new Set<number>(edge.route.bridgeCells);
+        const bridgeSegments: number[] = [];
+        for (let segment = 0; segment + 1 < keptIndices.length; segment++) {
+          const begin = keptIndices[segment]! + 1;
+          const end = keptIndices[segment + 1]!;
+          for (let routeIndex = begin; routeIndex <= end; routeIndex++) {
+            if (!bridgeSet.has(cells[routeIndex] as number)) continue;
+            bridgeSegments.push(segment);
+            break;
+          }
+        }
         this.corridors.push({
           points,
-          kind: edge.mode === MODE.RAIL ? CITY_KIND.RAIL : CITY_KIND.ROAD,
-          bridgeAt: Int32Array.from(bridgeAt),
+          edgeIndex,
+          bridgeSegments: Int32Array.from(bridgeSegments),
         });
       }
       const ports = new Float64Array(portCells.size * 3);
@@ -254,17 +265,20 @@ export class CitySceneAdapter {
     if (out.length === 0) {
       for (let i = 0; i < this.corridors.length; i++) {
         const c = this.corridors[i] as CorridorEntry;
-        const edge = net.edges[i];
-        out.push({ points: c.points, kind: c.kind as InfrastructureLink['kind'],
-          quality: edge?.quality ?? 0.5 });
+        const edge = net.edges[c.edgeIndex];
+        out.push({ points: c.points,
+          kind: edge?.mode === MODE.RAIL ? CITY_KIND.RAIL : CITY_KIND.ROAD,
+          quality: edge?.quality ?? 0.5, bridgeSegments: c.bridgeSegments });
       }
       this.links = out;
       return out;
     }
     for (let i = 0; i < out.length; i++) {
-      const edge = net.edges[i];
-      if (edge !== undefined && out[i]!.quality !== edge.quality) {
-        out[i] = { points: out[i]!.points, kind: out[i]!.kind, quality: edge.quality };
+      const edge = net.edges[this.corridors[i]!.edgeIndex];
+      if (edge === undefined) continue;
+      const kind = edge.mode === MODE.RAIL ? CITY_KIND.RAIL : CITY_KIND.ROAD;
+      if (out[i]!.quality !== edge.quality || out[i]!.kind !== kind) {
+        out[i] = { ...out[i]!, kind, quality: edge.quality };
       }
     }
     return out;
