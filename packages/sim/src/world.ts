@@ -15,6 +15,7 @@ import {
   simTime,
   type Calendar,
   type Seed,
+  type Duration,
   type SimTime,
 } from '@ws/core';
 import {
@@ -185,7 +186,12 @@ export interface World {
   visualField: string;
   apply(cmd: Command): void;
   advance(dt: number): void;
-  advanceDeepTime(years: number): void;
+  /**
+   * Geological fast-forward with an explicitly approximate civilisation and
+   * economy (T-0096). Distinct from `advance()`, which is physically
+   * meaningful at its regime's cadence.
+   */
+  advanceDeepTimeApproximate(years: number): void;
   digest(): number;
 }
 
@@ -397,9 +403,14 @@ export function createWorld(opts: WorldOptions = {}): World {
       scheduler.advance(duration(dt));
       recordHistory(world);
     },
-    advanceDeepTime(years: number): void {
+    /**
+     * Geological fast-forward. NOT an ordinary advance: civilisation and
+     * economy are reduced to an envelope for the duration. See
+     * `advanceDeepTimeApproximate`.
+     */
+    advanceDeepTimeApproximate(years: number): void {
       commands.push({ kind: 'advanceDeepTime', years });
-      advanceDeepTime(world, worldRef, years);
+      advanceDeepTimeApproximate(world, worldRef, years);
     },
     digest(): number {
       /* T-0082 covered M5-M7; T-0094 adds M9 cities, the M10 arrays M8 reads
@@ -457,7 +468,7 @@ function applyCommand(
       recordHistory(world);
       break;
     case 'advanceDeepTime':
-      advanceDeepTime(world, ref, cmd.years);
+      advanceDeepTimeApproximate(world, ref, cmd.years);
       break;
     case 'bookmark':
       world.history.bookmark(world.scheduler.time, cmd.label);
@@ -466,7 +477,38 @@ function applyCommand(
   }
 }
 
-function advanceDeepTime(world: World, ref: WorldRuntimeRef, years: number): void {
+/**
+ * DEEP-TIME APPROXIMATION — not a physically meaningful timeline advance.
+ *
+ * This is the geological fast-forward behind the 4.5 Gyr stress path, and it is
+ * named for what it is (T-0096). It is NOT `advance()` with a big number.
+ *
+ * WHAT IT APPROXIMATES, AND WHY THAT IS DEFENSIBLE. `transitionRegime` argues,
+ * correctly, that civilisation must not run on geological ticks because "a
+ * 100 kyr civilisation tick would skip the entire history of every society".
+ * This function used to set civilisation and economy to 1 Myr per step — the
+ * same objection, ten times worse — while presenting itself as an ordinary
+ * timeline jump. That was the contradiction.
+ *
+ * The resolution is not a smaller step; at 4.5 Gyr no affordable step resolves
+ * societies. It is to state what the model becomes:
+ *
+ *   - Geology, climate, hydrology and biosphere DO have deep-time dynamics and
+ *     are integrated on macro steps. Their state is meaningful afterwards.
+ *   - Civilisation and economy are advanced as an ENVELOPE, not a history.
+ *     Population and technology are closed-form (DEC-042), so they track their
+ *     equilibria correctly at any dt; what is lost is the rise and fall of
+ *     individual societies, which at this scale were never resolvable. The
+ *     civilisation LOD is switched to `aggregate` explicitly to say so, rather
+ *     than leaving a full-detail model running at a step it cannot support.
+ *
+ * DEC-030 permits temporal LOD and path dependence. What it does not permit is
+ * an approximation that is not declared, which is what this was.
+ *
+ * On return every cadence is restored from the single regime table, so a jump
+ * cannot leave civilisation integrating at a million years per step.
+ */
+function advanceDeepTimeApproximate(world: World, ref: WorldRuntimeRef, years: number): void {
   if (!(years > 0) || !Number.isFinite(years)) throw new Error('deep-time advance requires finite positive years');
   transitionRegime(world, ref, 'paleo');
   const secondsPerYear = world.calendar.secondsPerYear;
@@ -475,21 +517,22 @@ function advanceDeepTime(world: World, ref: WorldRuntimeRef, years: number): voi
     OWNER_CIVILISATION, OWNER_ECONOMY, OWNER_ROTATION] as const) {
     world.scheduler.setCadence(owner, { kind: 'every', dt: macro });
   }
+  /* Already 'aggregate' at paleo; set explicitly because this function is the
+     one place that runs civilisation far outside its designed cadence. */
+  ref.civilisation.detail = 'aggregate';
+
   let remaining = years;
   while (remaining > 0) {
     const chunkYears = Math.min(remaining, 500_000_000);
     world.scheduler.advance(duration(chunkYears * secondsPerYear));
     remaining -= chunkYears;
   }
-  world.scheduler.setCadence(OWNER_GEOLOGY, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
-  world.scheduler.setCadence(OWNER_CLIMATE, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
-  world.scheduler.setCadence(OWNER_HYDROLOGY, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
-  world.scheduler.setCadence(OWNER_BIOSPHERE, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
-  world.scheduler.setCadence(OWNER_CIVILISATION, { kind: 'every', dt: duration(500 * secondsPerYear) });
-  world.scheduler.setCadence(OWNER_ECONOMY, { kind: 'every', dt: duration(500 * secondsPerYear) });
-  world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: duration(100_000 * secondsPerYear) });
+
+  /* Restore from the regime table rather than repeating it. */
+  applyRegimeCadences(world, ref, ref.climate.regime);
   recordHistory(world);
-  world.history.addEvent(world.scheduler.time, 'timeline', `Deep-time jump ${years.toExponential(3)} years`, 1);
+  world.history.addEvent(world.scheduler.time, 'timeline',
+    `Deep-time approximation ${years.toExponential(3)} years`, 1);
 }
 
 function recordHistory(world: World): void {
@@ -517,42 +560,64 @@ function mean(values: ArrayLike<number>): number {
 /** T0..T4 transitions are explicit command-log boundaries. Fast transients
  * quiesce, cadence windows realign deterministically, and slow geology retains
  * its fixed 100 kyr cadence. */
-function transitionRegime(world: World, ref: WorldRuntimeRef, regime: Regime): void {
-  if (ref.climate.regime === regime) return;
-  quiesceClimate(ref.climate);
-  ref.climate.regime = regime;
-  const y = world.calendar.secondsPerYear;
-  const climateDt = regime === 'explicit' ? HOUR
+/**
+ * The cadence each subsystem runs at in a given regime.
+ *
+ * Extracted so there is ONE table. `advanceDeepTimeApproximate` used to restore
+ * cadences by repeating these numbers inline, which is exactly how a restore
+ * drifts from the thing it is restoring to.
+ */
+function regimeCadences(regime: Regime, secondsPerYear: number): {
+  climate: Duration; hydrology: Duration; biosphere: Duration;
+  civilisation: Duration; geology: Duration;
+} {
+  const y = secondsPerYear;
+  const climate = regime === 'explicit' ? HOUR
     : regime === 'synoptic' ? duration(6 * HOUR)
     : regime === 'climatology' ? duration(30 * DAY)
     : duration(100_000 * y);
-  const hydroDt = regime === 'explicit' ? DAY
+  const hydrology = regime === 'explicit' ? DAY
     : regime === 'synoptic' ? duration(7 * DAY)
     : regime === 'climatology' ? duration(y)
     : duration(100_000 * y);
-  const bioDt = regime === 'explicit' ? duration(30 * DAY)
+  const biosphere = regime === 'explicit' ? duration(30 * DAY)
     : regime === 'synoptic' ? duration(90 * DAY)
     : regime === 'climatology' ? duration(y)
     : duration(100_000 * y);
-  world.scheduler.setCadence(OWNER_CLIMATE, { kind: 'every', dt: climateDt });
-  world.scheduler.setCadence(OWNER_HYDROLOGY, { kind: 'every', dt: hydroDt });
-  world.scheduler.setCadence(OWNER_BIOSPHERE, { kind: 'every', dt: bioDt });
-  /* Civilisation coarsens with the rest, and drops to aggregate detail at
-     paleo scales: at 100 kyr per step the interesting quantity is the
-     population envelope, not which hamlet founded which (DEC-015). */
   /* Civilisation's own time scale is years to millennia, so it does NOT
      coarsen to the 100 kyr geological step at paleo: a 100 kyr civilisation
      tick would skip the entire history of every society that ever existed.
      500 years is the coarsest step at which the closed-form demography still
      resolves a rise and a fall, and the step is O(cells), so 200 of them per
      geological tick is affordable. */
-  const civDt = regime === 'explicit' || regime === 'synoptic' ? duration(y)
+  const civilisation = regime === 'explicit' || regime === 'synoptic' ? duration(y)
     : regime === 'climatology' ? duration(10 * y)
     : duration(500 * y);
-  world.scheduler.setCadence(OWNER_CIVILISATION, { kind: 'every', dt: civDt });
-  world.scheduler.setCadence(OWNER_ECONOMY, { kind: 'every', dt: civDt });
+  /* Geology is on a fixed simulation-time cadence in every regime (DEC-030):
+     its trajectory must be path-independent of how fast the user is watching. */
+  const geology = duration(100_000 * y);
+  return { climate, hydrology, biosphere, civilisation, geology };
+}
+
+function applyRegimeCadences(world: World, ref: WorldRuntimeRef, regime: Regime): void {
+  const c = regimeCadences(regime, world.calendar.secondsPerYear);
+  world.scheduler.setCadence(OWNER_CLIMATE, { kind: 'every', dt: c.climate });
+  world.scheduler.setCadence(OWNER_HYDROLOGY, { kind: 'every', dt: c.hydrology });
+  world.scheduler.setCadence(OWNER_BIOSPHERE, { kind: 'every', dt: c.biosphere });
+  world.scheduler.setCadence(OWNER_CIVILISATION, { kind: 'every', dt: c.civilisation });
+  world.scheduler.setCadence(OWNER_ECONOMY, { kind: 'every', dt: c.civilisation });
+  world.scheduler.setCadence(OWNER_GEOLOGY, { kind: 'every', dt: c.geology });
+  world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: c.climate });
+  /* Below the paleo regime every society is resolved individually; at paleo the
+     interesting quantity is the population envelope (DEC-015). */
   ref.civilisation.detail = regime === 'paleo' ? 'aggregate' : 'full';
-  world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: climateDt });
+}
+
+function transitionRegime(world: World, ref: WorldRuntimeRef, regime: Regime): void {
+  if (ref.climate.regime === regime) return;
+  quiesceClimate(ref.climate);
+  ref.climate.regime = regime;
+  applyRegimeCadences(world, ref, regime);
   resumeClimate(ref.climate);
 }
 

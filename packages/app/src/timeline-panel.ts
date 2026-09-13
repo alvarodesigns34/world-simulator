@@ -54,7 +54,7 @@ export class TimelinePanel {
     </div>
     <div style="display:flex;gap:7px;margin-top:8px;align-items:center">
       <input data-role="years" type="number" min="1" value="1000000" style="width:105px" aria-label="Years to jump">
-      <button data-act="jump">JUMP YEARS</button><button data-act="bookmark">BOOKMARK</button>
+      <button data-act="jump" title="Geological fast-forward. Civilisation and economy are approximated as an envelope for the duration.">DEEP-TIME JUMP</button><button data-act="bookmark">BOOKMARK</button>
       <button data-act="live">RESUME LIVE</button>
       <button data-act="recipe">RECIPE</button><button data-act="snapshot">SNAPSHOT</button>
     </div>`;
@@ -73,7 +73,7 @@ export class TimelinePanel {
     tier.onchange = () => world.apply({ kind: 'setTimeScale', scale: Number(tier.value) });
     this.pick<HTMLButtonElement>('[data-act=jump]').onclick = () => {
       const n = Number(years.value);
-      if (Number.isFinite(n) && n > 0) world.advanceDeepTime(n);
+      if (Number.isFinite(n) && n > 0) world.advanceDeepTimeApproximate(n);
     };
     this.pick<HTMLButtonElement>('[data-act=bookmark]').onclick = () => {
       world.apply({ kind: 'bookmark', label: `Year ${String(world.scheduler.time.year)}` });

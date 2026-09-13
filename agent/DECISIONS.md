@@ -3137,3 +3137,92 @@ that just moved.
 - Branching (simulating onward from a past instant, discarding the future) is
   deliberately absent rather than ambiguous. It would invalidate the log tail
   and every later checkpoint, and that is a different feature.
+
+---
+
+## DEC-052 — Deep time is a declared approximation with its own name
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Simulation Architect)
+
+### Context
+
+`transitionRegime` argues, correctly and in a comment, that civilisation must
+not run on geological ticks because "a 100 kyr civilisation tick would skip the
+entire history of every society that ever existed" — and therefore holds
+civilisation and economy at 500 years even in the paleo regime.
+
+`advanceDeepTime` then set civilisation and economy to **1 Myr per step**: the
+same objection, ten times worse, reached through a button labelled
+"JUMP YEARS" that looked like an ordinary timeline control. It also restored
+cadences afterwards by repeating the regime table inline, which is how a restore
+drifts from the thing it restores to.
+
+### Decision
+
+Deep time is a separate operation with a separate name:
+`World.advanceDeepTimeApproximate(years)`.
+
+The fix is not a smaller step — at 4.5 Gyr no affordable step resolves
+societies. It is to state what the model becomes:
+
+- Geology, climate, hydrology and biosphere have genuine deep-time dynamics and
+  are integrated on macro steps. Their state is meaningful afterwards.
+- Civilisation and economy are advanced as an **envelope**, not a history.
+  Population and technology are closed-form (DEC-042), so they track their
+  equilibria correctly at any dt; what is lost is the rise and fall of
+  individual societies, which at this scale were never resolvable. The
+  civilisation LOD is switched to `aggregate` explicitly, rather than leaving a
+  full-detail model running at a step it cannot support.
+
+DEC-030 permits temporal LOD and path dependence. What it does not permit is an
+approximation that is not declared.
+
+The regime cadence table is extracted into one function used by both
+`transitionRegime` and the deep-time restore, so a jump cannot leave
+civilisation integrating at a million years per step.
+
+### Consequences
+
+- The UI control is relabelled "DEEP-TIME JUMP" and carries the approximation
+  in its tooltip. `advance()` remains the physically meaningful path.
+- Tested: paleo keeps civilisation at 500 yr while geology runs at 100 kyr;
+  after a jump every cadence is restored; reverting to a fine regime is clean;
+  no field goes non-finite; and the jump replays through the command log to the
+  same digest, so the approximation is reproducible even though it is an
+  approximation.
+- The 4.5 Gyr stress is unchanged in character and still completes in ~12.8 s.
+
+---
+
+## DEC-053 — A determinism property must be asserted, not observed
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Determinism Engineer)
+
+### Context
+
+The 4.5 Gyr stress had been producing the same digest across CI runs, and that
+was being read as evidence of determinism. It happened because
+`check:sim-standalone` re-runs the same suite in the same job — nothing in the
+repository actually *required* two deep-time runs to agree. A property that
+holds by coincidence of the CI layout is not a property.
+
+### Decision
+
+The stress file asserts determinism directly, by running two worlds and
+comparing digests, rather than pinning a golden constant.
+
+A golden would also catch divergence, but it fails on every legitimate model
+change and teaches the reader to update the number rather than investigate. A
+same-run comparison fails only when reproducibility actually breaks.
+
+The assertion uses a shorter horizon (1.1 Gyr) than the headline stress, chosen
+to still cross macro-chunk boundaries, a regime transition and the cadence
+restore — the places a deep-time path would actually diverge — so the contract
+costs about one extra stress run rather than two.
+
+A companion test asserts the approximation does not depend on how the caller
+chunks the request: one 1 Gyr jump and two 500 Myr jumps reach the same time.
