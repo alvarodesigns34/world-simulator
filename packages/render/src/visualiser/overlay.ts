@@ -14,6 +14,14 @@ export interface OverlayField {
   readonly kind: 'cubesphere' | 'geodesic';
   readonly level: number;
   readonly positions?: Float64Array;
+  readonly vectorV?: ArrayLike<number>;
+  readonly metadata?: {
+    readonly label: string;
+    readonly units: string;
+    readonly kind: 'continuous' | 'categorical' | 'vector';
+    readonly domain: readonly [number, number];
+    readonly categories?: Readonly<Record<number, string>>;
+  };
 }
 
 export class FieldOverlay {
@@ -23,6 +31,10 @@ export class FieldOverlay {
   private readonly h: number;
   probe: { lon: number; lat: number; value: number; name: string } | null = null;
   visible = true;
+  /** Instrumented CPU cost of the most recent actual visualiser refresh. */
+  cpuMs = 0;
+  private lastDrawAt = -Infinity;
+  private readonly geodesicLookup = new WeakMap<Float64Array, Int32Array>();
 
   constructor(parent: HTMLElement, width = 320, height = 160) {
     this.w = width;
@@ -54,7 +66,19 @@ export class FieldOverlay {
       return;
     }
     this.canvas.style.display = 'block';
-    const ramp: Ramp = RAMPS[field.name] ?? RAMPS.elevation!;
+    const now = performance.now();
+    /* Scientific layers are slow state. Updating at 10 Hz keeps cursor probes
+       responsive while making normal per-frame main-thread overhead tiny. */
+    if (now - this.lastDrawAt < 100) return;
+    this.lastDrawAt = now;
+    const started = now;
+    const ramp: Ramp = RAMPS[field.name] ?? (field.metadata === undefined ? RAMPS.elevation! : {
+      name: field.metadata.label,
+      units: field.metadata.units,
+      min: field.metadata.domain[0],
+      max: field.metadata.domain[1],
+      stops: [[0, [16, 28, 48]], [0.5, [54, 162, 178]], [1, [244, 180, 78]]],
+    });
     const img = this.ctx.createImageData(this.w, this.h);
     let probeVal = 0;
     let probeSet = false;
@@ -66,8 +90,8 @@ export class FieldOverlay {
         const lon = ((px + 0.5) / this.w) * 2 * Math.PI - Math.PI;
         const cx = cr * Math.cos(lon);
         const cy = cr * Math.sin(lon);
-        const v = sampleField(field, cx, cy, cz);
-        const [r, g, b] = sampleRamp(ramp, v);
+        const v = this.sampleField(field, cx, cy, cz, py * this.w + px);
+        const [r, g, b] = field.metadata?.kind === 'categorical' ? categoryColour(v) : sampleRamp(ramp, v);
         const i = (py * this.w + px) * 4;
         img.data[i] = r;
         img.data[i + 1] = g;
@@ -84,14 +108,92 @@ export class FieldOverlay {
       }
     }
     this.ctx.putImageData(img, 0, 0);
+    if (field.metadata?.kind === 'vector' && field.vectorV !== undefined) this.drawVectors(field);
     this.ctx.fillStyle = '#cfe3ef';
     this.ctx.font = '10px ui-monospace,monospace';
-    this.ctx.fillText(`${ramp.name}  ${ramp.min}–${ramp.max} ${ramp.units}`, 6, 12);
+    const label = field.metadata?.label ?? ramp.name;
+    const units = field.metadata?.units ?? ramp.units;
+    const domain = field.metadata?.domain ?? [ramp.min, ramp.max] as const;
+    this.ctx.fillText(`${label}  ${String(domain[0])}–${String(domain[1])} ${units}`, 6, 12);
+    if (field.metadata?.kind === 'categorical' && field.metadata.categories !== undefined) {
+      const entries = Object.entries(field.metadata.categories).slice(0, 5);
+      this.ctx.fillText(entries.map(([id, name]) => `${id}:${name}`).join(' · '), 6, 25);
+    }
     if (this.probeLonLat && probeSet) {
       this.probe = { ...this.probeLonLat, value: probeVal, name: field.name };
-      this.ctx.fillText(`probe ${probeVal.toFixed(2)} ${ramp.units}`, 6, this.h - 6);
+      const category = field.metadata?.categories?.[Math.trunc(probeVal)];
+      this.ctx.fillText(`probe ${category ?? probeVal.toFixed(3)} ${units}`, 6, this.h - 6);
+    }
+    this.cpuMs = performance.now() - started;
+  }
+
+  private drawVectors(field: OverlayField): void {
+    this.ctx.strokeStyle = 'rgba(235,248,255,.72)';
+    this.ctx.lineWidth = 0.75;
+    for (let py = 10; py < this.h; py += 16) {
+      const lat = Math.PI / 2 - ((py + 0.5) / this.h) * Math.PI;
+      const cr = Math.cos(lat);
+      for (let px = 10; px < this.w; px += 20) {
+        const lon = ((px + 0.5) / this.w) * 2 * Math.PI - Math.PI;
+        const x = cr * Math.cos(lon);
+        const y = cr * Math.sin(lon);
+        const z = Math.sin(lat);
+        const pixel = py * this.w + px;
+        const u = this.sampleField(field, x, y, z, pixel);
+        const v = this.sampleField({ ...field, values: field.vectorV! }, x, y, z, pixel);
+        const magnitude = Math.sqrt(u * u + v * v);
+        if (!(magnitude > 1e-9)) continue;
+        const scale = Math.min(6, 1 + magnitude * 0.12) / magnitude;
+        this.ctx.beginPath();
+        this.ctx.moveTo(px, py);
+        this.ctx.lineTo(px + u * scale, py - v * scale);
+        this.ctx.stroke();
+      }
     }
   }
+
+  private sampleField(field: OverlayField, x: number, y: number, z: number, pixel: number): number {
+    if (field.kind === 'geodesic' && field.positions !== undefined) {
+      let lookup = this.geodesicLookup.get(field.positions);
+      if (lookup === undefined) {
+        lookup = buildGeodesicLookup(field.positions, this.w, this.h, field.values.length);
+        this.geodesicLookup.set(field.positions, lookup);
+      }
+      return field.values[lookup[pixel] as number] as number;
+    }
+    return sampleField(field, x, y, z);
+  }
+}
+
+function buildGeodesicLookup(positions: Float64Array, width: number, height: number, count: number): Int32Array {
+  const lookup = new Int32Array(width * height);
+  for (let py = 0; py < height; py++) {
+    const lat = Math.PI / 2 - ((py + 0.5) / height) * Math.PI;
+    const z = Math.sin(lat);
+    const radius = Math.cos(lat);
+    for (let px = 0; px < width; px++) {
+      const lon = ((px + 0.5) / width) * 2 * Math.PI - Math.PI;
+      const x = radius * Math.cos(lon);
+      const y = radius * Math.sin(lon);
+      let best = 0;
+      let bestDot = -2;
+      for (let i = 0; i < count; i++) {
+        const dot = x * (positions[i * 3] as number) + y * (positions[i * 3 + 1] as number) + z * (positions[i * 3 + 2] as number);
+        if (dot > bestDot) { bestDot = dot; best = i; }
+      }
+      lookup[py * width + px] = best;
+    }
+  }
+  return lookup;
+}
+
+/** Stable palette from the category id; adjacent ids do not interpolate. */
+function categoryColour(value: number): readonly [number, number, number] {
+  const id = Math.trunc(value);
+  if (id < 0) return [18, 23, 29];
+  let h = Math.imul(id ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  return [55 + (h & 0x9f), 55 + ((h >>> 8) & 0x9f), 55 + ((h >>> 16) & 0x9f)];
 }
 
 function sampleField(field: OverlayField, x: number, y: number, z: number): number {
