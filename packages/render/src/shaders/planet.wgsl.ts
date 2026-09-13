@@ -186,8 +186,20 @@ fn fs(frag : VsOut) -> @location(0) vec4<f32> {
   }
 
   var rgb = albedo * mix(wrap, 0.03, night) + scatter + twilightCol;
-  // Reinhard tonemap, no cinematic grade.
-  rgb = rgb / (rgb + vec3<f32>(1.0));
+  // Simulated weather/haze is supplied in surface.w. It is derived from M4
+  // precipitation and M10 pollution, never decorative random noise.
+  let weatherHaze = clamp(frag.surface.w, 0.0, 1.0);
+  rgb = mix(rgb, vec3<f32>(0.58, 0.64, 0.66) * (0.25 + wrap * 0.75), weatherHaze * 0.24);
+  if (u.sunDirection.w > 0.5 && debugMode < 0.5) {
+    // Exposure, restrained highlight bloom and a neutral filmic shoulder.
+    rgb = rgb * 1.18;
+    let bloom = max(rgb - vec3<f32>(0.72), vec3<f32>(0.0));
+    rgb = rgb + bloom * 0.16;
+    rgb = (rgb * (2.51 * rgb + vec3<f32>(0.03))) /
+      (rgb * (2.43 * rgb + vec3<f32>(0.59)) + vec3<f32>(0.14));
+  } else {
+    rgb = rgb / (rgb + vec3<f32>(1.0));
+  }
   return vec4<f32>(rgb, 1.0);
 }
 `;

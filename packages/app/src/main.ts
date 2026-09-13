@@ -11,7 +11,6 @@ import {
   Telemetry,
   ZONE,
   budgets,
-  duration,
   format,
   usFromMs,
   v3,
@@ -25,6 +24,8 @@ import {
   acquireGpu,
   probeWindingConvention,
   cameraFromGeodetic,
+  cinematicFrameAt,
+  CINEMATIC_DURATION_SECONDS,
   derive,
   descentCameraAt,
   dragOrbit,
@@ -35,30 +36,25 @@ import {
   type DebugMode,
 } from '@ws/render';
 import {
-  CIV,
-  COMMODITY,
   CITY_LOD,
+  SCIENTIFIC_FIELDS,
   cityLayout,
   cityTerrainSampler,
   createWorld,
-  endowmentAt,
   largestCity,
   lodForDistance,
   sampleElevation,
+  scientificField,
   sunState,
 } from '@ws/sim';
 import { Hud } from './hud.js';
 import { openOpfsTileStore } from './opfs.js';
 import { sampleStreamedTile, TileStreamer } from './tile-streamer.js';
+import { TimelinePanel } from './timeline-panel.js';
+import { ScientificPanel } from './scientific-panel.js';
 
 const PLANET = EARTH_GEOMETRY;
-const VISUAL_FIELDS = [
-  'elevation', 'plateId', 'boundaryType', 'crustAge', 'crustThickness', 'uplift',
-  'temperature', 'precip', 'humidity', 'wind', 'ice',
-  'basin', 'flowAccumulation', 'runoff', 'soilMoisture', 'riverDischarge', 'snowpack', 'glacier',
-  'biome', 'vegetation', 'npp', 'population',
-  'habitability', 'settlementPop', 'territory', 'pollution', 'oreRichness',
-] as const;
+const VISUAL_FIELDS = SCIENTIFIC_FIELDS.map((field) => field.id);
 
 function fail(message: string): void {
   const el = document.createElement('div');
@@ -154,12 +150,18 @@ async function main(): Promise<void> {
     const vegetation = world.biosphere.vegetationDensity[i] as number;
     const river = Math.min(1, (world.hydrology.dischargeM3s[i] as number) / 5000);
     const lake = world.hydrology.ocean[i] === 0 && (world.hydrology.filledM[i] as number) - (world.hydrology.elevationM[i] as number) > 0.5 ? 1 : 0;
-    return [vegetation, river, lake, (world.biosphere.biome[i] as number) / 15];
+    /* The fourth channel is presentation forcing, but it comes exclusively
+       from authoritative simulated weather and pollution. */
+    const weather = Math.min(1, (world.hydrology.runoffMps[i] as number) / 3e-7);
+    const pollution = Math.min(1, (world.economy.pollution[i] as number) / 2e7);
+    return [vegetation, river, lake, Math.min(1, weather * 0.7 + pollution * 0.3)];
   };
   renderer.surfaceAt = surfaceSampler;
 
   const hud = new Hud(document.body);
   const overlay = new FieldOverlay(document.body);
+  const timeline = new TimelinePanel(document.body, world, download);
+  const science = new ScientificPanel(document.body, world, overlay, download);
 
   /* M9 city plan panel. Off by default — it is an instrument, not chrome — and
      toggled with `y`. Drawn from the layout cache, so opening it costs one
@@ -182,6 +184,8 @@ async function main(): Promise<void> {
   let debugMode: DebugMode = 'shaded';
   let poleSweep = false;
   let descentT = -1;
+  let cinematicT = -1;
+  let cinematicShot = '';
   const autoDescent = new URLSearchParams(location.search).has('descent');
   if (autoDescent) descentT = 0;
 
@@ -199,7 +203,7 @@ async function main(): Promise<void> {
     dragging = false;
   });
   canvas.addEventListener('pointermove', (e) => {
-    if (!dragging || descentT >= 0) return;
+    if (!dragging || descentT >= 0 || cinematicT >= 0) return;
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX;
@@ -212,7 +216,7 @@ async function main(): Promise<void> {
   canvas.addEventListener(
     'wheel',
     (e) => {
-      if (descentT >= 0) return;
+      if (descentT >= 0 || cinematicT >= 0) return;
       e.preventDefault();
       const d = derive(cam, PLANET);
       const next = Math.max(2, d.altitude * Math.exp(e.deltaY * 0.0012));
@@ -249,6 +253,13 @@ async function main(): Promise<void> {
     if (e.key === '-' || e.key === '_') world.apply({ kind: 'setTimeScale', scale: Math.max(1, world.timeScale / 10) });
     if (e.key === 't' || e.key === 'T') {
       descentT = 0;
+      cinematicT = -1;
+      telemetry.clear();
+    }
+    if (e.key === 'k' || e.key === 'K') {
+      cinematicT = cinematicT < 0 ? 0 : -1;
+      descentT = -1;
+      cinematicShot = '';
       telemetry.clear();
     }
     if (e.key === 'g' || e.key === 'G') {
@@ -264,6 +275,7 @@ async function main(): Promise<void> {
       renderer.seaLevel = world.ocean.seaLevel;
       renderer.elevationAt = elevationSampler;
       renderer.surfaceAt = surfaceSampler;
+      renderer.cinematic = cinematicT >= 0;
     }
   });
 
@@ -291,13 +303,29 @@ async function main(): Promise<void> {
     const hFrame = telemetry.begin(ZONE.FRAME, usFromMs(now));
 
     const hSim = telemetry.begin(ZONE.SIM, usFromMs(performance.now()));
-    world.scheduler.advance(duration(wallDt * world.timeScale));
+    world.advance(wallDt * world.timeScale);
     telemetry.end(hSim, usFromMs(performance.now()));
 
     const sun = sunState(world.scheduler.time, world.calendar);
     renderer.sunDirection = v3(sun.sunPcf.x, sun.sunPcf.y, sun.sunPcf.z);
 
-    if (descentT >= 0) {
+    if (cinematicT >= 0) {
+      cinematicT += wallDt;
+      const shot = cinematicFrameAt(cinematicT, PLANET);
+      cam = shot.camera;
+      if (shot.shot !== cinematicShot) {
+        cinematicShot = shot.shot;
+        world.apply({ kind: 'setTimeScale', scale: shot.timeScale });
+        if (shot.field !== undefined) world.apply({ kind: 'setVisualField', field: shot.field });
+      }
+      overlay.visible = cinematicT >= 142 && cinematicT <= 166;
+      renderer.cinematic = !overlay.visible;
+      if (cinematicT >= CINEMATIC_DURATION_SECONDS) {
+        download('ws-m13-cinematic-trace.json', telemetry.toJSONString());
+        cinematicT = -1;
+        renderer.cinematic = false;
+      }
+    } else if (descentT >= 0) {
       descentT += wallDt;
       cam = descentCameraAt(descentT, PLANET);
       if (descentT >= DESCENT.durationSeconds) {
@@ -342,13 +370,15 @@ async function main(): Promise<void> {
       spikeCount: telemetry.spikeCount(),
       deviceLost: gpu.lostReason(),
       lastGpuError: gpu.lastUncapturedError(),
-      tracing: descentT >= 0,
+      tracing: descentT >= 0 || cinematicT >= 0,
       regime: world.climate.regime,
       timeScale: world.timeScale,
       seaLevel: world.ocean.seaLevel,
       meanT: meanOf(world.climate.T),
       visualField: world.visualField,
     });
+    timeline.update();
+    science.update();
 
     telemetry.end(hFrame, usFromMs(performance.now()));
     requestAnimationFrame(frame);
@@ -368,38 +398,27 @@ function overlayFieldOf(world: ReturnType<typeof createWorld>): {
   kind: 'cubesphere' | 'geodesic';
   level: number;
   positions?: Float64Array;
+  vectorV?: ArrayLike<number>;
+  metadata: {
+    label: string;
+    units: string;
+    kind: 'continuous' | 'categorical' | 'vector';
+    domain: readonly [number, number];
+    categories?: Readonly<Record<number, string>>;
+  };
 } {
-  const name = world.visualField;
-  if (name === 'temperature') return { name, values: world.climate.T, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
-  if (name === 'precip') return { name, values: world.climate.precip, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
-  if (name === 'humidity') return { name, values: world.climate.q, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
-  if (name === 'ice') return { name, values: world.climate.ice, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
-  if (name === 'wind') return { name, values: world.climate.u, kind: 'geodesic', level: world.climate.n, positions: world.climate.grid.positions };
-  if (name === 'plateId') return { name, values: world.geology.plateId, kind: 'cubesphere', level: world.geology.level };
-  if (name === 'crustAge') return { name, values: world.geology.crustAgeMyr, kind: 'cubesphere', level: world.geology.level };
-  if (name === 'uplift') return { name, values: world.geology.upliftM, kind: 'cubesphere', level: world.geology.level };
-  if (name === 'boundaryType') return { name, values: world.geology.boundaryType, kind: 'cubesphere', level: world.geology.level };
-  if (name === 'crustThickness') return { name, values: world.geology.crustThicknessKm, kind: 'cubesphere', level: world.geology.level };
-  if (name === 'basin') return { name, values: world.hydrology.basinId, kind: 'cubesphere', level: world.hydrology.level };
-  if (name === 'flowAccumulation') return { name, values: world.hydrology.contributingAreaM2, kind: 'cubesphere', level: world.hydrology.level };
-  if (name === 'runoff') return { name, values: world.hydrology.runoffMps, kind: 'cubesphere', level: world.hydrology.level };
-  if (name === 'soilMoisture') return { name, values: world.hydrology.soilMoistureM, kind: 'cubesphere', level: world.hydrology.level };
-  if (name === 'riverDischarge') return { name, values: world.hydrology.dischargeM3s, kind: 'cubesphere', level: world.hydrology.level };
-  if (name === 'snowpack') return { name, values: world.hydrology.snowpackM, kind: 'cubesphere', level: world.hydrology.level };
-  if (name === 'glacier') return { name, values: world.hydrology.glacierM, kind: 'cubesphere', level: world.hydrology.level };
-  if (name === 'biome') return { name, values: world.biosphere.biome, kind: 'cubesphere', level: world.biosphere.level };
-  if (name === 'vegetation') return { name, values: world.biosphere.vegetationDensity, kind: 'cubesphere', level: world.biosphere.level };
-  if (name === 'npp') return { name, values: world.biosphere.nppKgM2Yr, kind: 'cubesphere', level: world.biosphere.level };
-  if (name === 'population') return { name, values: world.biosphere.populationDensity, kind: 'cubesphere', level: world.biosphere.level };
-  /* M8/M10 layers. These are what make civilisation and its economy visible on
-     the globe: where people can live, where they do, whose land it is, what is
-     under it, and what they are putting into the air. */
-  if (name === 'habitability') return { name, values: world.habitability.suitability, kind: 'cubesphere', level: world.habitability.level };
-  if (name === 'settlementPop') return { name, values: settlementPopField(world), kind: 'cubesphere', level: world.civilisation.level };
-  if (name === 'territory') return { name, values: world.civilisation.claim, kind: 'cubesphere', level: world.civilisation.level };
-  if (name === 'pollution') return { name, values: world.economy.pollution, kind: 'cubesphere', level: world.economy.level };
-  if (name === 'oreRichness') return { name, values: oreField(world), kind: 'cubesphere', level: world.economy.level };
-  return { name: 'elevation', values: world.geology.elevationM, kind: 'cubesphere', level: world.geology.level };
+  const view = scientificField(world, world.visualField);
+  const d = view.descriptor;
+  return {
+    name: d.id,
+    values: view.values,
+    kind: d.grid,
+    level: view.level,
+    ...(view.positions === undefined ? {} : { positions: view.positions }),
+    ...(view.vectorV === undefined ? {} : { vectorV: view.vectorV }),
+    metadata: { label: d.label, units: d.units, kind: d.kind, domain: d.domain,
+      ...(d.categories === undefined ? {} : { categories: d.categories }) },
+  };
 }
 
 /**
@@ -421,44 +440,6 @@ function drawLargestCity(
   const lod = requested > CITY_LOD.PLOTS ? CITY_LOD.PLOTS : requested;
   const layout = cityLayout(world.cities, city, world.hydrology, lod);
   drawCityPlan(canvas, layout, cityTerrainSampler(world.hydrology, city.cell));
-}
-
-/**
- * People per cell, spread over each polity's territory.
- *
- * Derived for display only — the authoritative population is per settlement,
- * not per cell, and nothing in the simulation reads this back.
- */
-const popScratch = new Map<number, Float64Array>();
-function settlementPopField(world: ReturnType<typeof createWorld>): Float64Array {
-  const civ = world.civilisation;
-  let out = popScratch.get(civ.cellCount);
-  if (out === undefined) {
-    out = new Float64Array(civ.cellCount);
-    popScratch.set(civ.cellCount, out);
-  }
-  out.fill(0);
-  const pop = civ.store.column(CIV.population);
-  const terr = civ.store.column(CIV.territoryCells);
-  for (let i = 0; i < civ.cellCount; i++) {
-    const owner = civ.claim[i] as number;
-    if (owner < 0 || !civ.store.aliveAt(owner)) continue;
-    const cells = terr[owner] as number;
-    if (cells > 0) out[i] = (pop[owner] as number) / cells;
-  }
-  return out;
-}
-
-const oreScratch = new Map<number, Float64Array>();
-function oreField(world: ReturnType<typeof createWorld>): Float64Array {
-  const r = world.economy.resources;
-  let out = oreScratch.get(r.cellCount);
-  if (out === undefined) {
-    out = new Float64Array(r.cellCount);
-    oreScratch.set(r.cellCount, out);
-  }
-  for (let i = 0; i < r.cellCount; i++) out[i] = endowmentAt(r, i, COMMODITY.ORE);
-  return out;
 }
 
 void main().catch((err: unknown) => {

@@ -14,3 +14,4 @@ export * from './terrain/spherical.js';
 export * from './visualiser/ramps.js';
 export * from './visualiser/overlay.js';
 export * from './visualiser/cityplan.js';
+export * from './cinematic/sequence.js';

@@ -118,6 +118,8 @@ export class PlanetRenderer {
   seaLevel = 0;
   elevationAt: ElevationSampler | null = null;
   surfaceAt: SurfaceSampler | null = null;
+  /** Filmic grade/bloom approximation. Disabled for scientific layers. */
+  cinematic = false;
 
   constructor(gpu: GpuContext, opts: RendererOptions) {
     this.gpu = gpu;
@@ -320,7 +322,7 @@ export class PlanetRenderer {
     // the struct the shader actually declares.
     this.uniformData.set(viewProj, UNIFORM_OFFSET.viewProj);
     this.uniformData.set(
-      [this.sunDirection.x, this.sunDirection.y, this.sunDirection.z, 0],
+      [this.sunDirection.x, this.sunDirection.y, this.sunDirection.z, this.cinematic ? 1 : 0],
       UNIFORM_OFFSET.sunDirection,
     );
     this.uniformData.set(
