@@ -17,7 +17,7 @@
  * disconnected. These are the arrows.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { duration, makeSeed } from '@ws/core';
 import {
   CITY_LOD,
@@ -44,8 +44,15 @@ function planet(chunks = 5) {
 }
 
 describe('M1-M10 the chain connects', () => {
+  /* Built once and SHARED by the tests that only read it. Each of these was
+     evolving its own 500 kyr planet — seven times the work for seven identical
+     worlds, and enough CPU to starve the test reporter on a 2-core runner.
+     The tests that mutate the world still build their own. */
+  let shared: ReturnType<typeof planet>;
+  beforeAll(() => { shared = planet(); }, 120000);
+
   it('runs a living planet: land, water, life, people, cities, an economy', () => {
-    const w = planet();
+    const w = shared;
 
     /* M2/M7 — there is a planet with land and sea. */
     let land = 0;
@@ -93,7 +100,7 @@ describe('M1-M10 the chain connects', () => {
     /* The direction of causation, stated as a measurement: settled cells are
        systematically better land than unsettled land, and none of them is
        ocean or ice. */
-    const w = planet();
+    const w = shared;
     const towns = settlements(w.civilisation);
     expect(towns.length).toBeGreaterThan(3);
 
@@ -113,7 +120,7 @@ describe('M1-M10 the chain connects', () => {
   }, 60000);
 
   it('makes the resource map a consequence of the geology, and the economy of the resource map', () => {
-    const w = planet();
+    const w = shared;
     const store = w.civilisation.store;
     const e = w.economy;
 
@@ -170,7 +177,7 @@ describe('M1-M10 the chain connects', () => {
     /* Simulation state is not rendering state. Throwing away every derived
        artefact — city geometry above all — must change no simulation result.
        If this fails, something has quietly become authoritative that is not. */
-    const w = planet();
+    const w = shared;
     const before = w.digest();
 
     const city = largestCity(w.cities);
@@ -199,7 +206,7 @@ describe('M1-M10 the chain connects', () => {
   it('keeps every published field finite after a long run', () => {
     /* A NaN anywhere in the chain propagates silently until something visibly
        breaks, usually much later and somewhere else. */
-    const w = planet(6);
+    const w = shared;
     const arrays: Array<[string, ArrayLike<number>]> = [
       ['elevation', w.hydrology.elevationM],
       ['discharge', w.hydrology.dischargeM3s],
