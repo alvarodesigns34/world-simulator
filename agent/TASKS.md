@@ -16,6 +16,36 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ---
 
+---
+
+## Now — M1–M13 absolute red-team (Grok, 2026-09-13)
+
+Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact.
+
+| ID | Title | Owner | Status | Pri | Acceptance |
+| --- | --- | --- | --- | --- | --- |
+| **T-0120** | **Recipe replay vs coalesced `advance` / folded `tick`** | **Grok** | **Done** | **P0** | Two `advance`s coalesce; `replayRecipe` digest matches live. `tick` is not in the continuation digest. |
+| **T-0121** | **UI pause called `resume()` (climate reseed)** | **Grok** | **Done** | **P1** | `{kind:'resume'}` → `resumeRunning()`. Pause/unpause leaves `climate.q`/`h` unchanged. |
+| **T-0122** | **Scrubbing the live head froze the world under LIVE** | **Grok** | **Done** | **P1** | `scrubTo(head)` stays in `live`. Rightmost slider stop calls `returnToLive`. Label follows `mode`, not a 1 s epsilon. |
+| **T-0123** | **Entity slot reuse inherited warehouses and claims** | **Grok** | **Done** | **P0** | `onVacateSlot` zeros economy rows. Topology change rebuilds territory. `aliveAt(o) \|\| true` gone. |
+| **T-0124** | **Infrastructure up was world-Z** | **Grok** | **Done** | **P1** | Polar road `axisZ` radial. Same construction as ports. |
+| T-0125 | District tint indexed by kind, not district slot | Grok | **Done** | P2 | `buildingDistrict` is a kind; tint table is kind-sized. |
+| T-0126 | City river width used edge array as cell array | Grok | **Done** | P1 | Width from `sqrt(discharge)` matching `buildRivers`. |
+| T-0127 | POS_Y `unitOf` pre-Ampere | Grok | **Done** | P1 | `(a, 1, −b)` per DEC-035. |
+| T-0128 | Digest blind to `climate.regime` | Grok | **Done** | P1 | `mustMove` on regime with cadences untouched. |
+| T-0129 | `geologyEventCursor` / city layouts not restored | Grok | **Done** | P1 | Checkpoint + snapshot carry the cursor; restore `dropAllLayouts`. |
+| T-0130 | App advanced and logged while paused | Grok | **Done** | P1 | Loop checks `running`. `advance` while paused is a no-op and is not logged. |
+| **T-0131** | **Paleo hydrology integrates 1 yr of snow/ice per 100 kyr** | **Grok** | **Open** | **P0** | Same class as the old soil bug, same file (`dtSeconds = min(..., YEAR)`). Path-independent snow/ice/sea-level vs 100 kyr as 1 kyr × 100. |
+| T-0133 | Scrub comments claim command-log replay; code is `scheduler.advance(dt)` | Grok | Open | P1 | Between-checkpoint `setTimeScale`/`setRegime` survive a scrub. Save-while-in-history refuses or snapshots the reconstructed log. |
+| T-0134 | `maxInstances` / `maxCities` are population-order, not camera | Grok | Open | P1 | City under the camera cannot lose to a larger distant capital. |
+| T-0135 | Geology `setCadence` on every regime change (DEC-037) | Grok | Open | P1 | Geology `due` is independent of T0↔T4. |
+| T-0136 | Paleo biosphere is one 20 yr Euler step per 100 kyr | Grok | Open | P1 | Closed-form or substeps; 100 kyr vs 20×1 yr biomass agrees. |
+| T-0137 | Digest still blind to `freeList`, `siteCursor`, `network.nodes`, `hydrology.elevationM` | Grok | Open | P1 | `mustMove` each, plus a classifier for `CivilisationState`/`ClimateState`/`TransportNetwork` like the economy one. |
+| T-0138 | Sea-level moves `ocean.mask`, not `hydrology.ocean`, until the geology tick | Grok | Open | P1 | Cells with `elevation ∈ (oldSL, newSL)` reclassify within a hydrology step. |
+| T-0139 | `rebuildTopology` wipes rail quality on every founding | Grok | Open | P1 | A road built stays built across a village founding. |
+
+---
+
 ## Now — Accelerated M1→M4 block (human-authorised 2026-09-12)
 
 Grok is the long-running constructor for remaining non-visual M1 + M2 + M3 + M4.

@@ -85,6 +85,7 @@ import {
   initNetwork,
   initResources,
   refreshEconomyResources,
+  resetEconomySlot,
   stepEconomy,
   technologyMultiplier,
   updateLandUse,
@@ -184,6 +185,12 @@ export interface World {
   readonly creationOptions: SerializableWorldOptions;
   timeScale: number;
   visualField: string;
+  /**
+   * How many dynamic-geology events have been copied into history.
+   * Checkpoints must restore this or a rewind silently drops the interval's
+   * events (cursor sits at the live length while the event list shrinks).
+   */
+  geologyEventCursor: number;
   apply(cmd: Command): void;
   advance(dt: number): void;
   /**
@@ -394,13 +401,31 @@ export function createWorld(opts: WorldOptions = {}): World {
     set visualField(v: string) {
       worldRef.visualField = v;
     },
+    get geologyEventCursor() {
+      return worldRef.geologyEventCursor;
+    },
+    set geologyEventCursor(v: number) {
+      worldRef.geologyEventCursor = v;
+    },
     apply(cmd: Command): void {
-      commands.push(cmd);
+      if (cmd.kind === 'advance') {
+        if (!Number.isFinite(cmd.seconds) || cmd.seconds < 0) {
+          throw new Error('advance requires a finite non-negative duration');
+        }
+        /* A paused scheduler no-ops the step; logging it would make the recipe
+           claim time passed that did not. */
+        if (scheduler.state !== 'running') return;
+      }
       applyCommand(world, worldRef, cmd);
+      commands.push(cmd);
     },
     advance(dt: number): void {
-      commands.push({ kind: 'advance', seconds: dt });
+      if (!Number.isFinite(dt) || dt < 0) {
+        throw new Error('advance requires a finite non-negative duration');
+      }
+      if (scheduler.state !== 'running') return;
       scheduler.advance(duration(dt));
+      commands.push({ kind: 'advance', seconds: dt });
       recordHistory(world);
     },
     /**
@@ -409,8 +434,11 @@ export function createWorld(opts: WorldOptions = {}): World {
      * `advanceDeepTimeApproximate`.
      */
     advanceDeepTimeApproximate(years: number): void {
-      commands.push({ kind: 'advanceDeepTime', years });
+      if (!(years > 0) || !Number.isFinite(years)) {
+        throw new Error('deep-time advance requires finite positive years');
+      }
       advanceDeepTimeApproximate(world, worldRef, years);
+      commands.push({ kind: 'advanceDeepTime', years });
     },
     digest(): number {
       /* T-0082 covered M5-M7; T-0094 adds M9 cities, the M10 arrays M8 reads
@@ -451,7 +479,9 @@ function applyCommand(
       world.scheduler.pause();
       break;
     case 'resume':
-      world.scheduler.resume();
+      /* The command is play/pause (T-0023). `resume()` reseeds climate
+         transients (quiesce reverse). Unpause must not. */
+      world.scheduler.resumeRunning();
       break;
     case 'setRegime':
       transitionRegime(world, ref, cmd.regime as Regime);
@@ -802,7 +832,11 @@ function makeCivilisation(store: FieldStore, ref: WorldRuntimeRef, calendar: Cal
         ref.techMul[i] = technologyMultiplier(ref.economy, ref.civilisation, i);
       }
       stepCivilisation(ref.civilisation, ref.hydrology, years, ref.civConfig,
-        { capacity: ref.capMul, technology: ref.techMul });
+        {
+          capacity: ref.capMul,
+          technology: ref.techMul,
+          onVacateSlot: (index) => { resetEconomySlot(ref.economy, index); },
+        });
       /* M9 follows M8 in the same phase and the same tick: a city is what a
          settlement's people do to the ground, so it must never observe a
          population from a different step. No geometry is built here — only

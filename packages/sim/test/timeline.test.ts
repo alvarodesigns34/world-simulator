@@ -48,6 +48,34 @@ describe('M11 timeline, replay and saves', () => {
     expect(replayRecipe(recipe).digest()).toBe(world.digest());
   });
 
+  it('replays a coalesced pair of advances to the live digest', () => {
+    /* The live loop calls advance every frame. Consecutive advances coalesce
+       into one log entry. Replay issues that one advance. tick is a call
+       counter and must not be in the continuation digest, or RECIPE throws
+       on any world that has run two frames. */
+    const world = createWorld(options);
+    world.advance(1800);
+    world.advance(1800);
+    expect(world.commands.entries.filter((e) => e.cmd.kind === 'advance')).toHaveLength(1);
+    const recipe = saveRecipe(world);
+    expect(replayRecipe(recipe).digest()).toBe(world.digest());
+  });
+
+  it('unpause does not reseed climate transients', () => {
+    const world = createWorld(options);
+    world.advance(3600);
+    const q = Float64Array.from(world.climate.q);
+    const h = Float64Array.from(world.climate.h);
+    world.apply({ kind: 'pause' });
+    expect(world.scheduler.state).toBe('paused');
+    world.advance(3600);
+    expect(world.scheduler.time.seconds).toBe(3600);
+    world.apply({ kind: 'resume' });
+    expect(world.scheduler.state).toBe('running');
+    expect(Array.from(world.climate.q)).toEqual(Array.from(q));
+    expect(Array.from(world.climate.h)).toEqual(Array.from(h));
+  });
+
   it('round-trips a snapshot and continues bit-identically', () => {
     const world = createWorld(options);
     world.apply({ kind: 'setRegime', regime: 'climatology' });

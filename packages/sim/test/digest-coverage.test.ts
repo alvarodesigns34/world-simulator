@@ -258,14 +258,24 @@ describe('T-0094 the digest is a CONTINUATION digest', () => {
     expect(w.digest()).toBe(base);
   }, 60000);
 
-  it('distinguishes worlds at a different scheduler tick', () => {
+  it('distinguishes worlds at a different scheduler time', () => {
     const w = evolved(2);
     const base = w.digest();
     const before = w.scheduler.snapshot();
-    /* Advance a hair: the fields barely move, but tick/due certainly do. */
+    /* Advance a hair: the fields barely move, but time/due certainly do.
+       tick is a call counter and is not folded (recipe coalescing). */
     w.scheduler.advance(duration(1));
     expect(w.digest()).not.toBe(base);
     w.scheduler.restore(before);
+  }, 60000);
+
+  it('sees climate.regime even when cadences are left alone', () => {
+    const w = evolved(2);
+    mustMove(w, 'climate.regime', () => {
+      const o = w.climate.regime;
+      w.climate.regime = o === 'paleo' ? 'explicit' : 'paleo';
+      return () => { w.climate.regime = o; };
+    });
   }, 60000);
 
   it('agrees between a world and its own snapshot round-trip', () => {

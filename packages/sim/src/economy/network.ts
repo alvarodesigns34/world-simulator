@@ -277,13 +277,14 @@ function unitOf(cell: number, n: number): { x: number; y: number; z: number } {
   const v = (y + 0.5) / n;
   const a = tan((u - 0.5) * Math.PI / 2);
   const b = tan((v - 0.5) * Math.PI / 2);
+  /* DEC-035: POS_Y is (a, 1, −b), not the pre-Ampere (−a, 1, b). */
   let vx: number;
   let vy: number;
   let vz: number;
   switch (face) {
     case 0: vx = 1; vy = a; vz = b; break;
     case 1: vx = -1; vy = -a; vz = b; break;
-    case 2: vx = -a; vy = 1; vz = b; break;
+    case 2: vx = a; vy = 1; vz = -b; break;
     case 3: vx = a; vy = -1; vz = b; break;
     case 4: vx = a; vy = b; vz = 1; break;
     default: vx = a; vy = -b; vz = -1; break;

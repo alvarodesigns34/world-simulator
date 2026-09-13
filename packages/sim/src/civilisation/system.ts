@@ -268,6 +268,12 @@ export interface EconomicForcing {
   readonly capacity?: ArrayLike<number>;
   /** Multiplier on the technology growth rate: energy and goods per head. */
   readonly technology?: ArrayLike<number>;
+  /**
+   * A settlement slot is about to stop being the entity that occupied it
+   * (collapse, or create-reuse of a free index). Economy rows are NOT in the
+   * EntityStore; without this they survive into the next occupant.
+   */
+  readonly onVacateSlot?: (index: number) => void;
 }
 
 export function stepCivilisation(
@@ -287,6 +293,8 @@ export function stepCivilisation(
   const cap = store.columnMut(CIV.carryingCapacity, OWNER_CIVILISATION);
   const stress = store.columnMut(CIV.stress, OWNER_CIVILISATION);
   const strain = store.columnMut(CIV.strainYears, OWNER_CIVILISATION);
+  const onVacate = forcing.onVacateSlot;
+  const topologyAtStart = s.topologyVersion;
 
   /* TEMPORAL LOD (DEC-015/DEC-030).
    *
@@ -302,7 +310,7 @@ export function stepCivilisation(
    * each is the thing being summarised. */
   /* A seat that the geography has destroyed is not a seat. Before anything
      else, move or end the settlements whose own cell drowned or froze. */
-  reseatOrCollapse(s, h, cell);
+  reseatOrCollapse(s, h, cell, onVacate);
 
   const territoryDue = s.detail === 'full' || s.steps % 8 === 0;
   if (territoryDue) {
@@ -337,7 +345,7 @@ export function stepCivilisation(
       pop[i] = decayed;
       stress[i] = 1;
       strain[i] = (strain[i] as number) + dtYears;
-      if (decayed < 20) { collapse(s, i, cell); continue; }
+      if (decayed < 20) { collapse(s, i, cell, onVacate); continue; }
       total += decayed;
       strained++;
       continue;
@@ -367,11 +375,18 @@ export function stepCivilisation(
     tech[i] = relax(tech[i] as number, target, rate, dtYears);
 
     pop[i] = p1;
-    if (p1 < 20) { collapse(s, i, cell); continue; }
+    if (p1 < 20) { collapse(s, i, cell, onVacate); continue; }
     total += p1;
   }
 
-  foundSettlements(s, h, dtYears, cfg, cell, pop, tech, store);
+  foundSettlements(s, h, dtYears, cfg, cell, pop, tech, store, onVacate);
+  /* Collapse and founding both bump topologyVersion AFTER the early
+     growTerritory. Without a rebuild, a LIFO-reused slot inherits the dead
+     polity's claim cells for the rest of the step — and for up to 8 aggregate
+     ticks. One extra BFS only when the set actually changed. */
+  if (s.topologyVersion !== topologyAtStart) {
+    growTerritory(s, h, pop, tech, cell);
+  }
 
   s.totalPopulation = total;
   s.strainedCount = strained;
@@ -397,6 +412,7 @@ function reseatOrCollapse(
   s: CivilisationState,
   h: HydrologyState,
   cell: { [i: number]: number },
+  onVacate: ((index: number) => void) | undefined,
 ): void {
   const store = s.store;
   const suit = s.habitability.suitability;
@@ -429,7 +445,7 @@ function reseatOrCollapse(
       s.relocatedTotal++;
       s.topologyVersion++;
     } else {
-      collapse(s, i, cell);
+      collapse(s, i, cell, onVacate);
     }
   }
 }
@@ -439,11 +455,18 @@ function reseatOrCollapse(
  *
  * The territory is NOT swept here. A per-collapse O(cells) scan would make a
  * mass die-off O(collapses x cells), which is the O(N^2) this file exists to
- * avoid. Instead `growTerritory` rebuilds the claim map from the live set each
- * step, and every consumer of `claim` checks that the owner is still alive —
- * so an abandoned claim is inert rather than inherited.
+ * avoid. `growTerritory` rebuilds the claim map from the live set when the
+ * topology changes this step. `onVacate` exists because economy rows live
+ * outside the EntityStore: without it, LIFO reuse inherits the dead polity's
+ * warehouses.
  */
-function collapse(s: CivilisationState, index: number, cell: { [i: number]: number }): void {
+function collapse(
+  s: CivilisationState,
+  index: number,
+  cell: { [i: number]: number },
+  onVacate: ((index: number) => void) | undefined,
+): void {
+  onVacate?.(index);
   const id = s.store.idAt(index);
   cell[index] = -1;
   s.store.destroy(id);
@@ -620,6 +643,7 @@ function foundSettlements(
   pop: { [i: number]: number },
   tech: { [i: number]: number },
   store: EntityStore,
+  onVacate: ((index: number) => void) | undefined,
 ): void {
   const threshold = cfg.foundingThreshold ?? DEFAULT_FOUNDING_THRESHOLD;
   const suit = s.habitability.suitability;
@@ -638,7 +662,8 @@ function foundSettlements(
     const scanLimit = Math.min(sites.length, 4096);
     for (let k = 0; k < scanLimit; k++) {
       const c = sites[(s.siteCursor + k) % sites.length] as number;
-      if (s.claim[c] !== -1) continue;
+      const owner = s.claim[c] as number;
+      if (owner !== -1 && store.aliveAt(owner)) continue;
       if (h.ocean[c] !== 0) continue;
       const q = suit[c] as number;
       if (q < threshold) continue;
@@ -646,7 +671,7 @@ function foundSettlements(
          towns in the same order however it is stepped (DEC-017). */
       const roll = hashFloat01x64(cfg.seed, DOMAIN.SETTLEMENT, c, Math.floor(s.year / 40), s.foundedTotal);
       if (roll > q) continue;
-      found(s, c, cell, pop, tech, store);
+      found(s, c, cell, pop, tech, store, onVacate);
       s.siteCursor = (s.siteCursor + k + 1) % sites.length;
       placed = true;
       break;
@@ -665,9 +690,12 @@ function found(
   pop: { [i: number]: number },
   tech: { [i: number]: number },
   store: EntityStore,
+  onVacate: ((index: number) => void) | undefined,
 ): EntityId {
   const id = store.create();
   const index = entityIndex(id);
+  /* Slot reuse: entity columns are zeroed by create(); economy rows are not. */
+  onVacate?.(index);
   cell[index] = c;
   pop[index] = 60;
   tech[index] = 0.02;

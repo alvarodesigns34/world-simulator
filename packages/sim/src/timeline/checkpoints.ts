@@ -31,6 +31,7 @@ import type { SimTime } from '@ws/core';
 import type { EntityStoreSnapshot } from '@ws/data';
 import type { SchedulerSnapshot } from '../scheduler/scheduler.js';
 import type { HistorySnapshot } from './history.js';
+import { dropAllLayouts } from '../city/system.js';
 import { publishWorldState, type World } from '../world.js';
 
 /* ---- structural clone that keeps typed arrays typed ------------------- */
@@ -135,6 +136,7 @@ export interface WorldCheckpoint {
   readonly entities: EntityStoreSnapshot;
   readonly history: HistorySnapshot;
   readonly presentation: { readonly timeScale: number; readonly visualField: string };
+  readonly geologyEventCursor: number;
 }
 
 export function absoluteSeconds(t: SimTime, secondsPerYear: number): number {
@@ -165,6 +167,7 @@ export function captureCheckpoint(world: World): WorldCheckpoint {
     entities: world.civilisation.store.snapshot(),
     history: world.history.snapshot(),
     presentation: { timeScale: world.timeScale, visualField: world.visualField },
+    geologyEventCursor: world.geologyEventCursor,
   };
   return cp;
 }
@@ -185,8 +188,10 @@ export function restoreCheckpoint(world: World, cp: WorldCheckpoint): void {
   world.history.restore(cp.history);
   world.timeScale = cp.presentation.timeScale;
   world.visualField = cp.presentation.visualField;
+  world.geologyEventCursor = cp.geologyEventCursor;
   /* Derived caches keyed on authoritative state must not outlive a rewind. */
   world.economy.network.routeCache.clear();
+  dropAllLayouts(world.cities);
   publishWorldState(world);
 }
 
@@ -218,7 +223,7 @@ export class CheckpointStore {
 
   constructor(options: CheckpointStoreOptions = {}) {
     this.budgetBytes = options.budgetBytes ?? 192 * 1024 * 1024;
-    this.minSpacingSeconds = options.minSpacingSeconds ?? 0;
+    this.minSpacingSeconds = options.minSpacingSeconds ?? 1;
     this.maxCheckpoints = options.maxCheckpoints ?? 64;
   }
 

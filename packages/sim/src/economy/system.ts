@@ -257,6 +257,29 @@ const at = (e: EconomyState, c: number, i: number): number => c * e.capacity + i
 export function stockOf(e: EconomyState, i: number, c: CommodityId): number {
   return e.stock[at(e, c, i)] as number;
 }
+
+/**
+ * Wipe a settlement slot's warehouses. EntityStore.create() zeros entity
+ * columns on reuse; these arrays are not in the store, so a LIFO-reused
+ * index would otherwise inherit the dead polity's stock, depletion and
+ * land use.
+ */
+export function resetEconomySlot(e: EconomyState, i: number): void {
+  if (i < 0 || i >= e.capacity) return;
+  for (let k = 0; k < COMMODITY_COUNT; k++) {
+    const idx = at(e, k, i);
+    e.stock[idx] = 0;
+    e.price[idx] = 1;
+    e.production[idx] = 0;
+    e.consumption[idx] = 0;
+    e.imports[idx] = 0;
+    e.extracted[idx] = 0;
+  }
+  e.landUse[i] = 0;
+  e.energyOutput[i] = 0;
+  e.emission[i] = 0;
+  e.fuelBurnt[i] = 0;
+}
 export function priceOf(e: EconomyState, i: number, c: CommodityId): number {
   return e.price[at(e, c, i)] as number;
 }

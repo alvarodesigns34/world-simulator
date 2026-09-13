@@ -81,9 +81,6 @@ export class TimelinePanel {
     this.pick<HTMLButtonElement>('[data-act=recipe]').onclick = () => download('world.recipe.json', saveRecipe(world));
     this.pick<HTMLButtonElement>('[data-act=snapshot]').onclick = () => download('world.snapshot.json', saveSnapshot(world));
     this.pick<HTMLButtonElement>('[data-act=live]').onclick = () => this.resumeLive();
-    /* `oninput` fires continuously while dragging. Each call supersedes the
-       last inside the navigator, so a drag costs one reconstruction at the
-       position the user settles on rather than one per pixel. */
     this.scrub.oninput = () => { this.scrubToFraction(Number(this.scrub.value) / TimelinePanel.STEPS); };
   }
 
@@ -106,11 +103,13 @@ export class TimelinePanel {
     const earliest = this.nav.earliestReachable();
     const latest = this.nav.latestReachable();
     if (!(latest > earliest)) { this.readout.textContent = 'history: not yet recorded'; return; }
+    /* The rightmost stop is the live head. Going through scrubTo would enter
+       history, freeze the world, and still say LIVE. */
+    if (fraction >= 1 - 1e-9) { this.resumeLive(); return; }
     const target = earliest + (latest - earliest) * Math.max(0, Math.min(1, fraction));
 
     const result = this.nav.scrubTo(target);
-    const live = this.nav.mode === 'live'
-      || Math.abs(result.at - this.nav.latestReachable()) < 1;
+    const live = this.nav.mode === 'live';
     this.status.textContent = live ? 'LIVE' : 'HISTORY · WORLD RESTORED';
     this.status.style.color = live ? '#79b9d6' : '#e0bd73';
 

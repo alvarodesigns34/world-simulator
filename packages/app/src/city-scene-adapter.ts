@@ -331,16 +331,23 @@ export function geometryFromLayout(
   const nodeZ = new Float32Array(layout.nodeCount);
   for (let i = 0; i < layout.nodeCount; i++) nodeZ[i] = (layout.nodeZ[i] as number) - baseZ;
 
-  const tint = new Float32Array(Math.max(1, layout.districtCount) * 3);
+  const tint = new Float32Array(DISTRICT_TINT.length * 3);
+  for (let k = 0; k < DISTRICT_TINT.length; k++) {
+    const fallback = DISTRICT_TINT[k] ?? DISTRICT_TINT[2] as readonly [number, number, number];
+    tint[k * 3] = fallback[0];
+    tint[k * 3 + 1] = fallback[1];
+    tint[k * 3 + 2] = fallback[2];
+  }
   for (let i = 0; i < layout.districtCount; i++) {
     const kind = layout.districtKind[i] as number;
+    if (kind < 0 || kind >= DISTRICT_TINT.length) continue;
     const c = DISTRICT_TINT[kind] ?? DISTRICT_TINT[2] as readonly [number, number, number];
     /* Development darkens nothing and brightens nothing dramatic; it just makes
        a half-built quarter read as one. */
     const d = 0.55 + 0.45 * (layout.districtDevelopment[i] as number);
-    tint[i * 3] = c[0] * d;
-    tint[i * 3 + 1] = c[1] * d;
-    tint[i * 3 + 2] = c[2] * d;
+    tint[kind * 3] = c[0] * d;
+    tint[kind * 3 + 1] = c[1] * d;
+    tint[kind * 3 + 2] = c[2] * d;
   }
 
   return {

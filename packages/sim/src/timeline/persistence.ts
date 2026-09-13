@@ -75,7 +75,7 @@ export function saveSnapshot(world: World): string {
     civilisation: encode(world.civilisation, new Set(['store', 'habitability', 'cellAreaM2'])),
     cities: encode(world.cities),
     economy: encode(world.economy),
-    presentation: encode({ timeScale: world.timeScale, visualField: world.visualField }),
+    presentation: encode({ timeScale: world.timeScale, visualField: world.visualField, geologyEventCursor: world.geologyEventCursor }),
   };
   const payload = {
     kind: 'snapshot' as const,
@@ -112,9 +112,10 @@ export function loadSnapshot(text: string): World {
   restore(world.civilisation, save.roots.civilisation);
   restore(world.cities, save.roots.cities);
   restore(world.economy, save.roots.economy);
-  const presentation = decode(save.roots.presentation!) as { timeScale: number; visualField: string };
+  const presentation = decode(save.roots.presentation!) as { timeScale: number; visualField: string; geologyEventCursor?: number };
   world.timeScale = presentation.timeScale;
   world.visualField = presentation.visualField;
+  world.geologyEventCursor = presentation.geologyEventCursor ?? 0;
   world.civilisation.store.restore(save.entities);
   world.commands.restore(save.commandLog);
   world.scheduler.restore(save.scheduler);

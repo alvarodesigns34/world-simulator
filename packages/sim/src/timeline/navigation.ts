@@ -85,6 +85,18 @@ export class TimelineNavigator {
   scrubTo(targetSeconds: number): ScrubResult {
     const myToken = ++this.token;
 
+    const latest = this.latestReachable();
+    const earliest = this.earliestReachable();
+    const target = Math.max(earliest, Math.min(latest, targetSeconds));
+    const current = this.now();
+
+    /* Scrubbing the live head is a no-op, not an entry into history. Entering
+       history freezes the world (the app stops advancing); labelling that
+       LIVE while the clock is stopped was T-0095 inverted. */
+    if (this._mode === 'live' && Math.abs(target - current) < 1e-6) {
+      return { at: current, time: this.world.scheduler.time, fromCheckpoint: undefined, replayedSeconds: 0, exact: true };
+    }
+
     /* Entering history for the first time: remember exactly where live was, so
        returning is a restore rather than a resimulation. */
     if (this._mode === 'live') {
@@ -92,16 +104,11 @@ export class TimelineNavigator {
       this._mode = 'history';
     }
 
-    const latest = this.latestReachable();
-    const earliest = this.earliestReachable();
-    const target = Math.max(earliest, Math.min(latest, targetSeconds));
-
     const cp = this.store.nearestAtOrBefore(target)
       ?? (this.head !== undefined && this.head.at <= target + 1e-6 ? this.head : undefined);
 
     /* Already at the target and moving forward: replay from here rather than
        rewinding to a checkpoint and coming back. */
-    const current = this.now();
     const canGoForward = current <= target + 1e-6
       && (cp === undefined || cp.at <= current + 1e-6);
 

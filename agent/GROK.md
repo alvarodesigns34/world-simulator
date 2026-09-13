@@ -15,6 +15,87 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-13 — Absolute red-team of the M1–M13 pre-Astra HEAD.
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam` @ `b36e914`+ · **Tasks:** T-0120…T-0129 Done; T-0130…T-0139 Open
+**Base:** `agent/claude/m1-m13-pre-astra-repair` @ `b36e914`. ChatGPT's handoff claimed no known automated P0/P1 remains. That was false.
+**Do not merge `main`.** PR to `dev`.
+
+Attacked scheduler/timeline/commands, city/infra render, civilisation/economy/digest, and climate/hydrology/biosphere. Tests first on everything that landed. `pnpm run check` green. Targeted suites green (timeline, scrub, digest-coverage, world-hash, civilisation, economy, city-scene, scheduler, deep-time). Full `pnpm test` running at log time.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | Recipe replay vs live `advance` | **Wrong.** Coalesced advances + `tick` in the continuation digest. Two frames → RECIPE throws. Existing test advanced once. |
+| 2 | UI pause/resume | **Wrong.** `{kind:'resume'}` called `scheduler.resume()` → `resumeClimate` reseeds `q`/`h`. Tests used `resumeRunning()`. |
+| 3 | LIVE label / scrub-to-head | **Wrong.** First `scrubTo` always entered history; `< 1 s` of head still said LIVE while the world froze. |
+| 4 | Entity slot reuse | **Wrong.** EntityStore zeros columns; economy rows and leftover `claim[]` survived LIFO reuse. Territory test was `aliveAt(o) \|\| true`. |
+| 5 | Infrastructure up | **Wrong.** Roads used `along × world-Z`. Polar corridor is a wall. Ports already used radial. |
+| 6 | City river width | **Wrong.** `rivers.width` is edge-indexed; `channelAt` read it as cell-indexed. |
+| 7 | Sea great-circle POS_Y | **Wrong.** `unitOf` still had pre-Ampere `(−a, 1, b)`. |
+| 8 | `climate.regime` in digest | **Wrong.** DEC-050 names regime; `foldClimate` omitted it. |
+| 9 | Checkpoints vs `geologyEventCursor` / layouts | **Wrong.** Cursor and layout WeakMap outlived restore. |
+| 10 | Paleo snow/ice/biosphere dt caps | **Wrong, not fixed this turn.** 100 kyr step integrates 1 yr of snow and 20 yr of biomass. Tests written against the cap. |
+| 11 | Geology `setCadence` on T0↔T4 | **Wrong, not fixed.** DEC-037 says geology must not `setCadence`. `due` resets. |
+| 12 | Scrub "replays the command log" | **Wrong, not fixed.** Comments lie; implementation is `scheduler.advance(dt)`. |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| R1 | P0 | M11 recipe | Coalesced `advance` vs folded `tick` | two `advance(1800)` → RECIPE digest mismatch | **Fixed** T-0120 |
+| R2 | P1 | pause | Unpause reseeds climate | `apply({resume})` → `resumeClimate` | **Fixed** T-0121 |
+| R3 | P1 | timeline | Scrubbing the live end freezes the world under a LIVE label | `navigation.ts` entered history unconditionally | **Fixed** T-0122 |
+| R4 | P0 | M8/M10 | Slot reuse inherits warehouses and claims | LIFO + `claim` unswept + economy rows outside the store | **Fixed** T-0123 |
+| R5 | P1 | M13 | Road up is world-Z | pole `axisZ.z ≈ 0` | **Fixed** T-0124 |
+| R6 | P1 | M9 | River width from wrong index space | `rivers.width[cell]` vs `from[e]` | **Fixed** T-0126 |
+| R7 | P1 | M10 | POS_Y sea distance mirrored | `unitOf` case 2 vs DEC-035 | **Fixed** T-0127 |
+| R8 | P1 | digest | Blind to `climate.regime` | mutate regime, digest static | **Fixed** T-0128 |
+| R9 | P1 | M11 | `geologyEventCursor` not checkpointed | rewind then advance drops events | **Fixed** T-0129 |
+| R10 | P1 | app loop | Advanced and logged while paused | `main.ts` no state check | **Fixed** T-0130 |
+| R11 | P0 | M5 paleo | Snow/ice/flux use 1 yr cap on 100 kyr dt | `hydrology/system.ts:192` | **Open** T-0131 |
+| R12 | P1 | digest | `freeList`, `siteCursor`, `network.nodes`, `hydrology.elevationM` unhashed | probes | **Open** T-0137 |
+| R13 | P1 | M11 | Scrub ignores command log | `navigation.ts:172` | **Open** T-0133 |
+| R14 | P1 | M7 | Geology `setCadence` on regime change | `world.ts:632` vs DEC-037 | **Open** T-0135 |
+| R15 | P1 | M6 paleo | 20 yr Euler per 100 kyr | `biosphere/system.ts:85` | **Open** T-0136 |
+| R16 | P1 | M13 | `maxInstances` / `maxCities` are population-order, not camera | `city-scene.ts` | **Open** T-0134 |
+| R17 | P1 | M10 | `rebuildTopology` wipes rail on every founding | `economy/system.ts` | **Open** T-0139 |
+
+Continuation digest **changed**: `tick` no longer folded, `climate.regime` now is. The recorded 4.5 Gyr digest `412562246` is stale. Re-measure; do not treat the old number as a golden.
+
+### Benchmarks
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| Targeted suites | timeline, scrub, digest, civ, economy, city-scene, scheduler, deep-time | **pass** | |
+| `pnpm run check` | types + boundaries + wgsl | **green** | |
+| `pnpm test` | vitest | **71 files / 693 tests** | was 687 |
+
+### Disagreements raised
+
+No new ADR. Removing `tick` from the digest is DEC-050 applied honestly: continuation is `time`/`due`/`steps`/`cadence`/`state`, not how many times the app called `advance`. Folding a call counter made the RECIPE button a function of frame pacing.
+
+Not reopening: cube-sphere, WebGPU-only, year-split, sim/render boundary, budget constants, ABUNDANCE clamp, crust residual 0.3–0.85.
+
+### Known problems
+
+- Paleo snow/ice/biosphere still drop 99.99% of their interval (T-0131, T-0136). Soil was repaired; the rest of slow water and carbon were not. Tests are written against the cap.
+- Scrub still integrates raw dt, not the command log. Save-while-in-history still produces a recipe whose log is the live tail.
+- `maxSteps` still commits slots then throws, leaving `_time` behind.
+- `maxInstances` still packs largest cities first.
+- No GPU here. Astra visual gate unchanged.
+
+### Next
+
+Claude: the remaining paleo dt-cap (T-0131) is the same class as the soil bug they already fixed, in the same file. Geology `setCadence` (T-0135) is a one-line contradiction of DEC-037. I did not touch either.
+
+Astra: still the hardware gate. Nothing I fixed is visible without a GPU except that pause no longer wipes weather and polar roads stand up.
+
+— Grok
+
+---
+
 ## 2026-09-12 — Accelerated M1→M4 implementation block.
 
 **Branch:** `agent/grok/m1-m4-accelerated` @ `292470f`+ · **Tasks:** T-0013 Done; T-0020 Done; T-0021 Done; T-0022 Done; T-0023 Done; T-0030 Done; T-0031 Done; T-0034 Done; T-0035 Done (DEC-036); T-0052 Done; T-0064 Done; T-0019 Done; T-0065 unchanged Partial; T-0053 unchanged Open

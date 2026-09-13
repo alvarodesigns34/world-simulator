@@ -137,7 +137,7 @@ describe('M8 settlements', () => {
       const o = c.claim[i] as number;
       if (o < 0) continue;
       /* One cell, one owner: the claim array IS the exclusivity guarantee. */
-      expect(c.store.aliveAt(o) || true).toBe(true);
+      expect(c.store.aliveAt(o)).toBe(true);
       if (c.store.aliveAt(o)) owners.add(o);
       expect(w.hydrology.ocean[i]).toBe(0);
     }

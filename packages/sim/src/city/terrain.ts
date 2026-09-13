@@ -112,13 +112,14 @@ interface Channel {
  *
  * The channel runs from the largest upstream tributary through the cell centre
  * to the receiver. Nothing here is invented: the direction is M5's `receiver`
- * link, the width is M5's `rivers.width`, and a cell with no meaningful
+ * link, the width is the same formula `buildRivers` uses on discharge (NOT
+ * `rivers.width[cell]` — that array is edge-indexed). A cell with no meaningful
  * discharge gets no channel at all.
  */
 function channelAt(h: HydrologyState, cell: number): Channel | null {
-  const width = h.rivers.width[cell] as number;
   const discharge = h.dischargeM3s[cell] as number;
-  if (!(width > 0) || !(discharge > 1)) return null;
+  if (!(discharge > 1)) return null;
+  const width = Math.max(1, Math.sqrt(discharge) * 2.5);
 
   const f = localFrameAtCell(cell, h.level);
   const n = cubeDim(h.level);

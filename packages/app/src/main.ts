@@ -347,7 +347,7 @@ async function main(): Promise<void> {
     /* While the timeline is scrubbed into history the world is a
        reconstruction of a past instant, so it must not advance — otherwise the
        user would be simulating a branch they did not ask for (T-0095). */
-    if (!timeline.inHistory) {
+    if (!timeline.inHistory && world.scheduler.state === 'running') {
       world.advance(wallDt * world.timeScale);
       timeline.record();
     }

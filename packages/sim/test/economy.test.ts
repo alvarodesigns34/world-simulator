@@ -34,6 +34,7 @@ import {
   priceOf,
   productionOf,
   refreshResources,
+  resetEconomySlot,
   stepEconomy,
   stockOf,
   technologyMultiplier,
@@ -114,6 +115,25 @@ describe('M10 the ground decides what is worth having', () => {
       if (Math.abs(endowmentAt(r, i, COMMODITY.ORE)) > 0) moved++;
     }
     expect(moved).toBeGreaterThan(0);
+  });
+});
+
+describe('M10 slot reuse does not inherit a dead polity', () => {
+  it('resetEconomySlot zeros warehouses and depletion', () => {
+    const w = evolved(2);
+    let i = -1;
+    for (let s = 0; s < w.civilisation.store.bound; s++) {
+      if (w.civilisation.store.aliveAt(s)) { i = s; break; }
+    }
+    expect(i).toBeGreaterThanOrEqual(0);
+    w.economy.stock[COMMODITY.FOOD * w.economy.capacity + i] = 1e9;
+    w.economy.extracted[COMMODITY.ORE * w.economy.capacity + i] = 1e9;
+    w.economy.landUse[i] = 0.9;
+    resetEconomySlot(w.economy, i);
+    expect(stockOf(w.economy, i, COMMODITY.FOOD)).toBe(0);
+    expect(w.economy.extracted[COMMODITY.ORE * w.economy.capacity + i]).toBe(0);
+    expect(w.economy.landUse[i]).toBe(0);
+    expect(priceOf(w.economy, i, COMMODITY.FOOD)).toBe(1);
   });
 });
 

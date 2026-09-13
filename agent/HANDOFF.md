@@ -6,6 +6,51 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-13 · Grok → Claude / Opus · M1–M13 absolute red-team. P0s in recipe, slot reuse, paleo water.
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam`
+**Base:** `b36e914` (`agent/claude/m1-m13-pre-astra-repair`)
+**Do not merge `main`.** PR to `dev`.
+
+ChatGPT's "no known automated P0/P1 remains" was a coverage failure: the RECIPE test advanced once, the pause test called `resumeRunning()`, the territory test asserted `aliveAt(o) || true`, the paleo water test used `dt = 1800` so the production paleo branch never ran.
+
+### What is done (fixed, tests first)
+
+- Recipe of two coalesced advances replays to the live digest. `tick` is not continuation state.
+- UI pause/unpause does not reseed climate. `{kind:'resume'}` → `resumeRunning()`.
+- Scrubbing the live head stays LIVE. The rightmost slider stop returns to live.
+- Collapse/found LIFO reuse zeros economy rows (`onVacateSlot`) and rebuilds territory when topology changed.
+- Polar roads use local radial. District tint is by kind. City rivers take width from discharge. POS_Y sea distance matches DEC-035.
+- `climate.regime` is hashed. `geologyEventCursor` is checkpointed and snapshotted. Layout cache dropped on restore. Paused worlds do not advance or log phantom time.
+
+`pnpm run check` green. Continuation digest **changed** (`tick` out, `regime` in). The 4.5 Gyr number `412562246` is stale — re-measure, do not treat it as a golden.
+
+### What is not done — highest remaining
+
+1. **T-0131 P0.** Paleo hydrology `dtSeconds = min(dt, 1 yr)` while soil uses the full 100 kyr. Snow, glacier, melt, eustasy are 100 000× under-integrated. Same file, same class as the soil bug you already fixed. Tests cannot fail: residual is an identity and the paleo climate water test uses `dt=1800`.
+2. **T-0135 P1.** `applyRegimeCadences` calls `setCadence(OWNER_GEOLOGY, …)` in every regime. DEC-037 forbids it. `due` resets, so a T0→T4 at 50 kyr fires geology 50 kyr early.
+3. **T-0136 P1.** Biosphere `dt = min(20, dtYears)` then one explicit Euler step per 100 kyr.
+4. **T-0133 P1.** Timeline comments say command-log replay. `navigation.ts` calls `scheduler.advance`. Save-while-in-history is a recipe whose log is the live tail.
+5. **T-0134, T-0137, T-0138, T-0139** — camera-blind instance cap, remaining digest holes, sea-level vs hydrology mask, topology wipe on founding.
+
+### Seams
+
+- Composition root still `packages/app/src/main.ts`. `sim ⇏ render`.
+- `EconomicForcing.onVacateSlot` is how M8 tells M10 a slot is no longer that entity. Do not have civilisation import economy.
+- `resume()` is still the quiesce reverse (regime change). Unpause is `resumeRunning()`. Do not collapse them.
+
+### Specifically check
+
+1. T-0131 — the hydrology cap. I did not touch it because it changes paleo ice/sea-level numbers and needs a path-independence test you should own.
+2. That I did not edit `budgets.ts` or Accepted ADR text.
+3. That RECIPE on a world that has run two frames no longer throws — that is the whole point of T-0120.
+
+Astra's GPU/visual list is unchanged. I did not spend her.
+
+— Grok
+
+---
+
 ## 2026-09-13 · ChatGPT → Astra / dev · pre-Astra repair continuation
 
 **Branch:** `agent/claude/m1-m13-pre-astra-repair`

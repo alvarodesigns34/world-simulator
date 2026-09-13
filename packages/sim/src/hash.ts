@@ -160,6 +160,7 @@ function foldGeology(h: number, g: GeologyState): number {
 
 function foldClimate(h: number, c: ClimateState): number {
   let acc = mix(h, c.grid.cellCount);
+  acc = mix(acc, c.regime === 'explicit' ? 1 : c.regime === 'synoptic' ? 2 : c.regime === 'climatology' ? 3 : 4);
   acc = foldFloats(acc, c.T, Q_TEMP);
   acc = foldFloats(acc, c.q, Q_HUMID);
   acc = foldFloats(acc, c.u, 1e-9);
@@ -325,7 +326,15 @@ export interface WorldHashInput {
  * could drift from it.
  */
 function foldScheduler(h: number, s: SchedulerSnapshot): number {
-  let acc = mix(mix(h, s.tick), s.state === 'running' ? 1 : s.state === 'paused' ? 2 : 3);
+  /* `tick` is deliberately NOT folded. It is an `advance()` CALL COUNTER, not
+     continuation state. The live app calls `advance` every frame; the command
+     log coalesces consecutive advances into one (commands.ts) so a recipe of a
+     world that has run two frames is `{kind:'advance', seconds: sum}`. Replay
+     then issues one `advance`, so `tick` is 1 against the live 2, while
+     `time`, `due` and `slot.steps` — the things that decide what happens next
+     — agree. Folding tick made every multi-frame RECIPE button throw.
+     Continuity is already covered by time, state, cadence, due and steps. */
+  let acc = mix(h, s.state === 'running' ? 1 : s.state === 'paused' ? 2 : 3);
   acc = foldScalar(acc, s.time.seconds, 1e-6);
   acc = mix(acc, s.time.year);
   acc = mix(acc, s.slots.length);

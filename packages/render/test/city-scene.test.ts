@@ -324,6 +324,26 @@ describe('T-0101 infrastructure reaches the scene', () => {
       expect(Number.isFinite(scene.data[i] as number)).toBe(true);
     }
   });
+
+  it('orients infrastructure with the local radial, not world-Z', () => {
+    const pole = new Float64Array([0, 0, R_PLANET, 2_000, 0, R_PLANET]);
+    const equator = new Float64Array([R_PLANET, 0, 0, R_PLANET, 2_000, 0]);
+    const poleScene = buildCityScene({
+      camX: 0, camY: 0, camZ: R_PLANET + 50_000, cities: [],
+      links: [{ points: pole, kind: CITY_KIND.ROAD, quality: 1 }],
+    });
+    const eqScene = buildCityScene({
+      ...camAbove(50_000), cities: [],
+      links: [{ points: equator, kind: CITY_KIND.ROAD, quality: 1 }],
+    });
+    expect(poleScene.count).toBe(1);
+    expect(eqScene.count).toBe(1);
+    const axisZ = CITY_INSTANCE_OFFSET.axisZ;
+    const poleUpZ = poleScene.data[axisZ + 2] as number;
+    const eqUpX = eqScene.data[axisZ] as number;
+    expect(Math.abs(poleUpZ), 'polar road up is not radial').toBeGreaterThan(0.9);
+    expect(Math.abs(eqUpX), 'equatorial road up is not radial').toBeGreaterThan(0.9);
+  });
   /**
    * T-0101. The ground under a building follows the street network.
    *

@@ -155,6 +155,20 @@ describe('T-0095 scrubbing moves the world, not just the label', () => {
     expect(absoluteSeconds(w.scheduler.time, w.calendar.secondsPerYear)).toBeCloseTo(liveAt, 3);
   }, 180000);
 
+  it('does not enter history when the target is the live head', () => {
+    const w = world();
+    w.apply({ kind: 'setTimeScale', scale: 1e8 });
+    const nav = new TimelineNavigator(w, { maxCheckpoints: 8 });
+    evolve(w, nav, 2);
+    expect(nav.mode).toBe('live');
+    const head = absoluteSeconds(w.scheduler.time, w.calendar.secondsPerYear);
+    const live = w.digest();
+    const r = nav.scrubTo(head);
+    expect(nav.mode, 'scrubbing the live end froze the world').toBe('live');
+    expect(r.exact).toBe(true);
+    expect(w.digest()).toBe(live);
+  }, 180000);
+
   it('replays from the nearest checkpoint, never from year zero', () => {
     /* The performance contract. A scrub to just after a checkpoint must replay
        a short interval, not the whole history. */

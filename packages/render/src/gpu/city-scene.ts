@@ -326,18 +326,31 @@ export function buildCityScene(input: CitySceneInput, out?: Float32Array): CityS
       const lx = dx / len;
       const ly = dy / len;
       const lz = dz / len;
-      /* A stable perpendicular. `along` is planet-fixed, so a horizontal
-         complement is a good stand-in for up along a road; when the segment is
-         itself vertical, any axis will do. */
-      let upx = ly; let upy = -lx; let upz = 0;
-      const m = Math.sqrt(upx * upx + upy * upy);
-      if (m > 1e-6) { upx /= m; upy /= m; upz = 0; }
-      else if (Math.abs(lx) < 0.9) { upx = 1; upy = 0; upz = 0; }
-      else { upx = 0; upy = 1; upz = 0; }
+      /* Local radial at the segment midpoint — the same up the ports use.
+         `along × world-Z` is a flat-map ribbon: at the pole it is a wall. */
+      const mx = (ax + bx) * 0.5 + input.camX;
+      const my = (ay + by) * 0.5 + input.camY;
+      const mz = (az + bz) * 0.5 + input.camZ;
+      let upx = mx;
+      let upy = my;
+      let upz = mz;
+      const um = Math.sqrt(upx * upx + upy * upy + upz * upz) || 1;
+      upx /= um; upy /= um; upz /= um;
+      let rx = ly * upz - lz * upy;
+      let ry = lz * upx - lx * upz;
+      let rz = lx * upy - ly * upx;
+      const rm = Math.sqrt(rx * rx + ry * ry + rz * rz);
+      if (rm > 1e-6) {
+        rx /= rm; ry /= rm; rz /= rm;
+        upx = ry * lz - rz * ly;
+        upy = rz * lx - rx * lz;
+        upz = rx * ly - ry * lx;
+      } else if (Math.abs(lx) < 0.9) { rx = 1; ry = 0; rz = 0; }
+      else { rx = 0; ry = 1; rz = 0; }
       if (!push(
         (ax + bx) / 2, (ay + by) / 2, (az + bz) / 2, kind,
         lx, ly, lz, len / 2,
-        ly * upz - lz * upy, lz * upx - lx * upz, lx * upy - ly * upx, halfWidth,
+        rx, ry, rz, halfWidth,
         upx, upy, upz, 1.2,
         t[0], t[1], t[2], 0.05,
       )) break;
