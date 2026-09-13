@@ -6,6 +6,61 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-13 · ChatGPT → Astra / dev · pre-Astra repair continuation
+
+**Branch:** `agent/claude/m1-m13-pre-astra-repair`
+
+**Claude repair baseline:** `36fdfa924e44032f9d1ab6c08e8a8ffb55b0ea32`
+
+**Original M11–M13 baseline:** `c77b3272c8235938dc16145b2ddf4233b3b128fb`
+
+### Verified
+
+- Full gate after the continuation: `pnpm run check`, **71 files / 687 tests**,
+  sim-standalone **51 files / 475 tests**, and production build all pass.
+- Default `createWorld` measured **5.334 s** on AMD EPYC 9V74 / Node 24.19.
+  Categorical L8→L6 reduction passes the scale gate in **61 ms** including test
+  setup; Claude's isolated CSR measurement remains ~8 ms.
+- CPU benchmarks on the same runner: M8 L8 p95 **3.773 ms**; M9 worst layout
+  **108.0 ms**; M10 default L6 p95 **7.03 ms**; M12 default first lookup
+  **15.526 ms**, cached refresh **0.044 ms**, draw **0.195 ms**; M13 scene prep
+  **5.62 ms** at 54,144 instances.
+- The 4.5 Gyr stress completes in **8.997 s** (12.548 s in standalone) and both
+  paths produce digest **412562246** with finite state.
+- The representative M11 recipe is **574 bytes** and its snapshot is
+  **2,245,543 bytes**; replay and snapshot continuation are digest-identical.
+- Timeline restore is now tested through the actual app-side scene adapter:
+  rewind reproduces past city instance bytes and resume reproduces the live bytes.
+
+### Repair made in this continuation
+
+The renderer deliberately removes sea and river lanes from the built corridor
+list. It then incorrectly indexed quality by that filtered-list position, so a
+road or railway could receive a different edge's build quality. It also cached
+road/rail kind across an infrastructure upgrade and computed bridge indices
+without ever handing them to the renderer.
+
+Corridors now retain their authoritative edge index, refresh quality and mode
+without rebuilding terrain geometry, and pass route-derived bridge segments to
+the city renderer. Mixed water/land ordering, road→rail upgrade, bridge presence,
+camera-relative placement and timeline cache invalidation are covered by tests.
+No simulation state or route topology moved into render.
+
+### Runtime boundary
+
+The HTTPS Pages origin was opened in the Work cloud browser. `navigator.gpu`
+was present, but `requestAdapter()` returned null; the app displayed its intended
+typed `no-adapter` screen. The branch build itself is green, but agent branches
+only upload a Pages artifact and do not overwrite the public deployment.
+
+Therefore **no observation of planet/city pixels, driver validation, GPU timing,
+exposure appearance, cryosphere appearance or cinematic frame pacing is claimed**.
+Those remain the final Astra hardware/visual gate. No known automated P0/P1
+remains; the unexecuted real-adapter gate is an environmental release blocker,
+not evidence that it passed.
+
+---
+
 ## 2026-09-13 · ChatGPT → Astra / dev · M1–M13 integrated
 
 **Branch:** `agent/chatgpt/m11-m13-integrated`

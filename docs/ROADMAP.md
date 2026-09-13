@@ -491,12 +491,14 @@ solvers; economic model stability over long runs.
 
 ## M11 — Planetary Timeline
 
-**Implementation status (2026-09-13): integrated on `agent/chatgpt/m11-m13-integrated`;
-automated criteria green, Astra visual timing gate pending.** The implementation
+**Implementation status (2026-09-13): repaired on
+`agent/claude/m1-m13-pre-astra-repair`; automated criteria green, Astra visual
+timing gate pending.** The implementation
 includes the complete T0–T4 transition matrix, bounded multiresolution history,
 command-log replay, recipe/snapshot persistence and schema migration, plus the
 timeline panel. The 4.5 Gyr stress harness completed without NaN or divergence in
-12.8 s on the Work runner; hardware scrub/frame pacing remains an Astra check.
+9.0 s (12.5 s standalone) on the Work runner with digest `412562246`; hardware
+scrub/frame pacing remains an Astra check.
 
 **Goal:** the whole time ladder, coherently, in both directions — plus replay.
 
@@ -507,16 +509,16 @@ timeline panel. The 4.5 Gyr stress harness completed without NaN or divergence i
 - Save format finalisation and migration testing.
 
 **Acceptance criteria**
-- [ ] A single run traverses T0 → T4 → T0 with **no state corruption**; determinism
+- [x] A single run traverses T0 → T4 → T0 with **no state corruption**; determinism
       suite green afterwards.
-- [ ] Conservation invariants hold across **every** regime transition in both
+- [x] Conservation invariants hold across **every** regime transition in both
       directions.
-- [ ] Replay of a command log reproduces the state hash **exactly** (Tier A).
-- [ ] A recipe save under 100 kB reproduces a world bit-identically.
-- [ ] A snapshot save/load round-trip is bit-identical.
-- [ ] Save migration from an earlier engine version succeeds, or fails loudly with a
+- [x] Replay of a command log reproduces the state hash **exactly** (Tier A).
+- [x] A recipe save under 100 kB reproduces a world bit-identically.
+- [x] A snapshot save/load round-trip is bit-identical.
+- [x] Save migration from an earlier engine version succeeds, or fails loudly with a
       clear message — never silently.
-- [ ] 4.5 × 10⁹ simulated years completes without divergence, `NaN`, or invalid
+- [x] 4.5 × 10⁹ simulated years completes without divergence, `NaN`, or invalid
       geometry.
 - [ ] Timeline scrubbing does not exceed **2 frames > 33 ms** per transition.
 
@@ -529,11 +531,13 @@ where 10⁹-year divergence hides); save migration testing; regime-transition fu
 
 ## M12 — Scientific Visualization
 
-**Implementation status (2026-09-13): integrated.** Thirty-two descriptor-driven
+**Implementation status (2026-09-13): structurally verified.** Thirty-two descriptor-driven
 fields expose units, domains, ramps, categorical semantics and probe formatting;
 cross-sections, reduced-model vertical profiles, vector glyphs, history-driven
 series, era comparison and JSON/CSV/WS-RASTER-LIKE-1 export are covered by tests.
-GPU timing is instrumented; no hardware timestamp is claimed in CI.
+GPU timing is instrumented; no hardware timestamp is claimed in CI. At the app
+default the cached lookup measured 0.044 ms and the draw 0.195 ms on the Work CPU;
+the one-off exact lookup measured 15.526 ms.
 
 **Goal:** the planet as an instrument.
 
@@ -545,11 +549,11 @@ GPU timing is instrumented; no hardware timestamp is claimed in CI.
 - Data export (CSV, GeoTIFF-like, JSON).
 
 **Acceptance criteria**
-- [ ] Every registered field is visualisable with correct units and a correct legend.
-- [ ] Probe readouts match the underlying field values exactly.
-- [ ] Cross-sections are geometrically correct against a known analytic case.
-- [ ] Time series are drawn from recorded history, not re-simulated.
-- [ ] Exported data round-trips: export → import → identical values.
+- [x] Every registered field is visualisable with correct units and a correct legend.
+- [x] Probe readouts match the underlying field values exactly.
+- [x] Cross-sections are geometrically correct against a known analytic case.
+- [x] Time series are drawn from recorded history, not re-simulated.
+- [x] Exported data round-trips: export → import → identical values.
 - [ ] Visualisation adds ≤ **1.0 ms** GPU and ≤ **0.5 ms** main thread.
 
 **Astra gate:** no (correctness is checkable), one review for legibility and colour
@@ -561,11 +565,13 @@ cross-section sampling accuracy.
 
 ## M13 — Cinematic / Final Polish
 
-**Implementation status (2026-09-13): integrated; final Astra visual/performance
-gate pending.** The renderer has a reproducible 180 s ten-shot camera sequence,
+**Implementation status (2026-09-13): structurally repaired; final Astra
+visual/performance gate pending.** The renderer has a reproducible 180 s ten-shot camera sequence,
 state-linked weather/pollution presentation, cinematic tone/exposure path and
-LOD-aware scientific overlays. The Work runner provides CPU/build validation but
-does not claim the 20 ms reference-GPU criterion.
+LOD-aware scientific overlays plus real 3D city/road/rail/port/bridge instances.
+CPU scene preparation measured 5.62 ms worst case in the supplied harness. The
+Work browser exposed WebGPU but no adapter, so this does not claim the 20 ms
+reference-GPU criterion or visual correctness.
 
 **Goal:** it looks as good as it is.
 
