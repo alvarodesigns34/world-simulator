@@ -233,18 +233,30 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
      * to zero, and the planet became uninhabitable — which M8 discovered by
      * founding civilisations that then all starved.
      *
-     * The physical statement is a balance, not a sequence:
+     * The physical statement is a balance, not a sequence. The soil is a leaky
+     * bucket losing water two ways at once:
      *
-     *     dS/dt = R - (E0/C) S          S in metres, R and E0 in m/s
+     *     dS/dt = R - (E0/C) S - (D0/C) S
      *
-     * recharge at rate R against evapotranspiration proportional to how wet
-     * the soil is. That has an exact solution over any dt,
+     * recharge at rate R against evapotranspiration AND drainage to the river,
+     * each proportional to how wet the soil is. That has an exact solution over
+     * any dt,
      *
-     *     S(t+dt) = Seq + (S - Seq) exp(-k dt),   Seq = R/k,  k = E0/C
+     *     S(t+dt) = Seq + (S - Seq) exp(-k dt),  k = (E0 + D0)/C,  Seq = R/k
      *
      * which relaxes toward the climate's equilibrium moisture instead of
-     * draining. One 100 kyr step and 10^5 one-year steps now agree, which is
-     * the path-independence DEC-030 requires of slow state.
+     * draining to nothing. One 100 kyr step and 10^5 one-year steps now agree,
+     * which is the path-independence DEC-030 requires of slow state.
+     *
+     * THE DRAINAGE TERM IS NOT DECORATION (T-0084). Without it the only way
+     * water reached a river was saturation excess — recharge overflowing the
+     * profile — which needs supply to beat the infiltration rate within a
+     * single step. At an hourly cadence that happens in every storm, so the
+     * hydrology tests passed. At a 100 kyr step the mean supply rate is far
+     * below the infiltration rate, so it never happens, and EVERY RIVER ON THE
+     * PLANET had zero discharge at paleo time scales. Baseflow out of soil
+     * storage is what actually sustains a river between storms, and it is
+     * cadence-independent.
      */
     const capacity = 0.35;
     const s0 = state.soilMoistureM[i] as number;
@@ -254,7 +266,12 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
     const infiltrationRate = 2e-7 + 2e-6 * capacity;
     const rechargeRate = Math.min(supplyM / Math.max(dtSeconds, 1), infiltrationRate);
     const potentialEtRate = Math.max(0, T - 250) * 4e-11;
-    const k = potentialEtRate / capacity;
+    /* Baseflow at saturation, m/s. ~0.032 m/yr, which against a typical
+       evapotranspiration of ~0.048 m/yr puts the land water balance near the
+       real 60/40 split between evaporation and runoff. */
+    const drainageRate = 1.0e-9;
+    const lossRate = potentialEtRate + drainageRate;
+    const k = lossRate / capacity;
 
     let sUnclamped: number;
     if (k > 0) {
@@ -268,11 +285,17 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
     const saturationExcess = Math.max(0, sUnclamped - capacity);
     const rechargeM = rechargeRate * dtSeconds;
     const absorbed = sFinal - s0;
-    /* Closes exactly: supply = runoff + storage change + evaporation. */
-    const evapM = Math.max(0, rechargeM - absorbed - saturationExcess);
+    /* Everything that entered and did not stay, left one of two ways, split in
+       proportion to the two loss rates. Closes exactly:
+       supply = runoff + storage change + evaporation. */
+    const departed = Math.max(0, rechargeM - absorbed - saturationExcess);
+    const evapShare = lossRate > 0 ? potentialEtRate / lossRate : 1;
+    const evapM = departed * evapShare;
+    const baseflowM = departed - evapM;
     state.soilMoistureM[i] = sFinal;
     evaporation += evapM * area;
-    const runoffM = Math.max(0, supplyM - rechargeM + saturationExcess);
+    /* Infiltration-excess overland flow, saturation excess, and baseflow. */
+    const runoffM = Math.max(0, supplyM - rechargeM) + saturationExcess + baseflowM;
     state.runoffMps[i] = runoffM / Math.max(dtSeconds, 1);
   }
   updateDischarge(state);

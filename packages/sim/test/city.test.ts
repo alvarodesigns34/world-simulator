@@ -272,7 +272,8 @@ describe('M9 in the world', () => {
     const l2 = cityLayout(w.cities, c!, w.hydrology, CITY_LOD.PLOTS);
     expect(l2.buildingCount).toBe(built);
     expect(w.digest()).toBe(before);
-  });
+    /* Builds a world through 400 kyr and lays out a large city twice. */
+  }, 30000);
 
   it('serves a cached layout and rebuilds only when the state moves', () => {
     const w = evolved();
@@ -293,7 +294,8 @@ describe('M9 in the world', () => {
     c.layoutGeneration++;
     cityLayout(w.cities, c, w.hydrology, CITY_LOD.PLOTS);
     expect(w.cities.generatedTotal).toBe(n0 + 3);
-  });
+    /* Builds a world through 400 kyr and lays out a large city twice. */
+  }, 30000);
 
   it('places cities on real terrain with real elevation variation', () => {
     const w = evolved();

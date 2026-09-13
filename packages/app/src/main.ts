@@ -20,6 +20,7 @@ import { EARTH_GEOMETRY, cubeDim, cubeIndex, type QuadKey } from '@ws/data';
 import {
   DESCENT,
   FieldOverlay,
+  drawCityPlan,
   PlanetRenderer,
   acquireGpu,
   probeWindingConvention,
@@ -33,7 +34,19 @@ import {
   type CameraState,
   type DebugMode,
 } from '@ws/render';
-import { createWorld, sampleElevation, sunState } from '@ws/sim';
+import {
+  CIV,
+  COMMODITY,
+  CITY_LOD,
+  cityLayout,
+  cityTerrainSampler,
+  createWorld,
+  endowmentAt,
+  largestCity,
+  lodForDistance,
+  sampleElevation,
+  sunState,
+} from '@ws/sim';
 import { Hud } from './hud.js';
 import { openOpfsTileStore } from './opfs.js';
 import { sampleStreamedTile, TileStreamer } from './tile-streamer.js';
@@ -44,6 +57,7 @@ const VISUAL_FIELDS = [
   'temperature', 'precip', 'humidity', 'wind', 'ice',
   'basin', 'flowAccumulation', 'runoff', 'soilMoisture', 'riverDischarge', 'snowpack', 'glacier',
   'biome', 'vegetation', 'npp', 'population',
+  'habitability', 'settlementPop', 'territory', 'pollution', 'oreRichness',
 ] as const;
 
 function fail(message: string): void {
@@ -146,6 +160,20 @@ async function main(): Promise<void> {
 
   const hud = new Hud(document.body);
   const overlay = new FieldOverlay(document.body);
+
+  /* M9 city plan panel. Off by default — it is an instrument, not chrome — and
+     toggled with `y`. Drawn from the layout cache, so opening it costs one
+     generation and then nothing. */
+  const cityCanvas = document.createElement('canvas');
+  cityCanvas.width = 320;
+  cityCanvas.height = 320;
+  cityCanvas.setAttribute(
+    'style',
+    'position:fixed;right:8px;bottom:176px;width:320px;height:320px;image-rendering:pixelated;' +
+      'border:1px solid #1d2a35;background:#070b0f;z-index:11;display:none',
+  );
+  document.body.appendChild(cityCanvas);
+  let cityVisible = false;
   const telemetry = new Telemetry(16_384, budgets.QUALITY.maxFrameMsDuringDescent);
 
   let cam: CameraState = lookAtCentre(
@@ -208,6 +236,10 @@ async function main(): Promise<void> {
     if (e.key === 'p' || e.key === 'P') poleSweep = !poleSweep;
     if (e.key === '`' || e.key === 'h' || e.key === 'H') hud.toggle();
     if (e.key === 'v' || e.key === 'V') overlay.visible = !overlay.visible;
+    if (e.key === 'y' || e.key === 'Y') {
+      cityVisible = !cityVisible;
+      cityCanvas.style.display = cityVisible ? 'block' : 'none';
+    }
     if (e.key === 'c' || e.key === 'C') {
       const i = VISUAL_FIELDS.indexOf(world.visualField as (typeof VISUAL_FIELDS)[number]);
       const next = VISUAL_FIELDS[(i + 1) % VISUAL_FIELDS.length] as string;
@@ -290,6 +322,8 @@ async function main(): Promise<void> {
     const overlayField = overlayFieldOf(world);
     overlay.draw(overlayField);
 
+    if (cityVisible) drawLargestCity(world, cityCanvas, derive(cam, PLANET).altitude);
+
     const cpuMs = stats.cpuSelectMs + stats.cpuEncodeMs;
     const telUs = usFromMs(performance.now() - tel0);
     hud.update({
@@ -357,7 +391,74 @@ function overlayFieldOf(world: ReturnType<typeof createWorld>): {
   if (name === 'vegetation') return { name, values: world.biosphere.vegetationDensity, kind: 'cubesphere', level: world.biosphere.level };
   if (name === 'npp') return { name, values: world.biosphere.nppKgM2Yr, kind: 'cubesphere', level: world.biosphere.level };
   if (name === 'population') return { name, values: world.biosphere.populationDensity, kind: 'cubesphere', level: world.biosphere.level };
+  /* M8/M10 layers. These are what make civilisation and its economy visible on
+     the globe: where people can live, where they do, whose land it is, what is
+     under it, and what they are putting into the air. */
+  if (name === 'habitability') return { name, values: world.habitability.suitability, kind: 'cubesphere', level: world.habitability.level };
+  if (name === 'settlementPop') return { name, values: settlementPopField(world), kind: 'cubesphere', level: world.civilisation.level };
+  if (name === 'territory') return { name, values: world.civilisation.claim, kind: 'cubesphere', level: world.civilisation.level };
+  if (name === 'pollution') return { name, values: world.economy.pollution, kind: 'cubesphere', level: world.economy.level };
+  if (name === 'oreRichness') return { name, values: oreField(world), kind: 'cubesphere', level: world.economy.level };
   return { name: 'elevation', values: world.geology.elevationM, kind: 'cubesphere', level: world.geology.level };
+}
+
+/**
+ * Draw the planet's largest city into the panel.
+ *
+ * The level of detail follows the CAMERA's altitude, so flying down to a city
+ * fills in its streets and then its buildings — the same LOD ladder the globe
+ * renderer uses, applied to the plan. Nothing here is stored: the layout comes
+ * from the cache and is regenerated if it was evicted (DEC-043).
+ */
+function drawLargestCity(
+  world: ReturnType<typeof createWorld>,
+  canvas: HTMLCanvasElement,
+  altitudeM: number,
+): void {
+  const city = largestCity(world.cities);
+  if (city === undefined) return;
+  const requested = lodForDistance(altitudeM, Math.max(1, city.radiusM));
+  const lod = requested > CITY_LOD.PLOTS ? CITY_LOD.PLOTS : requested;
+  const layout = cityLayout(world.cities, city, world.hydrology, lod);
+  drawCityPlan(canvas, layout, cityTerrainSampler(world.hydrology, city.cell));
+}
+
+/**
+ * People per cell, spread over each polity's territory.
+ *
+ * Derived for display only — the authoritative population is per settlement,
+ * not per cell, and nothing in the simulation reads this back.
+ */
+const popScratch = new Map<number, Float64Array>();
+function settlementPopField(world: ReturnType<typeof createWorld>): Float64Array {
+  const civ = world.civilisation;
+  let out = popScratch.get(civ.cellCount);
+  if (out === undefined) {
+    out = new Float64Array(civ.cellCount);
+    popScratch.set(civ.cellCount, out);
+  }
+  out.fill(0);
+  const pop = civ.store.column(CIV.population);
+  const terr = civ.store.column(CIV.territoryCells);
+  for (let i = 0; i < civ.cellCount; i++) {
+    const owner = civ.claim[i] as number;
+    if (owner < 0 || !civ.store.aliveAt(owner)) continue;
+    const cells = terr[owner] as number;
+    if (cells > 0) out[i] = (pop[owner] as number) / cells;
+  }
+  return out;
+}
+
+const oreScratch = new Map<number, Float64Array>();
+function oreField(world: ReturnType<typeof createWorld>): Float64Array {
+  const r = world.economy.resources;
+  let out = oreScratch.get(r.cellCount);
+  if (out === undefined) {
+    out = new Float64Array(r.cellCount);
+    oreScratch.set(r.cellCount, out);
+  }
+  for (let i = 0; i < r.cellCount; i++) out[i] = endowmentAt(r, i, COMMODITY.ORE);
+  return out;
 }
 
 void main().catch((err: unknown) => {

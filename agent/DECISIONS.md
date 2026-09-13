@@ -2894,3 +2894,59 @@ Nothing in M10 is calibrated against an absolute unit. Three rules:
   trade runs at ~1.8e8 units/step, ore prices span 1.68–9.01 and goods
   3.81–12.00 across polities, and pollution reaches an emission/deposition
   balance rather than accumulating without limit.
+
+---
+
+## DEC-047 — Soil drains to rivers, and that term is not optional
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+**Amends:** DEC-042.
+
+### Context
+
+DEC-042 replaced M5's operator-split soil balance with the exact solution of
+`dS/dt = R − (E₀/C)·S`. That fixed the paleo death spiral, and it introduced a
+second defect which no M5 test could see.
+
+With evapotranspiration as the only loss, the only route from rainfall to a
+river was SATURATION EXCESS — recharge overflowing the profile within one step.
+That requires the supply rate to beat the infiltration rate inside a single
+step. At an hourly cadence it happens in every storm, so every hydrology test
+passed. At a 100 kyr step the mean supply rate is far below the infiltration
+rate, so it never happens, and **every river on the planet had zero discharge at
+paleo time scales.**
+
+It was found by the M1–M10 integration test asking whether water was flowing
+anywhere — not by any milestone's own suite, because each milestone was correct
+in isolation.
+
+### Decision
+
+The soil is a leaky bucket losing water two ways at once:
+
+    dS/dt = R − (E₀/C)·S − (D₀/C)·S
+
+Baseflow out of soil storage is what actually sustains a river between storms,
+and unlike saturation excess it is cadence-independent. Over the interval, what
+entered and did not stay is split between evaporation and baseflow in
+proportion to the two loss rates, so the balance still closes exactly:
+supply = runoff + storage change + evaporation.
+
+`D₀` = 1.0e-9 m/s (~0.032 m/yr at saturation) against a typical
+evapotranspiration near 0.048 m/yr, which puts the land water balance close to
+the real ~60/40 split.
+
+### Consequences
+
+- Rivers flow at every cadence, which restores discharge, river width, bridges
+  and the whole M5 → M9 chain at paleo time scales.
+- More habitable land, so more settlements: measured p95 for the M8 step rose
+  from 5.7 ms to 9.9 ms at L7. Still inside the 20 ms budget; L8 now needs
+  amortisation rather than fitting outright.
+- **The general lesson is about test topology, not hydrology.** Ten milestones
+  each with a green suite can still have a broken chain between them, because
+  each suite exercises its own subsystem at its own cadence. The integration
+  test that asks "is water moving anywhere on this planet" is the only one that
+  could have caught this, and it is now permanent.

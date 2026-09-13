@@ -103,6 +103,81 @@ export const RAMPS: Readonly<Record<string, Ramp>> = {
       [1, [230, 240, 255]],
     ],
   },
+  /* --- M8 civilisation --- */
+  habitability: {
+    name: 'habitability',
+    units: 'frac',
+    min: 0,
+    max: 1,
+    /* Dark where nobody can live, warm where they can. Deliberately NOT the
+       elevation ramp: the two must be visually distinguishable when flipping
+       between them, because the question being asked is whether they agree. */
+    stops: [
+      [0, [14, 16, 22]],
+      [0.25, [40, 56, 80]],
+      [0.5, [110, 130, 90]],
+      [0.75, [200, 180, 90]],
+      [1, [255, 236, 170]],
+    ],
+  },
+  settlementPop: {
+    name: 'settlementPop',
+    units: 'people/cell',
+    min: 0,
+    max: 4e6,
+    stops: [
+      [0, [10, 12, 16]],
+      [0.08, [70, 30, 40]],
+      [0.3, [170, 60, 50]],
+      [0.65, [240, 150, 60]],
+      [1, [255, 250, 210]],
+    ],
+  },
+  territory: {
+    name: 'territory',
+    units: 'polity',
+    min: -1,
+    max: 255,
+    /* Cyclic, so adjacent polity ids are visibly different: the question this
+       layer answers is "where is the border", and a monotone ramp would put
+       neighbouring ids in nearly the same colour. */
+    stops: [
+      [0, [16, 18, 24]],
+      [0.14, [220, 70, 70]],
+      [0.29, [220, 180, 60]],
+      [0.43, [90, 210, 90]],
+      [0.57, [70, 200, 210]],
+      [0.71, [90, 110, 230]],
+      [0.86, [200, 90, 220]],
+      [1, [220, 70, 70]],
+    ],
+  },
+  /* --- M10 economy --- */
+  pollution: {
+    name: 'pollution',
+    units: 'rel',
+    min: 0,
+    max: 5e7,
+    stops: [
+      [0, [12, 16, 20]],
+      [0.15, [60, 70, 60]],
+      [0.45, [130, 120, 70]],
+      [0.75, [180, 110, 60]],
+      [1, [230, 90, 80]],
+    ],
+  },
+  oreRichness: {
+    name: 'oreRichness',
+    units: 'frac',
+    min: 0,
+    max: 1,
+    stops: [
+      [0, [14, 14, 18]],
+      [0.35, [70, 70, 90]],
+      [0.7, [150, 140, 120]],
+      [1, [240, 210, 150]],
+    ],
+  },
 };
 
 export function sampleRamp(ramp: Ramp, value: number): readonly [number, number, number] {

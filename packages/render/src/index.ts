@@ -13,3 +13,4 @@ export * from './shaders/wgsl-reserved.js';
 export * from './terrain/spherical.js';
 export * from './visualiser/ramps.js';
 export * from './visualiser/overlay.js';
+export * from './visualiser/cityplan.js';
