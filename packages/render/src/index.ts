@@ -18,3 +18,4 @@ export * from './gpu/city-renderer.js';
 export * from './gpu/city-scene.js';
 export * from './shaders/city.wgsl.js';
 export * from './cinematic/sequence.js';
+export * from './post/exposure.js';

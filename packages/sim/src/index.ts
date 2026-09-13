@@ -27,4 +27,5 @@ export * from './timeline/checkpoints.js';
 export * from './timeline/navigation.js';
 export * from './timeline/persistence.js';
 export * from './visualisation/scientific.js';
+export * from './visualisation/cinematic.js';
 export * from './world.js';

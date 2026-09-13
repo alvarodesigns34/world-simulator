@@ -52,7 +52,7 @@ describe('WGSL parses and is free of the identifier classes that broke Ampere', 
 });
 
 describe('Uniforms: WGSL layout matches the CPU staging array', () => {
-  it('is 112 bytes — mat4x4 + vec4 + vec4 + vec4, no padding', () => {
+  it('matches the CPU byte size — mat4x4 + four vec4s, no padding', () => {
     expect(struct('Uniforms').size).toBe(UNIFORM_BYTES);
     expect(struct('Uniforms').align).toBe(16);
   });
@@ -62,6 +62,7 @@ describe('Uniforms: WGSL layout matches the CPU staging array', () => {
     ['sunDirection', UNIFORM_OFFSET.sunDirection, 'vec4'],
     ['params', UNIFORM_OFFSET.params, 'vec4'],
     ['camK', UNIFORM_OFFSET.camK, 'vec4'],
+    ['post', UNIFORM_OFFSET.post, 'vec4'],
   ])('member %s sits at CPU float offset %i and is %s', (name, floatOffset, type) => {
     const m = member('Uniforms', name);
     expect(m.offset).toBe(floatOffset * 4);

@@ -33,11 +33,13 @@ import {
   moveTangential,
   setAltitude,
   type CameraState,
+  type CinematicTargets,
   type DebugMode,
 } from '@ws/render';
 import {
   CITY_LOD,
   SCIENTIFIC_FIELDS,
+  cinematicTargets,
   cityLayout,
   cityTerrainSampler,
   createWorld,
@@ -195,6 +197,9 @@ async function main(): Promise<void> {
   let descentT = -1;
   let cinematicT = -1;
   let cinematicShot = '';
+  /* The world's own answer to what each shot is about, resolved once when the
+     programme starts so the camera path is stable for the whole take. */
+  let cinematicAim: CinematicTargets = {};
   const autoDescent = new URLSearchParams(location.search).has('descent');
   if (autoDescent) descentT = 0;
 
@@ -270,6 +275,10 @@ async function main(): Promise<void> {
       cinematicT = cinematicT < 0 ? 0 : -1;
       descentT = -1;
       cinematicShot = '';
+      /* Aim the programme at THIS world. A role the world cannot fill is left
+         out, and the keyframe falls back to its literal coordinates — which the
+         frame reports, so a fallback take is never logged as a world tour. */
+      cinematicAim = cinematicT >= 0 ? aimFromWorld(world) : {};
       telemetry.clear();
     }
     if (e.key === 'g' || e.key === 'G') {
@@ -325,10 +334,15 @@ async function main(): Promise<void> {
     const sun = sunState(world.scheduler.time, world.calendar);
     renderer.sunDirection = v3(sun.sunPcf.x, sun.sunPcf.y, sun.sunPcf.z);
 
+    let cinematicLabel = '';
     if (cinematicT >= 0) {
       cinematicT += wallDt;
-      const shot = cinematicFrameAt(cinematicT, PLANET);
+      const shot = cinematicFrameAt(cinematicT, PLANET, cinematicAim);
       cam = shot.camera;
+      /* Says out loud whether the shot was aimed by the world or fell back to
+         its literal coordinates. A fallback take is a camera path, not a tour
+         of this planet, and the recording should not be able to hide that. */
+      cinematicLabel = `${shot.shot}${shot.fromWorld ? ' — world-aimed' : ' — fallback aim'}`;
       if (shot.shot !== cinematicShot) {
         cinematicShot = shot.shot;
         world.apply({ kind: 'setTimeScale', scale: shot.timeScale });
@@ -394,6 +408,7 @@ async function main(): Promise<void> {
       deviceLost: gpu.lostReason(),
       lastGpuError: gpu.lastUncapturedError(),
       tracing: descentT >= 0 || cinematicT >= 0,
+      ...(cinematicLabel === '' ? {} : { shot: cinematicLabel }),
       regime: world.climate.regime,
       timeScale: world.timeScale,
       seaLevel: world.ocean.seaLevel,
@@ -413,6 +428,23 @@ async function main(): Promise<void> {
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+}
+
+/**
+ * The world's own answer to what each cinematic shot is about.
+ *
+ * `sim` chooses the features (highest land, largest river, biggest city,
+ * busiest built link); `render` knows only two numbers per role. This is the
+ * translation, and like every other sim -> render handoff it lives in the
+ * composition root.
+ */
+function aimFromWorld(world: ReturnType<typeof createWorld>): CinematicTargets {
+  const t = cinematicTargets(world, PLANET);
+  const out: Record<string, { lat: number; lon: number }> = {};
+  for (const [role, point] of Object.entries(t)) {
+    if (point !== undefined) out[role] = { lat: point.lat, lon: point.lon };
+  }
+  return out as CinematicTargets;
 }
 
 function meanOf(a: Float64Array): number {

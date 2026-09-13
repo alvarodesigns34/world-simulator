@@ -17,6 +17,8 @@ struct Uniforms {
   params        : vec4<f32>,
   // Multiplier for the k·C spherify term (DEC-033 exception: scaled, not added).
   camK          : vec4<f32>,
+  // x = exposure gain, y = bloom strength, zw reserved (T-0103).
+  post          : vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> u : Uniforms;
@@ -191,10 +193,14 @@ fn fs(frag : VsOut) -> @location(0) vec4<f32> {
   let weatherHaze = clamp(frag.surface.w, 0.0, 1.0);
   rgb = mix(rgb, vec3<f32>(0.58, 0.64, 0.66) * (0.25 + wrap * 0.75), weatherHaze * 0.24);
   if (u.sunDirection.w > 0.5 && debugMode < 0.5) {
-    // Exposure, restrained highlight bloom and a neutral filmic shoulder.
-    rgb = rgb * 1.18;
+    // Adapted exposure, restrained highlight bloom, neutral filmic shoulder.
+    // The gain is temporal state carried on the CPU (post/exposure.ts): a
+    // constant 1.18 sat here before, which is why "exposure adaptation is
+    // smooth across the orbit -> surface range" was not a thing that could be
+    // checked.
+    rgb = rgb * max(u.post.x, 0.0001);
     let bloom = max(rgb - vec3<f32>(0.72), vec3<f32>(0.0));
-    rgb = rgb + bloom * 0.16;
+    rgb = rgb + bloom * u.post.y;
     rgb = (rgb * (2.51 * rgb + vec3<f32>(0.03))) /
       (rgb * (2.43 * rgb + vec3<f32>(0.59)) + vec3<f32>(0.14));
   } else {

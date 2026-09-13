@@ -24,6 +24,8 @@ struct Uniforms {
   // x = planet radius, y = camera altitude, z = debug mode, w = sea level (m).
   params        : vec4<f32>,
   camK          : vec4<f32>,
+  // x = exposure gain, y = bloom strength, zw reserved (T-0103).
+  post          : vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> u : Uniforms;
@@ -92,6 +94,9 @@ fn fs(in : VsOut) -> @location(0) vec4<f32> {
   let haze = clamp(in.viewDepth / 260000.0, 0.0, 1.0);
   lit = mix(lit, vec3<f32>(0.30, 0.38, 0.46), haze * 0.55);
 
+  // The same adapted exposure the terrain uses. A city lit on a different
+  // curve from the ground it stands on is the seam this pass exists to avoid.
+  lit = lit * max(u.post.x, 0.0001);
   return vec4<f32>(lit, 1.0);
 }
 `;

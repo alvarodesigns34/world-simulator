@@ -38,6 +38,7 @@ import {
 } from './layout.js';
 import { WINDING_UNKNOWN, type WindingProbeOutcome } from './winding.js';
 import { CityRenderer, type CityInstanceBatch } from './city-renderer.js';
+import { adaptExposure, createExposureState, sceneKeyLuminance, snapExposure, type ExposureState } from '../post/exposure.js';
 
 const EMPTY_INSTANCES = new Float32Array(0);
 
@@ -74,6 +75,10 @@ export interface FrameStats extends SelectStats {
   readonly cameraSpeed: number;
   /** GPU pass time in ms if timestamp-query is available; otherwise -1. */
   readonly gpuFrameMs: number;
+  /** Adapted exposure gain the shader used this frame (T-0103). */
+  readonly exposure: number;
+  /** Scene key luminance the adaptation was driving toward. */
+  readonly sceneLuminance: number;
   readonly patchVerticesPerSide: number;
   readonly pixelCount: number;
 }
@@ -133,6 +138,16 @@ export class PlanetRenderer {
    * batch changes nothing anyone can observe in the simulation.
    */
   cityScene: CityInstanceBatch | null = null;
+
+  /**
+   * Exposure adaptation (T-0103). Presentation state: driven by WALL CLOCK, and
+   * unreachable from `sim` by construction.
+   */
+  readonly exposure: ExposureState = createExposureState();
+  /** Highlight bloom strength. 0 disables it. Astra's to tune. */
+  bloomStrength = 0.16;
+  /** Set false to hold exposure fixed, for a like-for-like comparison. */
+  exposureAdaptation = true;
 
   private city: CityRenderer | null = null;
 
@@ -353,6 +368,19 @@ export class PlanetRenderer {
       [cam.position.x, cam.position.y, cam.position.z, 0],
       UNIFORM_OFFSET.camK,
     );
+    /*
+     * Exposure follows the scene, on wall-clock seconds. The luminance is an
+     * analytic estimate from the sun geometry and the altitude, NOT a measured
+     * histogram of the frame — see `post/exposure.ts`, which says so at length.
+     */
+    const up = vnorm(cam.position);
+    const sunDotUp = up.x * this.sunDirection.x + up.y * this.sunDirection.y + up.z * this.sunDirection.z;
+    const luminance = sceneKeyLuminance(sunDotUp, d.altitude, this.planet.radius);
+    const wallDt = this.haveLastCam ? Math.max(0, (nowMs() - this.lastCamT) / 1000) : 0;
+    const exposure = this.exposureAdaptation
+      ? adaptExposure(this.exposure, luminance, wallDt)
+      : snapExposure(this.exposure, this.exposure.adapted);
+    this.uniformData.set([exposure, this.bloomStrength, 0, 0], UNIFORM_OFFSET.post);
     device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
 
     /* Created on first use: a session that never looks at a city pays for no
@@ -433,6 +461,8 @@ export class PlanetRenderer {
       cameraNear: d.cameraNear,
       cameraSpeed: speed,
       gpuFrameMs: this.lastGpuMs,
+      exposure,
+      sceneLuminance: luminance,
       patchVerticesPerSide: this.n,
       pixelCount: width * height,
     };

@@ -22,8 +22,11 @@
  *     satisfy it.
  */
 
-/** Uniforms: mat4x4 viewProj + vec4 sunDirection + vec4 params + vec4 camK. */
-export const UNIFORM_FLOATS = 28;
+/**
+ * Uniforms: mat4x4 viewProj + vec4 sunDirection + vec4 params + vec4 camK +
+ * vec4 post.
+ */
+export const UNIFORM_FLOATS = 32;
 export const UNIFORM_BYTES = UNIFORM_FLOATS * 4;
 
 /** Float offsets into the uniform staging array. Byte offset = float * 4. */
@@ -32,6 +35,19 @@ export const UNIFORM_OFFSET = {
   sunDirection: 16,
   params: 20,
   camK: 24,
+  post: 28,
+} as const;
+
+/**
+ * What `post` carries. Presentation only: none of it can reach `sim`, and the
+ * simulation produces identical results whatever is in here (T-0103).
+ */
+export const POST_LANE = {
+  /** x: adapted exposure gain. See `post/exposure.ts`. */
+  exposure: 0,
+  /** y: highlight bloom strength, 0 disables. */
+  bloom: 1,
+  /** z, w: reserved. */
 } as const;
 
 /** PatchInstance: six vec4s. Byte offset = float * 4. */

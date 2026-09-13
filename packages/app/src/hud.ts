@@ -28,6 +28,8 @@ export interface HudInput {
   readonly deviceLost: string | null;
   readonly lastGpuError: string | null;
   readonly tracing: boolean;
+  /** Current cinematic shot, with whether the world aimed it. */
+  readonly shot?: string;
   readonly regime?: string;
   readonly timeScale?: number;
   readonly seaLevel?: number;
@@ -89,6 +91,7 @@ export class Hud {
       `WORLD SIMULATOR  M4`,
       `${input.adapter}`,
       `tier ${input.gpuTier}   SAB ${input.sharedMemory ? 'yes' : 'no'}   trace ${input.tracing ? 'ON' : 'off'}`,
+      input.shot ? `shot       ${input.shot}` : ``,
       `winding    ${input.winding}   cull ${input.culling}`,
       input.deviceLost ? `DEVICE LOST  ${input.deviceLost}` : ``,
       input.lastGpuError ? `GPU ERROR    ${input.lastGpuError}` : ``,
@@ -108,6 +111,7 @@ export class Hud {
       input.regime ? `regime     ${input.regime}  scale ${input.timeScale ?? 1}` : ``,
       input.meanT !== undefined ? `mean T     ${input.meanT.toFixed(1)} K   sea ${input.seaLevel?.toFixed(0) ?? '—'} m` : ``,
       input.visualField ? `field      ${input.visualField}` : ``,
+      `exposure   ${input.stats.exposure.toFixed(2)}x   scene L ${input.stats.sceneLuminance.toFixed(3)}`,
       input.city
         ? `city 3D    ${input.city.instances} inst  ${input.city.buildings} bldg` +
           `${input.city.dropped > 0 ? ` (+${input.city.dropped} capped)` : ''}  ${input.city.ms.toFixed(1)} ms`
