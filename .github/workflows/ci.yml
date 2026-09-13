@@ -6,6 +6,23 @@ on:
   pull_request:
     branches: [main, dev]
 
+# ONE RUN PER REF.
+#
+# A push to an agent branch that has an open PR fires this workflow TWICE, three
+# seconds apart, on the same commit. Both runs execute the full suite, and on a
+# shared runner they compete for the same CPU: the loser's Vitest worker misses
+# its 5 s reporter RPC window and the job fails with
+# `[vitest-worker]: Timeout calling "onTaskUpdate"` AFTER printing 537/537
+# passed. It was reproducible as a pattern — the PR run passing and the push run
+# failing on the identical SHA, twice in a row — and not as a test failure,
+# because there was never a failing test.
+#
+# This does not weaken CI. It removes a duplicate run that was competing with
+# itself; exactly one full run still gates every commit, and nothing is skipped.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
