@@ -2688,3 +2688,97 @@ explicit step. Two now do:
 - Remaining known drift: mean soil moisture still declines 0.100 → 0.044 over
   800 kyr. That is far slower and no longer catastrophic, but it is a real
   trend and is recorded rather than declared stable.
+
+---
+
+## DEC-043 — City geometry is a function, not state
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+A million-person city has ~480 000 buildings. A planet has thousands of
+cities. Storing that is tens of gigabytes; stepping it is absurd; transferring
+it to a worker is hopeless. The question M9 has to answer is not "how do we
+store a city" but "what is the smallest thing a city can be".
+
+### Decision
+
+Split every city in two, along the founding principle.
+
+**Authoritative** (`city/state.ts`): a few dozen numbers. Centre cell,
+population, built radius, technology, era, and up to 40 district seeds with a
+build-out fraction each. This is what the simulation integrates, what
+persistence stores, and what the digest folds.
+
+**Derived** (`city/layout.ts`): every junction, street, bridge, plot and
+building — a pure function of the authoritative state plus the terrain,
+generated at a requested level of detail and discardable at any moment. The
+simulation never reads it back.
+
+Four consequences follow and are enforced rather than intended:
+
+1. `cityDigest` folds authoritative state ONLY. The test generates the same
+   city on flat ground and on a ridge, gets different geometry, and requires
+   the digest to be unchanged.
+2. The world test drops every cached layout and requires `world.digest()` to be
+   identical before, after, and after regeneration.
+3. Layouts are cached with LRU eviction under a byte budget. Eviction is always
+   safe because it cannot lose information — the layout was never information.
+4. Allocation is bounded before generation starts: `MAX_LAYOUT_BUILDINGS`
+   (600 000, ~10 MB). Above it the layout reports `buildingScale`, the factor by
+   which it is a sample. It does not silently truncate, because then a
+   10-million-person city would look identical to a 600 000-person one.
+
+### Consequences
+
+- LOD levels NEST (districts ⊂ arterials ⊂ streets ⊂ plots), so a cached
+  layout at higher detail satisfies a lower request and zooming out never
+  discards work.
+- Measured (`tools/bench/m9-city.out.md`): a million-person city generates in
+  **106.8 ms**, 53% of the 200 ms budget, producing 479 990 buildings and
+  2 801 km of street. Worst case across all sizes and terrains is 128.8 ms.
+- The terrain seam (`city/terrain.ts`) samples elevation BILINEARLY across the
+  cube face, not nearest-cell — otherwise every city is perfectly flat and the
+  whole layout is decorative.
+
+---
+
+## DEC-044 — A settlement is a polity; a city is what fits on the ground
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+M9 initially took a settlement's population as its city's population. At the
+civilisation grid's resolution one M8 settlement holds a territory of
+continental cells, so this produced a "city" of 553 million people and a layout
+request for 241 million buildings. That is a category error about what an M8
+settlement is, not a scale error in M9.
+
+### Decision
+
+An M8 settlement is a POLITY. Its city population is
+
+    cityPop = settlementPop × urbanFraction(technology) × PRIMATE_SHARE
+
+- `urbanFraction` runs from ~4% at technology 0 to ~80% at technology 1,
+  because a pre-industrial agricultural surplus will not feed more townsfolk
+  than that.
+- `PRIMATE_SHARE` = 0.26: rank-size (Zipf) puts a polity's largest city at
+  roughly a quarter of its urban population. M9 realises the primate city.
+
+### Consequences
+
+- Technology now drives urbanisation, which drives city size, which drives
+  street era and building height — one causal chain rather than four constants.
+- M9 models the largest city of each polity, not every settlement. Secondary
+  cities are a later milestone; the rank-size law is already the mechanism that
+  would generate them.
+- Bridging is a technology consequence too: `maxBridgeSpanM` runs from 25 m to
+  ~1.4 km, so a bronze-age town stops at a river an industrial city crosses.
+  Tested both ways on the same river.

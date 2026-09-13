@@ -69,6 +69,11 @@ import {
   type CivilisationState,
   type HabitabilityState,
 } from './civilisation/index.js';
+import {
+  initCityRegistry,
+  stepCities,
+  type CityRegistry,
+} from './city/index.js';
 import { TileCache } from './tiles/cache.js';
 import { MemoryTileStore } from './tiles/storage.js';
 
@@ -140,6 +145,7 @@ export interface World {
   readonly dynamicGeology: DynamicGeologyState;
   readonly civilisation: CivilisationState;
   readonly habitability: HabitabilityState;
+  readonly cities: CityRegistry;
   readonly tiles: TileCache;
   readonly commands: CommandLog;
   readonly terrainLevel: number;
@@ -161,6 +167,7 @@ interface WorldRuntimeRef {
   civilisation: CivilisationState;
   habitability: HabitabilityState;
   civConfig: CivConfig;
+  cities: CityRegistry;
 }
 
 const DEFAULT_SEED = makeSeed(0x51a5, 0x1a51);
@@ -199,6 +206,7 @@ export function createWorld(opts: WorldOptions = {}): World {
   const habitability = initHabitability(hydrology);
   const civConfig: CivConfig = { seed, ...opts.civilisation };
   const civilisation = initCivilisation(hydrology, biosphere, habitability, civConfig);
+  const cities = initCityRegistry(seed, civilisation.store.capacity);
 
   const cubeGrid = gridId('cubesphere', terrainLevel);
   const geoGrid = gridId('geodesic', climateN);
@@ -257,6 +265,7 @@ export function createWorld(opts: WorldOptions = {}): World {
     civilisation,
     habitability,
     civConfig,
+    cities,
   };
 
   const scheduler = new Scheduler({
@@ -287,6 +296,7 @@ export function createWorld(opts: WorldOptions = {}): World {
     dynamicGeology,
     civilisation,
     habitability,
+    cities,
     tiles,
     commands,
     terrainLevel,
@@ -557,6 +567,11 @@ function makeCivilisation(store: FieldStore, ref: WorldRuntimeRef, calendar: Cal
          drought that kills the NPP must empty the towns, not just the fields. */
       refreshHabitability(ref.habitability, ref.hydrology, ref.biosphere);
       stepCivilisation(ref.civilisation, ref.hydrology, years, ref.civConfig);
+      /* M9 follows M8 in the same phase and the same tick: a city is what a
+         settlement's people do to the ground, so it must never observe a
+         population from a different step. No geometry is built here — only
+         authoritative city state advances. */
+      stepCities(ref.cities, ref.civilisation, ref.hydrology, years);
       publishCivilisation(store, ref.civilisation);
     },
   };

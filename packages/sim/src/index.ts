@@ -14,6 +14,7 @@ export * from './ocean/sea.js';
 export * from './hydrology/system.js';
 export * from './biosphere/system.js';
 export * from './civilisation/index.js';
+export * from './city/index.js';
 export * from './tiles/storage.js';
 export * from './tiles/bake.js';
 export * from './tiles/cache.js';
