@@ -65,6 +65,12 @@ export type DebugMode = 'shaded' | 'lod' | 'patches' | 'height';
 
 export type ElevationSampler = (key: QuadKey) => { h00: number; h10: number; h01: number; h11: number };
 export type SurfaceSampler = (key: QuadKey) => readonly [number, number, number, number];
+/**
+ * Snow cover, glacier cover and two reserved lanes, from M5's authoritative
+ * fields. Null draws a world with no cryosphere, which is what the renderer
+ * did before this existed (T-0104).
+ */
+export type CryoSampler = (key: QuadKey) => readonly [number, number, number, number];
 
 export interface FrameStats extends SelectStats {
   readonly cpuSelectMs: number;
@@ -126,6 +132,7 @@ export class PlanetRenderer {
   seaLevel = 0;
   elevationAt: ElevationSampler | null = null;
   surfaceAt: SurfaceSampler | null = null;
+  cryoAt: CryoSampler | null = null;
   /** Filmic grade/bloom approximation. Disabled for scientific layers. */
   cinematic = false;
 
@@ -306,6 +313,7 @@ export class PlanetRenderer {
       h01: h.h01,
       h11: h.h11,
       surface: this.surfaceAt?.(node.key) ?? [0, 0, 0, 0],
+      cryo: this.cryoAt?.(node.key) ?? [0, 0, 0, 0],
     };
     packPatchInstance(out, at, withH);
   }

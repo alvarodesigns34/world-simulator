@@ -16,7 +16,7 @@
 import { v3, type Vec3 } from '@ws/core';
 import { cubeFaceToUnit, quadkey, type QuadKey } from '@ws/data';
 
-export const FLOATS_PER_INSTANCE = 24;
+export const FLOATS_PER_INSTANCE = 28;
 
 export interface CameraPos {
   readonly x: number;
@@ -35,8 +35,23 @@ export interface PackedCorners {
   readonly h10: number;
   readonly h01: number;
   readonly h11: number;
-  /** vegetation, river intensity, lake intensity, biome/15 */
+  /**
+   * vegetation, river intensity, lake intensity, weather+pollution forcing.
+   *
+   * The fourth lane was documented as `biome/15` and has never carried a
+   * biome: the application supplies presentation forcing derived from M4
+   * runoff and M10 pollution. Corrected rather than left as a claim about a
+   * channel nobody wrote (T-0104).
+   */
   readonly surface?: readonly [number, number, number, number];
+  /**
+   * snow cover, glacier cover, reserved, reserved.
+   *
+   * Both fractions come from M5's authoritative `snowpackM` and `glacierM`.
+   * Before this the shader had no cryosphere at all, while M6's acceptance
+   * claimed visible seasonal snow cover.
+   */
+  readonly cryo?: readonly [number, number, number, number];
 }
 
 function relCorner(unit: { x: number; y: number; z: number }, radius: number, cam: CameraPos): Vec3 {
@@ -92,6 +107,11 @@ export function packPatchInstance(out: Float32Array, at: number, packed: PackedC
   out[k++] = surface[1];
   out[k++] = surface[2];
   out[k++] = surface[3];
+  const cryo = packed.cryo ?? [0, 0, 0, 0];
+  out[k++] = cryo[0];
+  out[k++] = cryo[1];
+  out[k++] = cryo[2];
+  out[k++] = cryo[3];
 }
 
 /**

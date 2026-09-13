@@ -30,8 +30,11 @@ struct PatchInstance {
   c11  : vec4<f32>,
   // Corner elevations in metres: x=h00 y=h10 z=h01 w=h11.
   elev : vec4<f32>,
-  // vegetation, river, lake, biome-normalised; simulation-derived only.
+  // vegetation, river, lake, weather+pollution forcing; simulation-derived only.
   surface : vec4<f32>,
+  // x = snow cover, y = glacier cover, zw reserved. Both are M5's authoritative
+  // snowpack and glacier fields, not a latitude-driven decoration (T-0104).
+  cryo : vec4<f32>,
 };
 
 @group(0) @binding(1) var<storage, read> instances : array<PatchInstance>;
@@ -45,6 +48,7 @@ struct VsOut {
   @location(4)       heightM   : f32,
   @location(5)       viewDir   : vec3<f32>,
   @location(6)       surface   : vec4<f32>,
+  @location(7)       cryo      : vec4<f32>,
 };
 
 fn bilinear4(a : vec3<f32>, b : vec3<f32>, c : vec3<f32>, d : vec3<f32>, s : f32, t : f32) -> vec3<f32> {
@@ -117,6 +121,7 @@ fn vs(
   vsOut.heightM = h;
   vsOut.viewDir = sph;
   vsOut.surface = p.surface;
+  vsOut.cryo = p.cryo;
   return vsOut;
 }
 
@@ -156,6 +161,15 @@ fn fs(frag : VsOut) -> @location(0) vec4<f32> {
     albedo = mix(albedo, living, clamp(frag.surface.x * 0.62, 0.0, 0.62));
     let inlandWater = clamp(max(frag.surface.y, frag.surface.z), 0.0, 1.0);
     albedo = mix(albedo, vec3<f32>(0.03, 0.22, 0.38), inlandWater * 0.9);
+    // Snow and ice. Seasonal snowpack is bright but not white; glacier ice is
+    // whiter and wins where both are present, which is what a mountain with a
+    // glacier and a winter snowfall on it actually looks like. Both come from
+    // M5's authoritative fields, so the snow line moves when the climate does
+    // and retreats when the world warms (T-0104).
+    let snow = clamp(frag.cryo.x, 0.0, 1.0);
+    let glacier = clamp(frag.cryo.y, 0.0, 1.0);
+    albedo = mix(albedo, vec3<f32>(0.82, 0.85, 0.90), snow * 0.85);
+    albedo = mix(albedo, vec3<f32>(0.90, 0.94, 0.98), glacier * 0.92);
   }
 
   // Fresnel-ish ocean at grazing.

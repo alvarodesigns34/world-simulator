@@ -99,6 +99,8 @@ describe('PatchInstance: WGSL layout matches the CPU packer', () => {
     ['c01', INSTANCE_OFFSET.c01],
     ['c11', INSTANCE_OFFSET.c11],
     ['elev', INSTANCE_OFFSET.elev],
+    ['surface', INSTANCE_OFFSET.surface],
+    ['cryo', INSTANCE_OFFSET.cryo],
   ])('corner %s sits at CPU float offset %i', (name, floatOffset) => {
     const m = member('PatchInstance', name);
     expect(m.offset).toBe(floatOffset * 4);
@@ -106,11 +108,12 @@ describe('PatchInstance: WGSL layout matches the CPU packer', () => {
   });
 
   it('declares its members in the order the packer writes them', () => {
-    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11', 'elev', 'surface']);
+    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11', 'elev', 'surface', 'cryo']);
   });
 
-  it('has exactly six members — another would silently shift the stride', () => {
-    expect(struct('PatchInstance').members).toHaveLength(6);
+  it('has exactly seven members — another would silently shift the stride', () => {
+    expect(struct('PatchInstance').members).toHaveLength(7);
+    expect(struct('PatchInstance').size).toBe(INSTANCE_BYTES);
   });
 
   it('is bound where the pipeline binds it', () => {

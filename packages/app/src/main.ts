@@ -160,6 +160,27 @@ async function main(): Promise<void> {
     return [vegetation, river, lake, Math.min(1, weather * 0.7 + pollution * 0.3)];
   };
   renderer.surfaceAt = surfaceSampler;
+  /*
+   * Snow and glaciers, from M5's authoritative fields.
+   *
+   * M6's acceptance claims visible seasonal snow cover; until now the shader
+   * had no cryosphere at all, so nothing on screen moved when the snow line
+   * did. These are cover FRACTIONS derived from water-equivalent depth — the
+   * simulation owns the depth, the renderer decides what a depth looks like.
+   */
+  const cryoSampler = (key: QuadKey): readonly [number, number, number, number] => {
+    const level = world.hydrology.level;
+    const delta = key.level - level;
+    const dim = cubeDim(level);
+    const x = delta >= 0 ? key.x >> delta : Math.min(dim - 1, (key.x << -delta) + (1 << Math.max(0, -delta - 1)));
+    const y = delta >= 0 ? key.y >> delta : Math.min(dim - 1, (key.y << -delta) + (1 << Math.max(0, -delta - 1)));
+    const i = cubeIndex(key.face, level, x, y);
+    /* 5 cm of water equivalent hides the ground; 20 m of ice is opaque. */
+    const snow = Math.min(1, (world.hydrology.snowpackM[i] as number) / 0.05);
+    const glacier = Math.min(1, (world.hydrology.glacierM[i] as number) / 20);
+    return [snow, glacier, 0, 0];
+  };
+  renderer.cryoAt = cryoSampler;
 
   /* M13 city and infrastructure geometry. The adapter is the only thing in the
      process that reads a `sim` city and writes a `render` instance; the
@@ -294,6 +315,27 @@ async function main(): Promise<void> {
       renderer.seaLevel = world.ocean.seaLevel;
       renderer.elevationAt = elevationSampler;
       renderer.surfaceAt = surfaceSampler;
+  /*
+   * Snow and glaciers, from M5's authoritative fields.
+   *
+   * M6's acceptance claims visible seasonal snow cover; until now the shader
+   * had no cryosphere at all, so nothing on screen moved when the snow line
+   * did. These are cover FRACTIONS derived from water-equivalent depth — the
+   * simulation owns the depth, the renderer decides what a depth looks like.
+   */
+  const cryoSampler = (key: QuadKey): readonly [number, number, number, number] => {
+    const level = world.hydrology.level;
+    const delta = key.level - level;
+    const dim = cubeDim(level);
+    const x = delta >= 0 ? key.x >> delta : Math.min(dim - 1, (key.x << -delta) + (1 << Math.max(0, -delta - 1)));
+    const y = delta >= 0 ? key.y >> delta : Math.min(dim - 1, (key.y << -delta) + (1 << Math.max(0, -delta - 1)));
+    const i = cubeIndex(key.face, level, x, y);
+    /* 5 cm of water equivalent hides the ground; 20 m of ice is opaque. */
+    const snow = Math.min(1, (world.hydrology.snowpackM[i] as number) / 0.05);
+    const glacier = Math.min(1, (world.hydrology.glacierM[i] as number) / 20);
+    return [snow, glacier, 0, 0];
+  };
+  renderer.cryoAt = cryoSampler;
       renderer.cinematic = cinematicT >= 0;
     }
   });

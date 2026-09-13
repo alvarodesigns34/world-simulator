@@ -192,6 +192,28 @@ describe('instance packing: camera-relative, no world-position .w', () => {
     expect(Math.abs(buf[3] as number)).toBeLessThan(camMag / 1000);
   });
 
+  /**
+   * T-0104. The cryosphere lanes exist and default to "no snow".
+   *
+   * M6's acceptance claims visible seasonal snow cover; the shader had no
+   * cryosphere at all until this lane was added. A caller that supplies nothing
+   * must get the previous behaviour exactly — a world with no snow — rather
+   * than uninitialised memory painting white patches.
+   */
+  it('packs snow and glacier cover, defaulting to none', () => {
+    const cam = { x: 0, y: 0, z: 0 };
+    const base = patchCorners(quadkey.rootKey(FACE.POS_X), R, cam);
+    const bare = new Float32Array(FLOATS_PER_INSTANCE);
+    packPatchInstance(bare, 0, base);
+    expect(Array.from(bare.subarray(24, 28))).toEqual([0, 0, 0, 0]);
+
+    const snowy = new Float32Array(FLOATS_PER_INSTANCE);
+    packPatchInstance(snowy, 0, { ...base, cryo: [0.75, 0.25, 0, 0] });
+    expect(Array.from(snowy.subarray(24, 28))).toEqual([0.75, 0.25, 0, 0]);
+    /* And it did not disturb what was already there. */
+    expect(Array.from(snowy.subarray(0, 24))).toEqual(Array.from(bare.subarray(0, 24)));
+  });
+
   it('cross(c10-c00, c01-c00) points outward in camera-relative space', () => {
     const cam = { x: 0, y: 0, z: 0 };
     for (let face = 0; face < 6; face++) {
