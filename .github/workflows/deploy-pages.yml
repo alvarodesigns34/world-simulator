@@ -3,7 +3,9 @@ name: Deploy World Simulator to GitHub Pages
 on:
   push:
     branches:
-      - agent/claude/m8-m10-integrated
+      - dev
+      - 'agent/**'
+      - 'claude/**'
   workflow_dispatch:
 
 permissions:

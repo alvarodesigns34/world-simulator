@@ -7,7 +7,7 @@
  * topological pass rather than repeated scanning.
  */
 
-import { RADIUS, type ClimateState } from '../climate/solver.js';
+import { RADIUS, reducedColumnRainRate, type ClimateState } from '../climate/solver.js';
 import type { GeologyState } from '../geology/plates.js';
 import type { OceanState } from '../ocean/sea.js';
 import { exp } from '@ws/core';
@@ -189,8 +189,20 @@ export function rebuildHydrologyRouting(state: HydrologyState, geology: GeologyS
 export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSeconds: number): WaterBudget {
   /* Climatology/paleo calls are representative water-budget windows. Keep the
      bucket integration stable while scheduler time advances coarsely. */
+  const elapsedSeconds = dtSeconds;
   dtSeconds = Math.min(dtSeconds, 365.25 * 86400);
   resampleClimate(climate, state.level, state.temperatureK, state.precipitationRate);
+  /* A direct hydrology diagnostic can be handed a millennial window without a
+     preceding atmosphere tick. If the atmospheric mean is effectively empty,
+     use the same reduced-column closure as paleo climate; this keeps soil
+     moisture a property of the simulated interval, not of call ordering. */
+  if (elapsedSeconds >= 1_000 * 365.25 * 86400) {
+    for (let i = 0; i < state.cellCount; i++) {
+      if ((state.precipitationRate[i] as number) < 1e-8) {
+        state.precipitationRate[i] = reducedColumnRainRate(state.temperatureK[i] as number);
+      }
+    }
+  }
   const before = storageVolume(state);
   let precipitation = 0;
   let evaporation = 0;
@@ -276,7 +288,10 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
     let sUnclamped: number;
     if (k > 0) {
       const sEq = rechargeRate / k;
-      sUnclamped = sEq + (s0 - sEq) * exp(-k * dtSeconds);
+      /* Soil moisture is authoritative slow state, so its exact relaxation
+         uses the full simulated interval. Flux diagnostics below still use
+         the bounded representative climatology window. */
+      sUnclamped = sEq + (s0 - sEq) * exp(-k * elapsedSeconds);
     } else {
       sUnclamped = s0 + rechargeRate * dtSeconds;
     }
@@ -521,10 +536,20 @@ function buildLakes(
 
 function storageVolume(state: HydrologyState): number {
   let v = 0;
+  let correction = 0;
   for (let i = 0; i < state.cellCount; i++) {
-    v += ((state.soilMoistureM[i] as number) + (state.snowpackM[i] as number) + (state.glacierM[i] as number)) * (state.areaM2[i] as number);
+    const value = ((state.soilMoistureM[i] as number) + (state.snowpackM[i] as number) + (state.glacierM[i] as number)) * (state.areaM2[i] as number);
+    const y = value - correction;
+    const next = v + y;
+    correction = (next - v) - y;
+    v = next;
   }
-  for (const lake of state.lakes) v += lake.volumeM3;
+  for (const lake of state.lakes) {
+    const y = lake.volumeM3 - correction;
+    const next = v + y;
+    correction = (next - v) - y;
+    v = next;
+  }
   return v;
 }
 

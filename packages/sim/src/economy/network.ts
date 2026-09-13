@@ -17,15 +17,19 @@
  * historically worked.
  *
  * Paths ARE computed for one thing: deciding where to build a road. That is a
- * topology question, it changes only when the settlement set changes, and it is
- * answered with a minimum spanning tree over the neighbour graph plus
- * high-traffic shortcuts — not per tick, and not per commodity.
+ * topology question, it changes only when the settlement set or terrain routing
+ * generation changes, and it is answered by cached terrain-aware corridors over
+ * the sparse neighbour graph plus a bounded coastal backbone — not per tick, and
+ * not per commodity. The economic graph is deliberately not described as an
+ * MST: its local links and sea backbone are physical candidates, while
+ * investment decides which modes are built.
  */
 
 import { CIV, type CivilisationState } from '../civilisation/system.js';
 import type { HydrologyState } from '../hydrology/system.js';
 import { acos, tan } from '@ws/core';
 import { DIR, cubeDim, cubeIndex, neighbor } from '@ws/data';
+import { findNavigablePort, routeLandInfrastructure, seaRoute, type PhysicalRoute } from './routing.js';
 
 const DIRS = [DIR.POS_U, DIR.NEG_U, DIR.POS_V, DIR.NEG_V] as const;
 
@@ -82,6 +86,8 @@ export interface TransportEdge {
   /** Cached: cost per unit to traverse, given mode and quality. */
   unitCost: number;
   capacity: number;
+  /** Cached physical corridor. Economic flow never recomputes it. */
+  readonly route: PhysicalRoute;
 }
 
 export interface TransportNetwork {
@@ -94,6 +100,8 @@ export interface TransportNetwork {
   adjacency: Int32Array[];
   /** Bumped when the topology changes, so consumers can invalidate. */
   topologyGeneration: number;
+  /** Derived corridor cache, keyed by endpoint cells and mode. */
+  readonly routeCache: Map<string, PhysicalRoute>;
   /** Diagnostics. */
   roadKm: number;
   railKm: number;
@@ -107,6 +115,7 @@ export function initNetwork(capacity: number): TransportNetwork {
     edges: [],
     adjacency: [],
     topologyGeneration: 0,
+    routeCache: new Map(),
     roadKm: 0, railKm: 0, seaKm: 0,
   };
 }
@@ -147,6 +156,14 @@ export function rebuildTopology(
   const n = cubeDim(civ.level);
   const seen = new Set<number>();
   const adjacency: number[][] = nodes.map(() => []);
+  const portsBySettlement = new Map<number, number>();
+  const portFor = (settlement: number): number => {
+    const hit = portsBySettlement.get(settlement);
+    if (hit !== undefined) return hit;
+    const port = findNavigablePort(h, cellCol[settlement] as number);
+    portsBySettlement.set(settlement, port);
+    return port;
+  };
 
   const link = (ai: number, bi: number, coastal: boolean): void => {
     const a = net.nodeOf[ai] as number;
@@ -159,13 +176,34 @@ export function rebuildTopology(
     const key = lo * 1e7 + hi + (coastal ? 5e13 : 0);
     if (seen.has(key)) return;
     seen.add(key);
-    const distanceM = greatCircleBetween(cellCol[ai] as number, cellCol[bi] as number, civ.level);
+    const start = cellCol[ai] as number;
+    const goal = cellCol[bi] as number;
+    let distanceM: number;
+    let route: PhysicalRoute;
+    if (coastal) {
+      const portA = portFor(ai);
+      const portB = portFor(bi);
+      /* Two inland centres can share the same coastal outlet. That is one
+         port, not a zero-length sea lane between two fictional ports. */
+      if (portA < 0 || portB < 0 || portA === portB) return;
+      distanceM = greatCircleBetween(portA, portB, civ.level);
+      const routeKey = `sea:${String(Math.min(portA, portB))}:${String(Math.max(portA, portB))}`;
+      route = net.routeCache.get(routeKey) ?? seaRoute(h, portA, portB, distanceM);
+      net.routeCache.set(routeKey, route);
+    } else {
+      const routeKey = `land:${String(Math.min(start, goal))}:${String(Math.max(start, goal))}`;
+      route = net.routeCache.get(routeKey) ?? routeLandInfrastructure(h, start, goal);
+      net.routeCache.set(routeKey, route);
+      if ((route.cells[route.cells.length - 1] as number) !== goal) return;
+      distanceM = route.distanceM;
+    }
     const e: TransportEdge = {
       a: lo, b: hi, distanceM,
       mode: coastal ? MODE.SEA : MODE.TRACK,
       quality: 0,
       unitCost: distanceM * (MODE_COST_PER_M[coastal ? MODE.SEA : MODE.TRACK] as number),
       capacity: MODE_CAPACITY[coastal ? MODE.SEA : MODE.TRACK] as number,
+      route,
     };
     adjacency[lo]!.push(net.edges.length);
     adjacency[hi]!.push(net.edges.length);
@@ -197,7 +235,7 @@ export function rebuildTopology(
   for (const i of nodes) {
     const c = cellCol[i] as number;
     if (c < 0) continue;
-    if (touchesOcean(h, c)) ports.push(i);
+    if (portFor(i) >= 0) ports.push(i);
   }
   for (let k = 0; k + 1 < ports.length; k++) {
     link(ports[k] as number, ports[k + 1] as number, true);
@@ -208,20 +246,6 @@ export function rebuildTopology(
 
   net.adjacency = adjacency.map((a) => Int32Array.from(a));
   net.topologyGeneration++;
-}
-
-function touchesOcean(h: HydrologyState, cell: number): boolean {
-  if (h.ocean[cell] !== 0) return true;
-  const n = cubeDim(h.level);
-  const face = Math.floor(cell / (n * n));
-  const local = cell - face * n * n;
-  const y = Math.floor(local / n);
-  const x = local - y * n;
-  for (const d of DIRS) {
-    const nb = neighbor({ face, x, y }, h.level, d);
-    if (h.ocean[cubeIndex(nb.face, h.level, nb.x, nb.y)] !== 0) return true;
-  }
-  return false;
 }
 
 const RADIUS_M = 6_371_000;
@@ -291,7 +315,7 @@ export function investInInfrastructure(
     let best: ModeId = edge.mode === MODE.SEA ? MODE.SEA : MODE.TRACK;
     if (edge.mode !== MODE.SEA) {
       for (const m of [MODE.ROAD, MODE.RAIL] as const) {
-        if (t >= (MODE_TECH[m] as number)) best = m;
+        if (t >= (MODE_TECH[m] as number) && (m !== MODE.RAIL || edge.route.maxGradient <= 0.08)) best = m;
       }
     }
 
@@ -336,6 +360,9 @@ export function networkDigest(net: TransportNetwork): number {
     h = mix(h, e.b);
     h = mix(h, e.mode);
     h = mix(h, Math.round(e.quality * 1e6));
+    h = mix(h, e.route.cells.length);
+    h = mix(h, Math.round(e.route.maxGradient * 1e6));
+    for (let i = 0; i < e.route.cells.length; i++) h = mix(h, e.route.cells[i] as number);
   }
   return h >>> 0;
 }

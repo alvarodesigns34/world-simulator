@@ -135,18 +135,12 @@ const RESERVE_RENEWAL_YEARS = 2.0e6;
  * under-produced, every stock sat at zero and every price pinned at the cap.
  * Normalising removes the assumption instead of re-tuning it.
  *
- * WHY IT IS 8 AND NOT 1. An average-endowment territory would want ~1.15. The
- * measured settled world needs ~8, and the reason is an emergent one worth
- * stating: polities settle where the FARMLAND is, and good farmland is flat,
- * low and well watered, while ore sits on convergent margins and old shield —
- * steep, high ground that M8's habitability rates poorly. Settled territory is
- * therefore systematically ore-poor relative to the planetary average, by
- * roughly this factor. The constant absorbs a real anti-correlation between
- * where people live and where the metal is; it is not a fudge for arithmetic
- * that does not work.
+ * The old implementation used a global ABUNDANCE = 8 multiplier. Ten-seed
+ * sensitivity showed that it was not robust: settled/planetary ore ratios
+ * ranged from 0.39 to 2.78 as geography changed. Production now derives a
+ * bounded normalisation from the current settled-land statistics each step;
+ * the anti-correlation remains causal, but no seed-specific constant remains.
  */
-const ABUNDANCE = 8.0;
-
 /**
  * Share of the ceiling that low-grade ground supplies indefinitely.
  *
@@ -199,6 +193,7 @@ export interface EconomyState {
   capacity: number;
   /** Settlement-set version the topology was built for. */
   topologyBasis: number;
+  routingBasis: number;
   steps: number;
   year: number;
   /** Diagnostics. */
@@ -239,6 +234,7 @@ export function initEconomy(
     advectScratch: new Float64Array(civ.cellCount),
     capacity: cap,
     topologyBasis: -1,
+    routingBasis: -1,
     steps: 0,
     year: 0,
     totalTrade: 0,
@@ -294,9 +290,11 @@ export function stepEconomy(
 
   /* Topology follows the settlement set, and only that: rebuilding every tick
      would be O(cells) for a graph that has not changed. */
-  if (e.topologyBasis !== store.version) {
+  if (e.topologyBasis !== civ.topologyVersion || e.routingBasis !== h.routingGeneration) {
+    if (e.routingBasis !== h.routingGeneration) e.network.routeCache.clear();
     rebuildTopology(e.network, civ, h);
-    e.topologyBasis = store.version;
+    e.topologyBasis = civ.topologyVersion;
+    e.routingBasis = h.routingGeneration;
     e.traffic = new Float64Array(e.network.edges.length);
   }
   e.traffic.fill(0);
@@ -373,6 +371,26 @@ function produce(
   }
 
   e.totalProduction = 0;
+  /* Settlements are not a random sample of land. Derive a world-local
+     comparative-advantage normalisation from their actual claimed cells. This
+     replaces the former fixed ABUNDANCE constant and keeps the economy
+     calibrated across seeds without changing endowment geography. */
+  const settledSum = new Float64Array(COMMODITY_COUNT);
+  let settledCells = 0;
+  for (let c = 0; c < N; c++) {
+    const owner = civ.claim[c] as number;
+    if (owner < 0 || !store.aliveAt(owner)) continue;
+    settledCells++;
+    for (let k = 0; k < COMMODITY_COUNT; k++) settledSum[k] = (settledSum[k] as number) + (res.endowment[k * N + c] as number);
+  }
+  const abundance = new Float64Array(COMMODITY_COUNT).fill(1);
+  for (let k = 0; k < COMMODITY_COUNT; k++) {
+    const settledMean = (settledSum[k] as number) / Math.max(1, settledCells);
+    const planetary = res.planetaryMean[k] as number;
+    if (settledMean > 1e-12 && planetary > 1e-12) {
+      abundance[k] = Math.min(8, Math.max(0.25, planetary / settledMean));
+    }
+  }
   for (let i = 0; i < store.bound; i++) {
     if (!store.aliveAt(i)) continue;
     const P = pop[i] as number;
@@ -404,12 +422,12 @@ function produce(
 
     /* TIMBER regrows; its ceiling is the standing forest. */
     e.production[at(e, COMMODITY.TIMBER, i)] =
-      rel(COMMODITY.TIMBER) * ABUNDANCE * scale * demandPerCapita(COMMODITY.TIMBER, t);
+      rel(COMMODITY.TIMBER) * (abundance[COMMODITY.TIMBER] as number) * scale * demandPerCapita(COMMODITY.TIMBER, t);
 
     /* STONE, ORE, FUEL come out of the ground, deplete over centuries, and are
        renewed by tectonics over megayears. */
     for (const k of EXTRACTIVE) {
-      const ceiling = rel(k) * ABUNDANCE * scale * demandPerCapita(k, t) * (0.55 + 0.75 * t);
+      const ceiling = rel(k) * (abundance[k] as number) * scale * demandPerCapita(k, t) * (0.55 + 0.75 * t);
       const taken = e.extracted[at(e, k, i)] as number;
       const stockTotal = ceiling * RESERVE_YEARS;
       const richLeft = stockTotal > 0 ? Math.max(0, 1 - taken / stockTotal) : 0;
@@ -532,11 +550,13 @@ function trade(e: EconomyState, civ: CivilisationState, dtYears: number): void {
   e.totalTrade = 0;
   if (net.edges.length === 0) return;
 
-  /* Several passes so goods can move more than one hop per step. Distant trade
-     is a CHAIN of local exchanges, which is both what a market does and why no
-     path is ever computed. Three passes is enough for prices to propagate
-     across a region within a step without making the step O(diameter). */
-  const passes = 3;
+  /* Information propagation is measured per SIMULATED interval, not per call.
+     A fixed three passes made a 500-year paleo tick move price information
+     less far per century than annual ticks. Grow virtual passes with dt until
+     a bounded regional-equilibrium cap; this remains O(edges * min(nodes, 8)) and
+     is deterministic. The cap is explicit temporal LOD: beyond it this tick
+     solves a regional equilibrium rather than pretending markets stopped. */
+  const passes = arbitragePasses(dtYears, net.nodes.length);
   for (let pass = 0; pass < passes; pass++) {
     for (let ei = 0; ei < net.edges.length; ei++) {
       const edge = net.edges[ei]!;
@@ -585,6 +605,11 @@ function trade(e: EconomyState, civ: CivilisationState, dtYears: number): void {
       }
     }
   }
+}
+
+export function arbitragePasses(dtYears: number, nodeCount: number): number {
+  const regionalCap = Math.max(1, Math.min(8, Math.max(1, nodeCount - 1)));
+  return Math.min(regionalCap, Math.max(1, Math.ceil(3 + 2 * log10(Math.max(1, dtYears)))));
 }
 
 /* ---- pollution and its coupling back to the climate ------------------ */

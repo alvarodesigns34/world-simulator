@@ -107,6 +107,8 @@ export interface CivilisationState {
   foundedTotal: number;
   collapsedTotal: number;
   relocatedTotal: number;
+  /** Changes only when settlement nodes move, appear or disappear. */
+  topologyVersion: number;
   nextCulture: number;
   /** Diagnostic: settlements that hit their food ceiling on the last step. */
   strainedCount: number;
@@ -162,6 +164,7 @@ export function initCivilisation(
     foundedTotal: 0,
     collapsedTotal: 0,
     relocatedTotal: 0,
+    topologyVersion: 0,
     nextCulture: 1,
     strainedCount: 0,
   };
@@ -424,6 +427,7 @@ function reseatOrCollapse(
     if (move >= 0) {
       cell[i] = move;
       s.relocatedTotal++;
+      s.topologyVersion++;
     } else {
       collapse(s, i, cell);
     }
@@ -444,6 +448,7 @@ function collapse(s: CivilisationState, index: number, cell: { [i: number]: numb
   cell[index] = -1;
   s.store.destroy(id);
   s.collapsedTotal++;
+  s.topologyVersion++;
 }
 
 /**
@@ -466,13 +471,19 @@ function growTerritory(
   const store = s.store;
   s.claim.fill(-1);
   s.claimDistance.fill(0);
-  const n = cubeDim(s.level);
   const suit = s.habitability.suitability;
 
   /* Distance-bucketed frontier: processing ring by ring is what makes the BFS
-     order-independent of the seed order within a ring. */
-  let frontier: number[] = [];
-  const reach = new Float64Array(store.bound);
+     order-independent of the seed order within a ring. The two typed queues
+     are derived work memory cached outside Tier-A; avoiding hundreds of
+     thousands of boxed array pushes removes the L8 territory burst without
+     changing publication order or the result. */
+  const work = territoryScratch(s, store.bound);
+  let frontier = work.a;
+  let next = work.b;
+  const reach = work.reach;
+  let frontierCount = 0;
+  reach.fill(0, 0, store.bound);
   for (let i = 0; i < store.bound; i++) {
     if (!store.aliveAt(i)) continue;
     const c = cell[i] as number;
@@ -482,24 +493,25 @@ function growTerritory(
        lower index wins, deterministically. */
     if (s.claim[c] === -1 || (s.claim[c] as number) > i) {
       s.claim[c] = i;
-      frontier.push(c);
     }
+  }
+  /* Publish only the winner at a multiply occupied seed cell. */
+  for (let i = 0; i < store.bound; i++) {
+    if (!store.aliveAt(i)) continue;
+    const c = cell[i] as number;
+    if (c >= 0 && c < s.cellCount && (s.claim[c] as number) === i) frontier[frontierCount++] = c;
   }
 
   let distance = 0;
-  while (frontier.length > 0) {
+  while (frontierCount > 0) {
     distance++;
-    const next: number[] = [];
-    for (const c of frontier) {
+    let nextCount = 0;
+    for (let fi = 0; fi < frontierCount; fi++) {
+      const c = frontier[fi] as number;
       const owner = s.claim[c] as number;
       if (owner < 0 || distance > (reach[owner] as number)) continue;
-      const face = Math.floor(c / (n * n));
-      const local = c - face * n * n;
-      const y = Math.floor(local / n);
-      const x = local - y * n;
-      for (const d of DIRS) {
-        const nb = neighbor({ face, x, y }, s.level, d);
-        const j = cubeIndex(nb.face, s.level, nb.x, nb.y);
+      for (let d = 0; d < 4; d++) {
+        const j = work.neighbours[c * 4 + d] as number;
         /* Unclaimable land is unclaimable: ocean and dead ground are not
            territory just because someone is adjacent to them. */
         if ((suit[j] as number) <= 0) continue;
@@ -507,7 +519,7 @@ function growTerritory(
         if (s.claim[j] === -1) {
           s.claim[j] = owner;
           s.claimDistance[j] = distance;
-          next.push(j);
+          next[nextCount++] = j;
         } else if ((s.claim[j] as number) > owner && (s.claimDistance[j] as number) === distance) {
           /* Same ring, lower index wins — the tie-break that makes the border
              a function of the state rather than of visit order. */
@@ -515,9 +527,50 @@ function growTerritory(
         }
       }
     }
+    const swap = frontier;
     frontier = next;
+    next = swap;
+    frontierCount = nextCount;
     if (distance > 4096) break;
   }
+}
+
+interface TerritoryWork {
+  readonly a: Int32Array;
+  readonly b: Int32Array;
+  readonly reach: Float64Array;
+  readonly neighbours: Int32Array;
+}
+
+const TERRITORY_WORK = new WeakMap<CivilisationState, TerritoryWork>();
+
+function territoryScratch(s: CivilisationState, bound: number): TerritoryWork {
+  const hit = TERRITORY_WORK.get(s);
+  if (hit !== undefined && hit.reach.length >= bound) return hit;
+  const work = {
+    a: new Int32Array(s.cellCount),
+    b: new Int32Array(s.cellCount),
+    reach: new Float64Array(Math.max(bound, s.store.capacity)),
+    neighbours: buildNeighbourTable(s.level, s.cellCount),
+  };
+  TERRITORY_WORK.set(s, work);
+  return work;
+}
+
+function buildNeighbourTable(level: number, cellCount: number): Int32Array {
+  const n = cubeDim(level);
+  const table = new Int32Array(cellCount * 4);
+  for (let c = 0; c < cellCount; c++) {
+    const face = Math.floor(c / (n * n));
+    const local = c - face * n * n;
+    const y = Math.floor(local / n);
+    const x = local - y * n;
+    for (let d = 0; d < 4; d++) {
+      const p = neighbor({ face, x, y }, level, DIRS[d]!);
+      table[c * 4 + d] = cubeIndex(p.face, level, p.x, p.y);
+    }
+  }
+  return table;
 }
 
 /** Sum each settlement's territory into a carrying capacity, in people. */
@@ -624,6 +677,7 @@ function found(
   founded[index] = s.year;
   s.nextCulture++;
   s.foundedTotal++;
+  s.topologyVersion++;
   s.claim[c] = index;
   return id;
 }

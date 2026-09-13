@@ -23,7 +23,7 @@ import { DOMAIN, hashFloat01x64, type Seed } from '@ws/core';
 import { BND_CONVERGENT, BND_DIVERGENT, type GeologyState } from '../geology/plates.js';
 import { BIOME, type BiosphereState } from '../biosphere/system.js';
 import type { HydrologyState } from '../hydrology/system.js';
-import { mapCubeToCube, couplingScratch } from '../coupling.js';
+import { mapCubeCategories, mapCubeToCube, couplingScratch } from '../coupling.js';
 
 /**
  * Commodities. Deliberately few: each one must have a distinct production
@@ -108,9 +108,9 @@ export function refreshResources(
   /* Geology runs on its own (coarser or finer) cube level; resources live on
      the civilisation grid. Coordinate-aware, per T-0080 — never proportional. */
   const boundary = couplingScratch(N);
-  mapCubeToCube(geology.boundaryType, geology.level, r.level, boundary);
+  mapCubeCategories(geology.boundaryType, geology.level, r.level, boundary);
   const crust = new Float64Array(N);
-  mapCubeToCube(geology.crustType, geology.level, r.level, crust);
+  mapCubeCategories(geology.crustType, geology.level, r.level, crust);
   const age = new Float64Array(N);
   mapCubeToCube(geology.crustAgeMyr, geology.level, r.level, age);
   const thickness = new Float64Array(N);

@@ -18,7 +18,7 @@ import {
   cubeIndex,
   geodesicGrid,
 } from '@ws/data';
-import { cubeDownsamplePlan, mapCubeToCube, mapGeoToCube } from '@ws/sim';
+import { cubeDownsamplePlan, mapCubeCategories, mapCubeToCube, mapGeoToCube } from '@ws/sim';
 
 /** Unit-sphere centre of a cube cell. */
 function cubeCentre(face: number, level: number, x: number, y: number) {
@@ -152,5 +152,34 @@ describe('T-0080 cross-grid spatial coupling', () => {
     expect(tallied).toBe(plan.srcCount);
     /* Uniform refinement: every coarse cell owns the same 4^(5-2) fine cells. */
     for (let d = 0; d < plan.dstCount; d++) expect(plan.dstTally[d]).toBe(4 ** 3);
+  });
+
+  it('reduces categories by mode and never invents an enum value', () => {
+    const srcLevel = 2;
+    const dstLevel = 1;
+    const src = new Uint8Array(6 * cubeDim(srcLevel) ** 2);
+    const plan = cubeDownsamplePlan(srcLevel, dstLevel);
+    for (let i = 0; i < plan.srcCount; i++) {
+      const ancestor = plan.srcToDst[i] as number;
+      src[i] = i % 4 === 0 ? 3 : ancestor % 2 === 0 ? 1 : 2;
+    }
+    const out = new Int32Array(plan.dstCount);
+    mapCubeCategories(src, srcLevel, dstLevel, out);
+    for (let i = 0; i < out.length; i++) {
+      expect([1, 2]).toContain(out[i] as number);
+    }
+  });
+
+  it('resolves categorical ties deterministically to the smallest id', () => {
+    const srcLevel = 1;
+    const dstLevel = 0;
+    const src = new Uint8Array(6 * cubeDim(srcLevel) ** 2);
+    for (let i = 0; i < src.length; i += 4) src.set([7, 4, 7, 4], i);
+    const a = new Int32Array(6);
+    const b = new Int32Array(6);
+    mapCubeCategories(src, srcLevel, dstLevel, a);
+    mapCubeCategories(src, srcLevel, dstLevel, b);
+    expect([...a]).toEqual([4, 4, 4, 4, 4, 4]);
+    expect([...b]).toEqual([...a]);
   });
 });

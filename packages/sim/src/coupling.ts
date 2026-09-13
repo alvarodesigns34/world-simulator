@@ -99,6 +99,38 @@ export function cubeDownsampleIntensive(
 }
 
 /**
+ * Reduce a categorical cube field by deterministic mode.
+ *
+ * Category identifiers are labels, not magnitudes: averaging boundary type
+ * 1 and 3 into 2 invents a category that never existed.  Equal-frequency
+ * ties are resolved to the numerically smallest label so the result is
+ * independent of traversal and worker order.
+ */
+export function cubeDownsampleCategorical(
+  plan: CubeDownsamplePlan,
+  src: ArrayLike<number>,
+  out: Int32Array | Float64Array,
+): void {
+  const counts = new Map<number, number>();
+  for (let d = 0; d < plan.dstCount; d++) {
+    counts.clear();
+    let winner = 0;
+    let winnerCount = -1;
+    for (let i = 0; i < plan.srcCount; i++) {
+      if ((plan.srcToDst[i] as number) !== d) continue;
+      const category = Math.trunc(src[i] as number);
+      const count = (counts.get(category) ?? 0) + 1;
+      counts.set(category, count);
+      if (count > winnerCount || (count === winnerCount && category < winner)) {
+        winner = category;
+        winnerCount = count;
+      }
+    }
+    out[d] = winner;
+  }
+}
+
+/**
  * Inject a coarser cube field onto a finer cube grid.
  *
  * Each fine cell takes the value of the unique coarse cell that contains it.
@@ -146,6 +178,27 @@ export function mapCubeToCube(
     return;
   }
   cubeUpsampleInject(cubeDownsamplePlan(dstLevel, srcLevel), src, out);
+}
+
+/**
+ * Move category labels between cube levels without continuous interpolation.
+ * Downsampling uses the mode; upsampling uses the unique ancestor label.
+ */
+export function mapCubeCategories(
+  src: ArrayLike<number>,
+  srcLevel: number,
+  dstLevel: number,
+  out: Int32Array | Float64Array,
+): void {
+  if (srcLevel === dstLevel) {
+    for (let i = 0; i < out.length; i++) out[i] = Math.trunc(src[i] as number);
+    return;
+  }
+  if (srcLevel > dstLevel) {
+    cubeDownsampleCategorical(cubeDownsamplePlan(srcLevel, dstLevel), src, out);
+    return;
+  }
+  cubeUpsampleInject(cubeDownsamplePlan(dstLevel, srcLevel), src, out as Float64Array);
 }
 
 /** Geodesic (climate) -> cube (geology/hydrology), area-weighted and intensive. */

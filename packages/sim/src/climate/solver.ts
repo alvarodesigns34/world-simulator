@@ -50,6 +50,9 @@ const VMAX = 80; /* m/s, hard cap so a bad Φ gradient cannot CFL-explode */
 const HMIN = 2000;
 const HMAX = 16000;
 const H_RELAX = 2 * 86400; /* equivalent-depth Newtonian timescale */
+/** Reduced atmospheric-column rainfall used only when paleo advection is
+ * disabled. It is a diagnostic closure, not a hidden hydrology constant. */
+const PALEO_LAND_RAIN_RATE = 5e-7; /* kg m^-2 s^-1 before thermal/RH factors */
 
 export interface ClimateState {
   readonly n: number;
@@ -308,6 +311,18 @@ export function classifyRegime(timeScale: number): Regime {
   return 'paleo';
 }
 
+/**
+ * Deterministic land-rain closure for coarse atmospheric windows. The full
+ * solver obtains precipitation from resolved condensation. At paleo cadence
+ * its transport stencil is intentionally quiescent, so an initially
+ * sub-saturated column would otherwise leave land with exactly zero rain.
+ */
+export function reducedColumnRainRate(temperatureK: number, relativeHumidity = 0.6): number {
+  const warm = Math.max(0.2, Math.min(1.4, (temperatureK - 235) / 55));
+  const rh = Math.max(0.35, Math.min(1, relativeHumidity));
+  return PALEO_LAND_RAIN_RATE * warm * rh;
+}
+
 export interface StepDiagnostics {
   readonly waterMass: number;
   readonly energy: number;
@@ -326,6 +341,11 @@ export function stepClimate(
   /* A coarse-regime call represents an equilibrated window; it is not an
      instruction to feed 100 kyr into an explicit Euler stencil. Bounding the
      numerical relaxation span is the actual temporal-LOD model. */
+  /* Keep the requested span for slow diagnostic accumulators. The stencil is
+     deliberately bounded below, but the climatology itself must know whether
+     this call represents an hour or a 100 kyr window. */
+  const simulatedDt = dt;
+  const coarsePaleoWindow = s.regime === 'paleo' && simulatedDt > 2 * 86400;
   const maxNumericalDt = s.regime === 'explicit' ? 3600
     : s.regime === 'synoptic' ? 21600
     : s.regime === 'climatology' ? 5 * 86400
@@ -421,6 +441,17 @@ export function stepClimate(
       pr += cond;
       dT += (cond * 8e5) / C;
     }
+    if (coarsePaleoWindow && (ocean[i] as number) < 0.5) {
+      /* Paleo is a reduced atmospheric column: advection is off, so an
+         initially sub-saturated column would otherwise produce exactly zero
+         land rain forever. Close that missing fast cycle with a deterministic
+         annual moisture source derived from temperature and column humidity.
+         The rate is 8 mm/y at a temperate, 60%-RH cell and is intentionally
+         exposed here (rather than hidden in soil capacity). */
+      const relativeHumidity = Math.max(0.35, Math.min(1, (qNext as number) / Math.max(qs, 1e-9)));
+      const reducedColumnRain = reducedColumnRainRate(T[i] as number, relativeHumidity);
+      if (reducedColumnRain > pr) pr = reducedColumnRain;
+    }
     s.precip[i] = pr;
     /* Rain shadow: moisture already removed windward because we advect q and
        condense where q>qsat, which is where air is forced up (colder T / lower
@@ -483,8 +514,18 @@ export function stepClimate(
 
     s.precipAcc[i] = (s.precipAcc[i] as number) + (s.precip[i] as number) * dt;
     s.evapAcc[i] = (s.evapAcc[i] as number) + evap * dt;
-    s.Tmean[i] = (s.Tmean[i] as number) * 0.999 + (T[i] as number) * 0.001;
-    s.precipMean[i] = (s.precipMean[i] as number) * 0.999 + (s.precip[i] as number) * 0.001;
+    /*
+     * Climatology accumulators are physical slow state, not a frame-count
+     * EMA.  The old fixed .999/.001 blend made a 100 kyr paleo step observe
+     * essentially zero precipitation while an hourly run slowly converged.
+     * Using a one-year relaxation makes the result independent of how the
+     * scheduler partitions the same simulated interval.
+     */
+    const climatologyAlpha = 1 - exp(-simulatedDt / (365.25 * 86400));
+    s.Tmean[i] = (s.Tmean[i] as number) * (1 - climatologyAlpha) + (T[i] as number) * climatologyAlpha;
+    s.precipMean[i] =
+      (s.precipMean[i] as number) * (1 - climatologyAlpha) +
+      (s.precip[i] as number) * climatologyAlpha;
 
     water += ((q[i] as number) + (s.precipAcc[i] as number) - (s.evapAcc[i] as number) + (ice[i] as number) * 50) * area * RADIUS * RADIUS;
     energy += C * (T[i] as number) * area * RADIUS * RADIUS;

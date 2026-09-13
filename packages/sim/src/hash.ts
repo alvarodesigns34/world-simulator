@@ -260,6 +260,7 @@ function foldCivilisation(h: number, c: CivilisationState): number {
   acc = mix(acc, c.foundedTotal);
   acc = mix(acc, c.collapsedTotal);
   acc = mix(acc, c.relocatedTotal);
+  acc = mix(acc, c.topologyVersion);
   acc = mix(acc, c.nextCulture);
   acc = mix(acc, c.steps);
   return foldScalar(acc, c.year, 1e-6);
