@@ -12,7 +12,14 @@ import { describe, expect, it } from 'vitest';
 import { makeSeed } from '@ws/core';
 import { EARTH_GEOMETRY } from '@ws/data';
 import { CITY_INSTANCE_FLOATS, CITY_INSTANCE_OFFSET, CITY_KIND } from '@ws/render';
-import { createWorld, duration, largestCity, MODE } from '@ws/sim';
+import {
+  TimelineNavigator,
+  absoluteSeconds,
+  createWorld,
+  duration,
+  largestCity,
+  MODE,
+} from '@ws/sim';
 import { CitySceneAdapter, surfaceFrameAt } from '../src/city-scene-adapter.js';
 
 /** A world small enough to build quickly but large enough to grow cities. */
@@ -207,8 +214,8 @@ describe('T-0101 city scene adapter', () => {
     net.edges = [water, renderedLand];
     net.topologyGeneration++;
 
-    const built = new CitySceneAdapter({ radiusM: R, maxCities: 0 })
-      .build(mixed, { x: 0, y: 0, z: R + 400_000 });
+    const mixedAdapter = new CitySceneAdapter({ radiusM: R, maxCities: 0 });
+    const built = mixedAdapter.build(mixed, { x: 0, y: 0, z: R + 400_000 });
     const kind = renderedLand.mode === MODE.RAIL ? CITY_KIND.RAIL : CITY_KIND.ROAD;
     const baseHalfWidth = kind === CITY_KIND.RAIL ? 3.5 : 8;
     let checked = 0;
@@ -220,7 +227,49 @@ describe('T-0101 city scene adapter', () => {
     }
     expect(checked).toBeGreaterThan(0);
     expect(built.stats.bridges).toBeGreaterThan(0);
+
+    /* Investment may upgrade a road to rail without rebuilding topology: the
+       cached geometry remains valid, but its presentation kind must refresh. */
+    renderedLand.mode = kind === CITY_KIND.RAIL ? MODE.ROAD : MODE.RAIL;
+    const upgraded = mixedAdapter.build(mixed, { x: 0, y: 0, z: R + 400_000 });
+    const upgradedKind = renderedLand.mode === MODE.RAIL ? CITY_KIND.RAIL : CITY_KIND.ROAD;
+    expect(Array.from({ length: upgraded.scene.count }, (_, i) =>
+      upgraded.scene.data[i * CITY_INSTANCE_FLOATS + CITY_INSTANCE_OFFSET.centre + 3]))
+      .toContain(upgradedKind);
   });
+
+  it('rebuilds derived city geometry after a timeline rewind and live restore', () => {
+    const historical = urbanWorld();
+    const nav = new TimelineNavigator(historical, { maxCheckpoints: 8 });
+    nav.record();
+    const pastAt = absoluteSeconds(historical.scheduler.time, historical.calendar.secondsPerYear);
+    const city = largestCity(historical.cities)!;
+    const frame = surfaceFrameAt(city.cell, historical.hydrology.level, R);
+    const distance = Math.max(1500, city.radiusM * 0.8);
+    const cam = {
+      x: frame.ox + frame.ux * distance,
+      y: frame.oy + frame.uy * distance,
+      z: frame.oz + frame.uz * distance,
+    };
+    const adapter = new CitySceneAdapter({ radiusM: R, maxCities: 1 });
+    const past = adapter.build(historical, cam);
+    const pastBytes = Array.from(past.scene.data.subarray(0, past.scene.count * CITY_INSTANCE_FLOATS));
+
+    historical.advance(100_000 * historical.calendar.secondsPerYear);
+    nav.record();
+    const live = adapter.build(historical, cam);
+    const liveBytes = Array.from(live.scene.data.subarray(0, live.scene.count * CITY_INSTANCE_FLOATS));
+
+    nav.scrubTo(pastAt);
+    const rewound = adapter.build(historical, cam);
+    expect(Array.from(rewound.scene.data.subarray(0, rewound.scene.count * CITY_INSTANCE_FLOATS)))
+      .toEqual(pastBytes);
+
+    nav.returnToLive();
+    const restored = adapter.build(historical, cam);
+    expect(Array.from(restored.scene.data.subarray(0, restored.scene.count * CITY_INSTANCE_FLOATS)))
+      .toEqual(liveBytes);
+  }, 120_000);
 
   it('survives a world with no cities at all', () => {
     const empty = createWorld({
