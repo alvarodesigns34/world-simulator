@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   define: {
-    __WS_DEV__: 'import.meta.env.DEV',
+    __WS_DEV__: JSON.stringify(!process.env.GITHUB_ACTIONS),
   },
   server: {
     host: '0.0.0.0',
