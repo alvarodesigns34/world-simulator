@@ -2879,11 +2879,11 @@ Nothing in M10 is calibrated against an absolute unit. Three rules:
 - Demand is expressed in food-normalised units, so the coefficients state
   something checkable: a modern person consumes about as much energy as food and
   rather less in manufactured goods.
-- The `ABUNDANCE` constant is 8, not the ~1.15 an average territory implies. The
-  gap is an emergent result worth stating: polities settle where the FARMLAND
-  is — flat, low, well watered — while ore sits on convergent margins and old
-  shield, which M8's habitability rates poorly. Settled land is systematically
-  ore-poor, and the constant absorbs that real anti-correlation.
+- The former fixed `ABUNDANCE = 8` calibration was not robust across seeds. The
+  current implementation measures planetary versus settled-land endowment on
+  each world (clamped to [0.25, 8]); the measured ore ratio across ten seeds is
+  0.392–2.785. The farmland/ore anti-correlation remains a real result, but it
+  is no longer hidden inside a seed-specific constant.
 - Food prices come out UNIFORM across polities at equilibrium. That is also a
   real result, not a defect: M8 drives every population to its own carrying
   capacity, so every polity has the same food per head and there is no gap to
@@ -2942,11 +2942,64 @@ the real ~60/40 split.
 
 - Rivers flow at every cadence, which restores discharge, river width, bridges
   and the whole M5 → M9 chain at paleo time scales.
-- More habitable land, so more settlements: measured p95 for the M8 step rose
-  from 5.7 ms to 9.9 ms at L7. Still inside the 20 ms budget; L8 now needs
-  amortisation rather than fitting outright.
+- More habitable land, so more settlements. Cached cube neighbours and a
+  deterministic frontier queue keep the measured M8 territory step inside the
+  20 ms budget through L8 (p95 3.331 ms, max 3.412 ms on the Work runner).
 - **The general lesson is about test topology, not hydrology.** Ten milestones
   each with a green suite can still have a broken chain between them, because
   each suite exercises its own subsystem at its own cadence. The integration
   test that asks "is water moving anywhere on this planet" is the only one that
   could have caught this, and it is now permanent.
+
+---
+
+## DEC-048 — Logical population is aggregate state; people are not render entities
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** ChatGPT (M11–M13 integration)
+**Amends:** DEC-012, DEC-041
+
+### Context
+
+The M8 brief's “10⁶ population entities” wording is ambiguous. A settlement
+already stores a deterministic population scalar, demographic envelope and
+territory; expanding every person into an EntityStore row would add no causal
+model and would make city rendering and replay needlessly expensive.
+
+### Decision
+
+Population is a logical aggregate owned by the settlement entity. EntityStore
+benchmarks remain valid for sparse authoritative rows, while the M8 acceptance
+wording is interpreted as **10⁶ logical people represented by aggregate
+settlements**, not a million simulated/rendered individuals. Secondary cities and
+towns, when materialised, remain small authoritative records with derived
+geometry.
+
+### Alternatives and consequences
+
+- Literal person rows were rejected: they do not change the M8 equations, add
+  memory/transfer cost, and violate the renderer/state separation by tempting
+  per-person geometry.
+- A hidden cap was rejected: aggregate population remains finite and observable,
+  with no physical limit at `MAX_ERA` or `MAX_DISTRICTS`.
+- The trade-off is that individual-agent social dynamics are future M14+ scope;
+  Tier-A replay and deep-time stress remain bounded and exact now.
+
+---
+
+## DEC-049 — Economic edges and physical corridors are separate representations
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** ChatGPT (M11–M13 integration)
+**Amends:** DEC-046
+
+The sparse local-arbitrage graph remains the bounded economic solver. When an
+edge becomes physical infrastructure, `economy/routing.ts` materialises a cached,
+deterministic terrain-aware corridor: ocean is impassable on land routes, slope
+and mountains contribute cost, rivers create bridge cells, ports are actual
+navigable coastal land cells, and rail has a stricter gradient gate. Sea lanes are
+abstract port-to-port edges; their endpoints are physical even though global
+ship geometry is intentionally deferred. Neither route geometry nor render caches
+becomes authoritative world state.

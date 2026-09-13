@@ -491,6 +491,13 @@ solvers; economic model stability over long runs.
 
 ## M11 — Planetary Timeline
 
+**Implementation status (2026-09-13): integrated on `agent/chatgpt/m11-m13-integrated`;
+automated criteria green, Astra visual timing gate pending.** The implementation
+includes the complete T0–T4 transition matrix, bounded multiresolution history,
+command-log replay, recipe/snapshot persistence and schema migration, plus the
+timeline panel. The 4.5 Gyr stress harness completed without NaN or divergence in
+12.8 s on the Work runner; hardware scrub/frame pacing remains an Astra check.
+
 **Goal:** the whole time ladder, coherently, in both directions — plus replay.
 
 **Scope**
@@ -522,6 +529,12 @@ where 10⁹-year divergence hides); save migration testing; regime-transition fu
 
 ## M12 — Scientific Visualization
 
+**Implementation status (2026-09-13): integrated.** Thirty-two descriptor-driven
+fields expose units, domains, ramps, categorical semantics and probe formatting;
+cross-sections, reduced-model vertical profiles, vector glyphs, history-driven
+series, era comparison and JSON/CSV/WS-RASTER-LIKE-1 export are covered by tests.
+GPU timing is instrumented; no hardware timestamp is claimed in CI.
+
 **Goal:** the planet as an instrument.
 
 **Scope**
@@ -547,6 +560,12 @@ cross-section sampling accuracy.
 ---
 
 ## M13 — Cinematic / Final Polish
+
+**Implementation status (2026-09-13): integrated; final Astra visual/performance
+gate pending.** The renderer has a reproducible 180 s ten-shot camera sequence,
+state-linked weather/pollution presentation, cinematic tone/exposure path and
+LOD-aware scientific overlays. The Work runner provides CPU/build validation but
+does not claim the 20 ms reference-GPU criterion.
 
 **Goal:** it looks as good as it is.
 

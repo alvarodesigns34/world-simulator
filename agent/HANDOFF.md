@@ -6,7 +6,63 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-13 · ChatGPT → Astra / dev · M1–M13 integrated
+
+**Branch:** `agent/chatgpt/m11-m13-integrated`
+**Baseline:** `77ae217512e58f7831b3ef952c1c24ffc60957bf` (PR #10 stack)
+**Scope:** directed M1–M10 consolidation plus M11 planetary timeline/replay,
+M12 scientific visualisation and M13 cinematic presentation.
+
+### Consolidation measurements
+
+- Physical transport is separate from the sparse economic graph. Land routes are
+  deterministic terrain-cost searches (ocean blocked, slope/gradient limits,
+  bridge cells); sea edges require navigable coastal port cells; rail rejects
+  gradients above 0.08. Identical endpoints produce identical route digests.
+- Soil moisture integrates the exact leaky-bucket solution over elapsed simulated
+  time. Paleo's advection-off atmosphere has an explicit reduced-column rainfall
+  closure. Hourly/climatology/paleo/single-window experiments converge to
+  **0.0305877 m** (spread < 1e-15 m); budget residuals are < 7e-14 fraction.
+- Categorical coupling uses deterministic mode/nearest operators; enums never
+  pass through continuous area means. M8 territory propagation uses a cached
+  neighbour table and incremental queue: L8 p95 **3.331 ms** (max 3.412 ms).
+- Ten-seed ore sensitivity reports planetary/settled ratios **0.392–2.785**;
+  fixed `ABUNDANCE=8` was not robust, so extraction uses per-world settled-land
+  normalisation clamped to [0.25, 8]. Crust residual remains a real
+  reduced-kernel diagnostic (ridge length ~63,700 km; residual 0.3–0.85), not
+  forced to zero.
+
+### M11–M13 seams
+
+- Tier-A history, commands, scheduler/entity snapshots and persistence live in
+  `packages/sim/src/timeline/`; derived city geometry and GPU resources are not
+  saved. Recipe replay is exact; snapshot continuation is exact; v1 migration is
+  explicit and unsupported schemas fail loudly.
+- M12 fields are descriptor-driven (`SCIENTIFIC_FIELDS`, 32 entries). Probes use
+  authoritative arrays; categorical legends use discrete palettes; the raster
+  export is deliberately named `WS-RASTER-LIKE-1`, not GeoTIFF.
+- M13's camera sequence is deterministic and 180 seconds long. Weather and
+  pollution feed the surface sampler. The Work runner has no reference WebGPU
+  timestamp path, so Astra must still inspect real GPU frame pacing, visual
+  camera feel, post-processing and the final 20 ms criterion.
+
+### Known debt
+
+- No P0/P1 correctness blocker remains in the automated gate. Astra-only GPU and
+  visual acceptance is intentionally pending.
+- `MAX_DISTRICTS=40` and `MAX_ERA=12` are observable derived-layout safety/LOD
+  caps, not limits on authoritative city growth; aggregation remains the scalable
+  path for very large cities.
+- Population is aggregate logical population per settlement, not one EntityStore
+  row per person; this is recorded in DEC-048 and keeps the 10^6 logical-person
+  benchmark meaningful without a million render entities.
+
+---
+
 ## 2026-09-13 · Opus 5 → Grok / Astra · M8–M10 built and integrated
+
+> Historical baseline handoff. The open items recorded below were re-measured
+> and resolved (or explicitly reclassified) in the ChatGPT M1–M13 block above.
 
 **Branch:** `agent/claude/m8-m10-integrated`, based on `agent/chatgpt/m1-m7-integrated`
 @ `6cec7eff15a3128d58e479294c49529cbb9a1602` (PR #9, stacked on PR #8).

@@ -5,11 +5,13 @@ atmosphere, climate, hydrology, biosphere, evolution, civilisations, cities,
 economy and infrastructure, evolving across time scales from seconds to millions
 of years.
 
-> **Status: M1 ASTRA-READY WITH KNOWN ISSUES.** Architecture v1 locked; planet
-> engine executable and measured. `pnpm install && pnpm dev` renders a planet
-> at http://localhost:8080. No terrain, climate, biosphere or civilisations yet
-> — this is the motor, not the world. Visual gate: `agent/ASTRA.md` A-0001.
-> Numbers: [`docs/M1-MEASUREMENTS.md`](docs/M1-MEASUREMENTS.md).
+> **Status: M1–M13 integrated; Astra hardware/visual gate pending.** The engine
+> now evolves terrain, geology, ocean, atmosphere, climate, hydrology, biosphere,
+> civilisations, cities, economy and infrastructure across the T0–T4 ladder. It
+> records history, replays command logs, and supports recipe/snapshot saves plus
+> scientific field visualisation and a deterministic cinematic camera. `pnpm
+> install && pnpm dev` renders the planet at http://localhost:8080. WebGPU is
+> required; hardware-only frame/GPU acceptance remains explicitly unclaimed.
 
 ## Founding principle
 
