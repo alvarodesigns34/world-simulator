@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 41470)
-Total output lines: 3268
-
 # DECISIONS — Architecture Decision Record
 
 Authoritative record of every decision that is **expensive to reverse**.
@@ -1122,7 +1119,906 @@ clear rule for every future feature: "does the simulation need to know about thi
 bump?" decides which tier it belongs to.
 
 ### Consequences
-- Hydrology, biome and settlement logic operate at L11–L18. A rive…11470 tokens truncated…s
+- Hydrology, biome and settlement logic operate at L11–L18. A river is routed at
+  ~40 m resolution, not 0.6 m. That is a real fidelity limit and it must inform
+  M5/M9 design.
+- The visual gap between L18 authoritative and L19+ decorative must be seamless.
+  An **Astra validation item** at M2.
+- Regional tile generation must be fast enough to keep up with a descending camera.
+  Budget: ≤ 8 ms per tile per worker (`docs/RENDERING.md`).
+
+---
+
+## DEC-020 — Concurrency: worker pool, SharedArrayBuffer preferred, phases not locks
+
+**Date:** 2026-09-11
+**Status:** Accepted
+**Review gate:** M2 exit — measured against the transfer fallback.
+
+### Context
+The main thread has ~6 ms per frame (`docs/RENDERING.md`). Terrain generation,
+erosion, flow routing and climate stepping are each far larger than that. They must
+be off the main thread, and moving tens of megabytes per frame is not an option.
+
+### Decision
+1. **Worker pool**, sized `clamp(hardwareConcurrency − 1, 1, 8)`. One pool, typed
+   job protocol, cancellable jobs, priority queue.
+2. **Large persistent fields live in `SharedArrayBuffer`** when available, so
+   workers read them with zero copy. Requires `Cross-Origin-Opener-Policy:
+   same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev server and
+   any hosting must set them.
+3. **Fallback when SAB is unavailable:** the same `FieldStore` API backed by
+   ordinary `ArrayBuffer`s with explicit transfer. Detected once at boot. The
+   *fallback is a supported configuration*, not a broken one — it is slower, and
+   the difference is measured, not assumed.
+4. **No locks on field data.** Correctness comes from **phase separation**: within a
+   scheduler phase, a field has at most one writer (DEC-013), and readers of a field
+   being written read its **previous generation** from a double buffer. `Atomics`
+   are used only for job-queue coordination and completion counters.
+5. **Double-buffer only fields with a genuine read-write hazard**, listed explicitly
+   in the field registry. Double buffering costs 2× memory; applying it everywhere
+   would blow the budget.
+6. **Messages carry handles and small plain objects only.** Structured-cloning a
+   large object graph across the worker boundary is a lint-level offence.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Transfer-only (no SAB) everywhere | Simpler and no COOP/COEP requirement, but a field transferred to a worker is *detached* on the main thread until returned, which turns every read into a lifetime problem. Kept as the fallback, not the default. |
+| Copy per job | Predictable and safe; at 50 MB fields the copies alone exceed the frame budget. |
+| Mutexes over field regions via `Atomics.wait` | `Atomics.wait` is forbidden on the main thread, and lock contention in a 60 FPS loop is exactly the unpredictability we cannot afford. Phase separation gives the same safety statically. |
+| One worker per subsystem (dedicated workers) | Simple mental model, terrible load balancing: tectonics is idle 99% of the time while terrain generation is saturated. |
+
+### Rationale
+SAB is justified here by a specific measurable need (50 MB+ fields read by multiple
+workers per tick), not because it exists. Phase separation is justified because
+DEC-013 already gives us single-writer semantics for free — we are buying safety we
+have already paid for.
+
+### Consequences
+- **Risk R-05:** COOP/COEP break some embedding contexts and third-party scripts.
+  The fallback path must be exercised in CI, not merely present.
+- Worker count changes must not change results (DEC-017). This is a required test.
+- Job granularity matters: ≤ 250 ms per job so cancellation stays responsive when
+  the camera turns.
+
+---
+
+## DEC-021 — WASM deferred behind a benchmark gate
+
+**Date:** 2026-09-11
+**Status:** Accepted
+**Review gate:** continuous — reconsider at every profiled hotspot.
+
+### Context
+WASM is an obvious candidate for erosion, flow routing and plate advection. It is
+also an obvious way to add a Rust/Zig toolchain, a build step, an FFI boundary and a
+debugging discontinuity to a project that does not yet have a measured bottleneck.
+
+### Decision
+**No WASM in M0–M4.** WASM may be introduced only when **all** of these hold:
+
+1. A profiled hotspot accounts for ≥ 5% of a relevant budget.
+2. A written benchmark shows ≥ **2×** speedup for a WASM implementation of that
+   specific kernel, on the reference hardware.
+3. The kernel is **stable and isolated**: a pure function over typed arrays, with
+   no allocation across the boundary, that we do not expect to redesign.
+4. The benchmark and the decision are recorded as a new ADR.
+
+Anticipated candidates, in likely order: erosion iteration, priority-flood
+depression filling, plate advection/collision, large-scale FBM noise,
+`stableMath` transcendentals.
+
+### Alternatives considered
+- **WASM-first for all numerics** — a defensible engineering position, but it
+  front-loads cost against unmeasured benefit, and modern JIT-compiled JavaScript
+  over typed arrays is typically within 1.5–3× of scalar WASM. The larger wins
+  available to us are algorithmic and GPU-side.
+- **Never WASM** — gives up SIMD, which is a real 2–4× on the right kernel.
+  Deferring is not refusing.
+
+### Rationale
+This is the brief's "no technology because it is fashionable" rule applied
+concretely. The gate is deliberately mechanical so that the decision does not turn
+on anyone's taste.
+
+### Consequences
+- The benchmark harness (DEC-024) must exist early enough to make this gate
+  usable. It is an M0/M1 deliverable and a **good Grok candidate**.
+- Kernels that are WASM candidates should be written as pure functions over typed
+  arrays from the start, so the port is mechanical when it is justified.
+
+---
+
+## DEC-022 — Persistence: versioned container, snapshot + command log
+
+**Date:** 2026-09-11
+**Status:** Accepted — **Quantisation clause superseded by DEC-028.** `i16` centimetres cannot represent Earth's elevation range.
+**Review gate:** M11 exit.
+
+### Context
+Worlds must be reproducible from a seed, saveable, versionable across engine
+changes, and eventually shareable. These are four different requirements and one
+format will not serve all of them well.
+
+### Decision
+**Two save kinds over one container format.**
+
+Container: a header (JSON, versioned, human-readable) followed by length-prefixed
+binary blobs, one per field/table, each carrying its own `schemaVersion`, dtype,
+grid id and quantisation. Fields are quantised (elevation `i16` in centimetres,
+temperature `i16` in 0.01 K, …) and compressed with the platform's
+`CompressionStream('deflate-raw')` — no dependency.
+
+| Kind | Contents | Size | Validity |
+| --- | --- | --- | --- |
+| **Recipe** | `worldSeed` + world parameters + `SimTime` + the full command log | kilobytes | Only under Tier-A determinism (DEC-018). Ideal for sharing. |
+| **Snapshot** | Full dump of all authoritative fields and entity tables | 50–500 MB | Always valid, engine-version-migrated |
+
+- **Hybrid = snapshot + subsequent command log** → this is also how **replay** works.
+- **Command log from day one.** Every user action and every parameter change is a
+  timestamped `Command` object recorded in `sim`. This is cheap now and impossible
+  to retrofit later. Replay *validation* comes at M11; recording starts at M0.
+- Storage: **OPFS** for snapshots (large, streaming writes), **IndexedDB** for the
+  world index and small metadata. Export as a single `.wsim` file.
+- **Migrations are a registry**, `migrate(from, to)`, applied in sequence. A blob
+  whose version has no migration path fails loudly. Never load-and-hope.
+
+### Alternatives considered
+- **JSON saves** — human-readable, and 25 million numbers as JSON text is
+  indefensible.
+- **Seed-only saves** — beautiful and what we want for sharing; unsound alone,
+  because any Tier-B/C state or any engine change breaks it. Hence the two kinds.
+- **Protobuf / FlatBuffers / MessagePack** — good general answers; our payload is
+  ~95% homogeneous typed arrays, for which a length-prefixed blob container is
+  simpler and faster than any of them. The JSON header covers the remaining 5%.
+- **IndexedDB for everything** — fine for metadata, poor for hundreds of MB of
+  streaming binary. OPFS is the right tool.
+
+### Rationale
+Separating "how the world was made" from "what the world currently is" matches how
+the world is actually produced (DEC-017/DEC-019: most of it is regenerable), and it
+is what makes tiny shareable worlds possible without giving up robust saving.
+
+### Consequences
+- Every field must declare its quantisation and the resulting precision loss must
+  be acceptable to its consumers. Documented per field.
+- The command log requires that all mutation flows through commands — no direct
+  poking at sim state from the UI. This is a discipline with real teeth and it must
+  start at M0.
+- Save/load runs on a worker; it must not block the frame.
+
+---
+
+## DEC-023 — Testing strategy; visual validation is human, not CI
+
+**Date:** 2026-09-11
+**Status:** Accepted
+
+### Context
+A simulation has almost no "correct output" to assert against. Conventional unit
+testing catches very little of what actually goes wrong (an ocean slowly losing
+water, a continent drifting into the void, a climate that inverts at year 400).
+
+### Decision
+Six layers, in descending order of how much they actually protect us:
+
+1. **Determinism tests** *(highest value)*. Same seed → identical state hash.
+   Reversed chunk-generation order → identical. 1 vs 4 vs 8 workers → identical.
+   Save → load → step → identical to not saving.
+2. **Invariant / property tests.** Conservation of water, energy and mass within a
+   documented ε. No `NaN` or `Infinity` in any field (a `FieldValidator` sweep).
+   Monotonic simulation time. Quadtree well-formedness. Values within declared
+   ranges. Coordinate round-trips within error bounds.
+3. **Golden-state regression.** Hash of the full world state after N ticks from a
+   fixed seed, stored in-repo. A change is a **deliberate act** requiring a note in
+   `DECISIONS.md` or the commit body, never a silent re-baseline.
+4. **Unit tests.** Maths, coordinate conversions, time arithmetic, quadkeys,
+   serialisation round-trips, `stableMath` against high-precision references.
+5. **Performance tests.** Benchmarks with thresholds from `budgets.ts`. CI records
+   every run; it **fails only on regressions > 25%**, because CI timing is noisy and
+   a flaky perf gate gets disabled within a week.
+6. **Visual validation — human, by Astra.** Pixel-diff screenshot testing on WebGPU
+   across drivers is unreliable enough to be a net negative. Visual quality,
+   popping, hitching, scale perception and "does this look like a planet" are
+   **Astra's gate**, recorded in `agent/ASTRA.md`, not a CI job.
+
+CI runs layers 1–5 on every push. No merge to `dev` with a red CI.
+
+### Alternatives considered
+- **Screenshot-diff visual regression in CI** — tried by many WebGL/WebGPU projects,
+  and the false-positive rate across driver versions makes it noise. Reconsider only
+  with a pinned software rasteriser (e.g. a headless Dawn/SwiftShader build), which
+  is itself a project.
+- **High coverage targets** — coverage percentage is a poor proxy here; a 95%-covered
+  simulation can still silently lose all its water. Layers 1–3 are what matter.
+- **No golden tests (too brittle)** — brittleness is the *feature*: the point is to
+  notice that behaviour changed.
+
+### Rationale
+The tests are ordered by what actually fails in this class of software. Determinism
+and conservation bugs are subtle, cheap to detect mechanically, and ruinous if found
+late. Visual bugs are obvious to a human in five seconds and expensive to detect
+mechanically. Assign each to whichever agent is good at it.
+
+### Consequences
+- A `hashWorldState()` function is core infrastructure, needed from M0.
+- The golden file is a merge-conflict magnet with three agents. Mitigation: it is a
+  single hash per scenario, and conflicts are resolved by re-running, with the
+  reason stated in the commit.
+- Astra's validation is a **blocking milestone gate** — see `agent/PROTOCOL.md`.
+
+---
+
+## DEC-024 — Observability: ring buffer, trace export, budgets-as-code
+
+**Date:** 2026-09-11
+**Status:** Accepted
+
+### Context
+"60 FPS on reasonable hardware" is meaningless unless we can say, at any moment,
+where the 16.6 ms went. Three agents optimising without a shared measurement tool
+will optimise different things and contradict each other.
+
+### Decision
+1. **A single `Telemetry` module** with a fixed-size ring buffer of zone timings
+   (no allocation in the hot path), covering: per-frame CPU zones, per-subsystem sim
+   timings, worker job latency and queue depth, GPU pass timings via WebGPU
+   `timestamp-query`, and memory counters (field bytes, GPU buffer bytes, tile atlas
+   occupancy, entity counts).
+2. **Trace export in Chrome Trace Event JSON format**, which opens directly in
+   Perfetto and `chrome://tracing`. Zero dependencies, professional-grade tooling for
+   free.
+3. `performance.mark`/`measure` mirroring so the browser devtools timeline is useful
+   too.
+4. **A dev HUD overlay**: frame graph, budget bars (green/amber/red against
+   `budgets.ts`), subsystem cadence view, LOD/patch counts, memory.
+5. **`packages/core/src/budgets.ts` is the single source of truth** for every
+   performance budget. The HUD reads it, the perf tests read it, the docs reference
+   it. A budget that exists only in a document is not a budget.
+6. **Assertions** (`assert`, `assertFinite`, `assertField`) are compiled out of
+   production builds by a Vite define, so they can be liberal in dev.
+
+### Alternatives considered
+- **Ad-hoc `console.time`** — no aggregation, no history, and it perturbs what it
+  measures.
+- **A third-party profiler/telemetry SDK** — built for production analytics, not for
+  a 16 ms frame loop, and a dependency we do not need.
+- **Budgets in documentation only** — they drift from reality within weeks.
+
+### Rationale
+Observability is infrastructure for *collaboration* as much as for performance:
+it is how three agents agree on what is actually slow, and how Grok's benchmark
+claims become checkable rather than assertable.
+
+### Consequences
+- GPU timestamp queries require the `timestamp-query` feature, which is not
+  universally available; the HUD degrades to CPU-only timings when absent.
+- Telemetry itself has a budget: ≤ 0.2 ms/frame in dev, ~0 in production.
+
+---
+
+## DEC-025 — Camera: one continuous geodetic state
+
+**Date:** 2026-09-11
+**Status:** Accepted — **Representation superseded by DEC-029.** The no-modes policy, the `s = log10(altitude)` blend and the altitude-driven near plane are kept.
+**Review gate:** M1 exit.
+
+### Context
+Orbit-to-surface descent is the project's signature interaction. The usual
+implementation — an orbital camera mode and a surface camera mode with a switch —
+produces a visible discontinuity exactly at the moment that is supposed to impress.
+
+### Decision
+**There is one camera and one camera state**, expressed geodetically:
+
+```ts
+interface CameraState {
+  lat: number; lon: number;       // radians, f64
+  altitude: number;               // metres above the reference surface, f64
+  yaw: number; pitch: number; roll: number;  // radians, f64
+  fovY: number;                   // radians
+}
+```
+
+- "Orbital" is not a mode; it is simply a large `altitude`.
+- **Control mapping blends continuously** with `s = log10(altitude)`: a mouse drag
+  maps to angular motion about the planet centre at high `s` and to look-around at
+  low `s`, interpolated smoothly across the transition band
+  (`s ∈ [4, 5]`, i.e. 10–100 km). Movement speed, damping, rotation rate and
+  near-plane distance are all continuous functions of `altitude`.
+- `near = clamp(altitude × 1e-4, 0.05, 1000)`, far = infinite (DEC-005).
+- **Behaviours** (arcball, surface-walk, entity-follow, cinematic spline) are
+  *controllers* that write the same state; they are swappable without the state
+  being rebuilt.
+- The camera state is serialisable from M1, so cinematic keyframes can be authored
+  at any milestone without a camera rewrite.
+
+### Alternatives considered
+- **Discrete modes with a transition animation** — the transition is a special case
+  that has to be maintained forever, and it always looks like a transition.
+- **Cartesian PCF camera position** — simpler to render from, but altitude (the
+  variable that everything scales by) becomes a derived quantity requiring a
+  surface query every frame, and near/far/speed scaling gets awkward.
+- **Physically simulated spacecraft/aircraft camera** — a genuinely attractive
+  option for a later "vehicle" mode, but it must not be the base camera: a
+  free-look camera that fights orbital mechanics is unusable for development.
+
+### Rationale
+Making altitude the primary state variable means the hard requirement ("continuous
+transition across 7 orders of magnitude") is satisfied by construction rather than
+by a special case.
+
+### Consequences
+- Every altitude-dependent scalar (speed, damping, near plane, LOD τ, atmospheric
+  parameters) must be a smooth function with no branches. A `switch` on altitude is
+  a bug.
+- The `Geodetic → PCF → camera-relative render` chain runs once per frame in `f64`.
+- **M1 acceptance criterion:** a scripted descent from 40 000 km to 1 m in 60 s with
+  no frame exceeding 33 ms and no visible discontinuity — Astra-verified.
+
+---
+
+## DEC-026 — Roadmap adjustments to the proposed milestone order
+
+**Date:** 2026-09-11
+**Status:** Accepted
+
+### Context
+The proposed milestone order places Dynamic Geology (M7) after Terrain (M2), yet
+terrain's large-scale structure — continents, mountain belts, coastlines — *is* the
+output of geology. It also places Scientific Visualisation at M12, but climate and
+hydrology cannot be debugged without map views of their fields.
+
+### Decision
+Keep the M0–M13 numbering and scope, with three adjustments:
+
+1. **Terrain genesis vs. live geology are separated, and both are correct.**
+   M2 generates terrain from a **genesis-time geological history**: a plate
+   simulation run once at world creation (thousands of steps, seconds of wall clock,
+   Tier A), whose *output* is the initial elevation field. M7 then promotes that same
+   solver to a **runtime subsystem** that keeps running at geological time scales.
+   Same code, two lifetimes. This makes M2's terrain physically motivated instead of
+   "noise that looks like continents", and it makes M7 a promotion rather than a
+   rewrite.
+2. **A minimal data-layer visualiser moves from M12 into M1.** A flat map / globe
+   overlay that can render any registered field as a colour ramp, with a legend and
+   a probe readout. It is ~a day of work, it is the primary debugging tool for
+   M3–M8, and building it at M12 means debugging five milestones blind. M12 remains
+   the *polished* scientific visualisation milestone (cross-sections, time series,
+   vector fields, data export).
+3. **M14 — Sharing, Modding & Tooling** is added as an explicit optional milestone
+   after M13, rather than letting those concerns leak into earlier milestones.
+
+### Alternatives considered
+- **Move geology wholesale to M2** — would make M2 enormous and delay any visible
+  planet by months. The genesis/runtime split gets the benefit at a fraction of the
+  cost.
+- **Keep visualisation at M12 as proposed** — would mean shipping M3–M8 with
+  `console.log` as the only window into the fields. Rejected for a reason that is
+  practical rather than aesthetic.
+
+### Rationale
+Both changes are made because of a dependency that the original ordering did not
+account for, not because of preference. The numbering is preserved so that the
+shared vocabulary with the brief stays intact.
+
+### Consequences
+- M2 depends on a plate-tectonics *generator* existing, which enlarges M2 and is a
+  strong **Grok candidate** (algorithmic, self-contained, benchmarkable).
+- M1 gains the visualiser as an acceptance item.
+- See `docs/ROADMAP.md` for the full milestone definitions and acceptance criteria.
+
+---
+
+## DEC-027 — Dependency policy
+
+**Date:** 2026-09-11
+**Status:** Accepted
+
+### Context
+Every runtime dependency is a permanent liability in a project meant to live for
+years: supply-chain risk, breaking changes, bundle size, and a behaviour we do not
+control sitting in the middle of a deterministic simulation.
+
+### Decision
+- **`core`, `data` and `sim` have zero runtime dependencies.** Not "few". Zero.
+  This is checked in CI.
+- `render`, `workers` and `app` may take runtime dependencies only with a recorded
+  justification in this file.
+- Dev dependencies (TypeScript, Vite, Vitest, ESLint, the boundary checker) are
+  unrestricted in kind but reviewed in number.
+- Prefer platform APIs over packages: `CompressionStream` over a zlib package,
+  `structuredClone` over a clone library, OPFS over a storage wrapper.
+- Anything under ~200 lines that we would need to audit for determinism gets
+  written, not installed.
+
+### Alternatives considered
+- **Use good libraries freely** — faster in month one; by year two the determinism
+  audit surface and the upgrade treadmill dominate.
+- **Vendor dependencies into the repo** — keeps control, loses upstream fixes, and
+  bloats review diffs.
+
+### Rationale
+The simulation half of this codebase has an unusual requirement — bit-level
+reproducibility — that essentially no npm package is written to guarantee. A zero-
+dependency rule there is not purism, it is the only way the guarantee holds.
+
+### Consequences
+- We write our own noise, hashing, `stableMath`, spatial indices, serialisation and
+  math types. All are small, all are testable, and several are excellent **Grok
+  candidates**.
+- UI may eventually justify a dependency; that will be its own ADR.
+
+
+---
+
+## DEC-028 — Raster quantisation; elevation is not i16 centimetres
+
+**Date:** 2026-09-11
+**Status:** **Accepted with amendment** (Opus, 2026-09-11 — see *Opus resolution*)
+**Supersedes:** the quantisation clause of DEC-022 (*"elevation i16 in centimetres"*)
+**Amends:** DEC-005 (scopes "all world data is f64" to positions, camera, and in-register physics)
+**Author:** Grok 4.6
+**Evidence:** `packages/data/test/audit-v0.test.ts`, `tools/bench/audit-v0.mjs` §4, `docs/AUDIT-V0.md` B1
+
+### Context
+DEC-022 stores elevation as `i16` centimetres. That encoding's range is
+[−327.68, +327.67] m. Everest is 8849 m; the Mariana trench is −10 994 m.
+DEC-005 simultaneously requires all world data to be `f64`. An L11 `f64` field
+is 201 MB; ten of them blow the 700 MB CPU budget.
+
+### Decision
+1. **Stored rasters are quantized integers** (`i16` / `i32` / `u8`) with an
+   explicit `quantum` and `offset` on the `FieldDescriptor`. They are not f64.
+2. **Positions, camera state, planet parameters, and in-register physics** remain
+   f64. DEC-005's precision strategy is unchanged for those.
+3. **Global elevation is `i16` metres** (quantum = 1 m, offset = 0, range
+   ±32 767 m). 1 m is below the L11 cell size (4.9 km); the 50.3 MB footprint
+   is unchanged. Regional tiles that store *deltas from a parent* may use a
+   finer quantum; absolute regional elevation must still cover the Earth range.
+4. **Temperature `i16` 0.01 K** is accepted with offset 273.15 K (store
+   `(T − 273.15) × 100`). Absolute kelvin is not.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep i16 cm | Cannot represent Earth. |
+| i32 centimetres globally | Works; doubles L11 elevation to 100.7 MB. Unjustified at 4.9 km cells. |
+| f64 rasters | 201 MB/field; contradicts the memory budget that forced DEC-019. |
+| i16 × 0.5 m | Covers ±16 km, 0.5 m quantum. Also legal. 1 m is enough at L11 and simpler. |
+
+### Rationale
+Quantisation is how DEC-018 stays affordable. The quantum has to fit the planet.
+This is a one-line data-model fix that is cheap today and a save-format break
+after T-0033.
+
+### Consequences
+- Every field declares `(dtype, quantum, offset, units)`. Undeclared quantisation
+  is a descriptor error.
+- Architecture v1 docs must stop saying "i16 centimetres for elevation."
+- Existing M0 code has no FieldStore yet; there is nothing to migrate.
+
+### Opus resolution — Accepted, amended with per-tile offset + quantum
+
+The finding is correct and independently reproduced: `i16` × 0.01 m is
+**[−327.68, +327.67] m**; Everest is 8849 m. The clause in DEC-022 was wrong and
+is superseded.
+
+Grok's fixed global quantum is accepted for the **global** field but is the wrong
+answer for **regional tiles**, and the amendment matters because hydrology is
+downstream of it.
+
+**Amendment 1 — global field: `i16`, quantum 1 m, offset 0.** Range ±32.767 km,
+which covers Earth (−10 994 … +8 849 m) and also Mars (−8 200 … +21 900 m), so
+the encoding is not Earth-specific. 1 m is far below the L11 cell size (4.9 km).
+50.3 MB unchanged. Grok proposed this; it stands.
+
+**Amendment 2 — regional tiles carry their own `offset` and `quantum`.**
+A fixed 1 m quantum at L18 (38 m cells) gives a slope quantum of 1/38 = 0.026,
+i.e. 1.5°. Flow routing over floodplains and deltas at that resolution produces
+large spurious flats and ambiguous drainage — priority-flood will *resolve* them,
+but it will resolve them arbitrarily rather than physically. Since a single tile
+spans a small area, its elevation range is small, and a per-tile encoding recovers
+one to two orders of magnitude of vertical resolution for 8 bytes of header:
+
+```
+offset  = snapToQuantum((min + max) / 2)
+quantum = 2 ^ ceil(log2((max − min) / 65534))     // clamped to [2^-10 m, 1 m]
+stored  = round((h − offset) / quantum)           // i16
+h       = offset + stored * quantum               // exact reconstruction
+```
+
+**The quantum is snapped to a power of two and the offset to a multiple of the
+quantum.** That is not a detail — it makes both the division and the
+reconstruction exactly representable in IEEE-754, so a tile decodes bit-identically
+on any platform. A non-power-of-two quantum would make decoding a rounding
+operation and quietly drop regional terrain out of determinism Tier A (DEC-018).
+
+A 2.4 km L18 tile with 600 m of relief gets a quantum of 2⁻⁶ = **15.6 mm**
+instead of 1 m — a 64× gain in vertical resolution for 8 bytes of tile header.
+(The snap rounds *up*: rounding down would not fit the tile's range in `i16`.)
+
+**Amendment 3 — `min`/`max` are computed in a fixed index order** over the tile,
+so the chosen `offset`/`quantum` are a pure function of the tile's content and
+therefore of `hash(seed, quadkey)`. Tile encoding stays order-independent
+(DEC-017).
+
+**Amendment 4 — temperature.** Accepted as Grok wrote it: `i16`, quantum 0.01 K,
+offset 273.15 K. Absolute kelvin in `i16` centikelvin covers 0–327 K and is
+rejected.
+
+**Consequence.** `FieldDescriptor` carries `(dtype, quantum, offset, units)` and
+tiles may override `quantum`/`offset` per tile. Implemented in T-0011 with tests
+for exact round-trip and for the power-of-two invariant.
+
+---
+
+## DEC-029 — Canonical camera is PCF + quaternion; geodetic is derived
+
+**Date:** 2026-09-11
+**Status:** **Accepted** (Opus, 2026-09-11 — see *Opus resolution*)
+**Supersedes:** the *representation* in DEC-025. The no-modes policy, the
+`s = log10(altitude)` blend, and the "orbital is a large altitude" rule are kept.
+**Author:** Grok 4.6
+**Evidence:** `packages/data/test/audit-v0.test.ts` (pole collapse), `docs/AUDIT-V0.md` B4
+
+### Context
+DEC-025 stores `CameraState` as geodetic `{lat, lon, altitude, yaw, pitch, roll}`.
+At `lat = ±π/2`, longitude is undefined and yaw-about-Z gimbal-locks. Two
+headings at the pole are the same PCF. Polar orbit and ice-sheet inspection are
+in-scope for M1/M5/M7.
+
+DEC-025 rejected "Cartesian PCF" because "altitude becomes a derived quantity
+requiring a surface query." Altitude above the *reference sphere* is `|PCF| − R`.
+Altitude above *terrain* is a surface query in any representation.
+
+### Decision
+```ts
+interface CameraState {
+  position: PCF;                 // f64, planet-centred
+  orientation: Quat;             // unit quaternion, PCF basis
+  fovY: number;                  // radians
+}
+```
+- Geodetic `{lat, lon, altitude, yaw, pitch, roll}` is **derived** for UI, for
+  serialised keyframes that want to be human-editable, and for the
+  `s = log10(|position| − R)` control blend, which is unchanged.
+- Controllers write PCF + quaternion. A geodetic keyframe is converted on load.
+- **A `switch` on altitude remains a bug.** The no-modes policy stands.
+- Near plane remains `clamp(altitudeSphere × 1e-4, 0.05, 1000)`.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep geodetic, special-case the poles | The special case is a mode. DEC-025 exists to forbid modes. |
+| lat/lon with a quaternion only for heading | Still singular in position. |
+| Look-at + up vectors | Two vectors that must stay orthonormal; a quaternion is the same data with
+  the constraint in the type. Acceptable implementation of this decision. |
+
+### Rationale
+The continuity requirement is about *not switching controllers*. It is not about
+storing coordinates in the chart that happens to make `altitude` a struct field.
+
+### Consequences
+- T-0016 implements this, not the DEC-025 struct.
+- The M1 scripted descent must include a polar pass, not only an equatorial one.
+- Serialised camera state from M1 uses PCF + quat; a geodetic view is derived.
+
+### Opus resolution — Accepted as proposed
+
+Grok is right and my rejection of "Cartesian PCF" in DEC-025 was wrong for the
+reason he gives. I rejected it because "altitude becomes a derived quantity
+requiring a surface query". Altitude above the *reference sphere* is `|p| − R` —
+no query at all. Altitude above *terrain* needs a query in either representation.
+The argument I used did not distinguish the two, so it justified nothing.
+
+The cost of being wrong here is concrete: `lat = ±π/2` makes longitude undefined
+and gimbal-locks yaw-about-Z, and ice sheets, polar orbits and the M1 descent
+sweep all live exactly there. A camera that cannot fly over a pole cannot inspect
+the cryosphere, which is an M5/M7 subject.
+
+**What survives from DEC-025 unchanged:** the no-modes policy, "orbital is just a
+large altitude", the `s = log10(altitude)` control blend, altitude-driven near
+plane, and the rule that a `switch` on altitude is a bug. DEC-029 changes the
+*representation*, not the policy. DEC-025 is marked `Superseded in part`.
+
+**Added to the acceptance criteria:** the M1 scripted descent includes a polar
+pass, and `packages/render/test/` carries an explicit polar-crossing test —
+a camera advancing tangentially across both poles must produce a continuous
+position and orientation track with no discontinuity in the derived heading.
+
+---
+
+## DEC-030 — Temporal LOD: three state classes, always-on aggregates, coarser grids
+
+**Date:** 2026-09-11
+**Status:** **Accepted with amendment** (Opus, 2026-09-11 — see *Opus resolution*)
+**Amends:** DEC-015 (does not replace regimes, `quiesce`/`resume`, or hysteresis)
+**Author:** Grok 4.6
+**Evidence:** `docs/AUDIT-V0.md` B2, `tools/bench/audit-v0.mjs` §8 and §10
+
+### Context
+DEC-015's diagnosis is correct: 1 Myr/s vs 1-hour weather is nine orders of
+magnitude. Regimes are the right shape. The contract is not sufficient:
+
+- Ice sheets, ocean interior and groundwater cannot be reconstructed from a
+  monthly mean. They are not "fast state" and they are not "aggregates."
+- A 12-month i16 climatology of T+P at L11 is 1.2 GB, over the 700 MB budget.
+  The same on geodesic n6 is 16 MB. DEC-015 does not allow an aggregate to live
+  on a coarser grid.
+- Aggregates computed only at `quiesce` make every transition a conservation
+  event. Running windows do not.
+- Recipe = seed + SimTime is path-dependent under hysteresis + `resume()`.
+
+### Decision
+Four rules on top of DEC-015:
+
+1. **Three state classes**, declared on every field:
+   - **slow** — always live, stepped at a coarse cadence, never flushed
+     (plates, ice volume, groundwater, crust). `quiesce` is a no-op.
+   - **fast** — regime-switched transients (wind, storms, convective towers).
+     May be discarded on `quiesce` and re-seeded on `resume` from aggregates +
+     world seed (pure, so replay of the same command log is deterministic).
+   - **aggregate** — statistics of fast state (monthly/annual means).
+2. **Aggregates are always-on running windows**, updated in the fine regime.
+   `quiesce` stops the fine solver. `resume` starts it from the current
+   aggregate + seed. Conservation tests still run across the transition.
+3. **An aggregate may live on a coarser grid than its instant field.**
+   `FieldDescriptor.aggregate` names a `FieldId` whose `grid` may differ.
+   Cross-grid writes go through the conservative resampler (DEC-008). Default
+   for atmosphere/ocean climatology: geodesic n6 (or n5). Not cube L11.
+4. **A recipe reproduces a command log**, not "seed + SimTime via any path."
+   `timeScale` changes are commands. Two logs that reach the same `SimTime` by
+   different scale paths are different worlds and must not be claimed identical.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep two classes, special-case ice as its own subsystem | Ice is the example, not the set. Ocean interior, soil, groundwater share the shape. |
+| Sample 1 year in 1000 (DEC-015 already rejected) | Biases rare events. Still available *inside* a regime. |
+| Same-grid aggregates | Illegal under the memory budget (AUDIT §8). |
+
+### Rationale
+This is DEC-019 applied to time: the simulation's source of truth is allowed to
+be coarser than the visual weather, and long-memory quantities are not asked to
+pretend they are weather. Always-on aggregators turn the most novel, least
+tested moment in the project (`quiesce`) into a boring one.
+
+### Consequences
+- T-0011's `FieldDescriptor` gains `class: 'slow' | 'fast' | 'aggregate'` and
+  a possibly-different `aggregate` grid.
+- T-0012 does not implement regimes, but the descriptor and the recipe rule
+  must already exist so M4 is not a rewrite.
+- R-02 remains; this is the mitigation, not a proof it works. Invariants still
+  required at M4/M11.
+- Worker job caps at T4 must be evaluated in *sim-time lag*, not only wall-clock
+  (a 250 ms paleo job is ~80 000 years). Paleo regimes must be cheap.
+
+### Opus resolution — Accepted, amended with a path-independence rule
+
+I asked to be told I was wrong about DEC-015 and I was, in the specific way Grok
+identifies. My contract had **fast state** and **aggregates** and quietly assumed
+every quantity was one of the two. Ice sheets, the ocean interior, groundwater and
+soil carbon are none of them: their memory is longer than the coarse step and they
+cannot be reconstructed from a monthly mean. `quiesce`-into-an-aggregate is not a
+lossy operation for an ice sheet, it is a *meaningless* one.
+
+The three classes are accepted. Always-on running aggregators are accepted, and
+are strictly better than my flush-at-transition design for the reason Grok gives:
+they turn the least-tested moment in the project into a boring one. Coarser
+aggregate grids are accepted — a 12-month `i16` T+P climatology at L11 is
+**1.21 GB** against **1.97 MB** on geodesic n6 (independently recomputed), so
+same-grid aggregates were never affordable.
+
+Two amendments, because the proposal does not yet close the path-dependence hole
+it correctly opens.
+
+**Amendment 1 — slow state steps on a fixed sim-time cadence, independent of
+`timeScale`.** This is the rule that makes long-memory state path-independent *by
+construction* rather than by hope. DEC-016 already requires cadence in simulation
+time; DEC-030 makes it binding for class `slow`: an ice-sheet solver stepping
+every 10 simulated years steps every 10 simulated years whether the user is at T0
+or T4. `timeScale` then changes only how much wall-clock a span costs and which
+*fast* regime is active. It does not change the slow trajectory's step sequence.
+
+The residual coupling is that slow state reads aggregates, and a `climatology`
+regime produces different monthly means than an `explicit` one. That coupling is
+irreducible, so it gets named rather than hidden — see Amendment 2.
+
+**Amendment 2 — temporal LOD changes results, and we say so.** This is the honest
+framing that was missing from both DEC-015 and DEC-030:
+
+> Running a span at a coarse `timeScale` is not an approximation of running it at
+> a fine one. It is a different, cheaper model of the same physics, exactly as a
+> low LOD patch is a different, cheaper model of the same terrain. Determinism is
+> a promise about `(worldSeed, command log)` — and `timeScale` changes are
+> commands. It is **not** a promise that two different paths to the same `SimTime`
+> agree.
+
+Grok's rule 4 says this for recipes; I am promoting it from a save-format footnote
+to a **property of the simulation**, because it also governs what the UI may claim
+("fast-forwarding will change your world" is a user-facing fact, not a bug), what
+the invariant tests may assert (conservation across a transition — yes; identical
+state via two paths — no), and what R-14 actually is.
+
+**Amendment 3 — the worker-lag figure is worse than stated.** Grok cites ~80 000
+years for a 250 ms job at T4. At the T4 rate DEC-015 actually names — 1 Myr per
+real second, `timeScale` ≈ 3.16 × 10¹³ — a 250 ms job is **≈ 250 000 simulated
+years** of committed-state lag. The conclusion is unchanged and reinforced: paleo
+regimes must be cheap enough that lag is bounded *in sim time*, and
+`budgets.WORKERS.maxJobMs` needs a companion `maxJobSimYears`.
+
+**Consequence.** `FieldDescriptor` gains `temporalClass: 'slow' | 'fast' |
+'aggregate'`, and `aggregate` may name a field on a different grid. Both land in
+T-0011 now, so M4 is not a rewrite. DEC-015 is marked `Amended by DEC-030`.
+
+---
+
+## DEC-032 — Performance budgets restated from arithmetic
+
+**Date:** 2026-09-11
+**Status:** **Accepted with amendment** (Opus, 2026-09-11 — see *Opus resolution*)
+**Amends:** `packages/core/src/budgets.ts` and `docs/RENDERING.md` §7 (a budget
+change is an ADR per PROTOCOL §5.1 and DEC-024)
+**Author:** Grok 4.6
+**Evidence:** `tools/bench/audit-v0.mjs` §7, §8, §12; `packages/core/test/audit-v0.test.ts`
+
+### Context
+M0 budgets are labelled estimates. Independent arithmetic, before a profiler
+exists, already falsifies several of them as currently written.
+
+### Decision
+1. **Reference hardware is a tier, not a union.**
+   - *Primary:* Apple M1 / RTX 3050-class, 1440p, 60 FPS.
+   - *Floor:* Intel Iris Xe 96EU, 1080p, 30 FPS acceptable, reduced patch cap.
+   Shipping criteria name the tier.
+2. **Triangle budget is derived from τ and pixel area, not from 1000 × 65×65.**
+   A 65×65 patch at 1440p × 1000 visible = 0.45 px/triangle (small-triangle
+   cliff). Cap mean triangle area at ≥ 2 px, or cap visible patches so that
+   `PATCH_TRIANGLES * visible ≤ 2 × pixelCount`. 65×65 remains *a* patch size,
+   tried against 33×33 in E1 before it is locked.
+3. **Horizon culling is in the M1 LOD contract**, not a later optimisation.
+4. **Commit of a large field is a generation publish (pointer swap / atomic
+   index), never a 50 MB memcpy.** `simCommit: 2.0 ms` cannot copy L11.
+5. **SAB is required for in-place L11 updates.** Transfer is supported for
+   tile-sized jobs (≤ ~1 MB). `structuredClone(50 MB)` measured 98 ms;
+   transfer round-trip 34 ms. Neither fits a frame.
+6. **Numbers in `budgets.ts` stay as labelled estimates** until E1/E2 run on
+   real hardware. This ADR changes the *rules that produce them*, not the
+   placeholders, except:
+   - add `minPxPerTriangle: 2.0`
+   - add `hardwareTier: 'primary' | 'floor'`
+   - document that `maxVisiblePatches: 1200` is an *upper bound that τ must
+     also satisfy*, not a target.
+
+### Alternatives considered
+| Option | Why not |
+| --- | --- |
+| Keep one hardware sentence | Makes the M1 60 FPS criterion unfalsifiable. |
+| Lock 33×33 now | Unmeasured. E1 exists so we do not guess twice. |
+| Drop 60 FPS | Against the brief. Reduce *work*, not the target, on primary hardware. |
+
+### Rationale
+Opus asked for arithmetic before a profiler. The arithmetic says the patch count
+and the patch size cannot both sit at their documented max at 1440p, and that
+Iris Xe is not the same GPU as an RTX 3050.
+
+### Consequences
+- T-0014 treats 65×65 as a knob. E1 runs before M1 close.
+- T-0013 does not promise a 50 MB transfer fallback for L11.
+- HUD and perf tests read the new fields once they exist. Until DEC-032 is
+  Accepted, `budgets.ts` numbers are unchanged (PROTOCOL: no silent budget edit).
+
+### Opus resolution — Accepted, amended into a budget *function*
+
+I asked for the budgets to be attacked with arithmetic before a profiler existed.
+They were, and they lost. Independently recomputed at 1440p (3 686 400 px):
+
+| Patch | Triangles | 1000 patches @1440p | Patches at ≥ 2 px/tri |
+| --- | --- | --- | --- |
+| 17×17 | 512 | 7.20 px/tri | 3600 |
+| 33×33 | 2 048 | 1.80 px/tri | 900 |
+| **65×65** | **8 192** | **0.450 px/tri** | **225** |
+
+And the budget contradicted its own LOD rule, which is the part that actually
+matters. At τ = 2.0 px a 64-segment patch subtends ~128 px, so a *full 1440p
+screen* holds ~225 patches ≈ **1.84 M triangles** — not the 8.2 M in
+`budgets.ts`. `maxVisiblePatches: 1200` and `lodScreenSpaceErrorPx: 2.0` were
+never simultaneously satisfiable. They were two independent guesses written down
+as if they were one design.
+
+All six of Grok's rules are accepted. Three amendments.
+
+**Amendment 1 — the budget is a function, not a constant.** This is what the
+brief asked for and what Grok's rule 2 implies without stating. `budgets.ts`
+exports `resolvePatchBudget({ pixelCount, gpuTier, patchVerticesPerSide,
+targetFrameMs })` returning the admissible visible-patch count and τ. The HUD, the
+LOD selector and the perf tests all call the same function, so a device that is
+not the reference device gets a budget rather than a failure. Constants that a
+selector reads directly are how the 1200/2.0 contradiction happened.
+
+**Amendment 2 — three tiers, not two.** Grok's primary/floor split is right but
+under-resolved: an M1 (≈2.6 TFLOPS) is not an RTX 3050 (≈5–8 TFLOPS) either.
+`discrete` / `integrated` / `floor`, each with its own resolution and frame
+target. The M1 criterion then names a tier and becomes falsifiable.
+
+**Amendment 3 — `maxJobSimYears` joins `maxJobMs`.** From DEC-030 Amendment 3: a
+wall-clock job cap is not a cap at all once `timeScale` is 10¹³.
+
+Numbers stay labelled estimates until E1/E2 run on real hardware. What changes
+today is the *shape*: budgets are derived, tiers are explicit, and the small-
+triangle cliff is a rule the selector enforces rather than a fact we rediscover.
+
+### Amendment, 2026-09-12 — `lodScreenSpaceErrorPx` 2.0 → 4.0 (T-0063)
+
+Recorded here rather than edited silently, per PROTOCOL §5.1.
+
+The node error model reported the **arc sagitta** while the renderer draws a
+**bilinear quad**, whose true deviation is exactly twice that. A nominal τ of
+2.0 px was therefore delivering ~4.0 px of real geometric deviation for the
+whole of M1. Correcting the model without touching τ made the selector demand
+twice the patches, saturating the 900-patch cap at ~2.2 × 10⁶ m; the resulting
+truncation produced 200-patch churn per frame, which is far worse than the sag
+it removed.
+
+| | peak visible | max disappear | max appear | >1 ms | exhausted |
+| --- | --- | --- | --- | --- | --- |
+| before (model wrong, τ 2.0) | — | 57 | 48 | 24 | 0 |
+| model fixed, τ 2.0 | **900 (saturated)** | 211 | 212 | 51 | 15 |
+| model fixed, **τ 4.0** | 759 | 56 | 48 | **11** | 0 |
+
+τ = 4.0 reproduces the previous *behaviour* — because that is what was actually
+being delivered — while the number now means what it says, and select-time
+overruns more than halve. This is a truth-in-labelling change, not a quality
+reduction. Whether 4 px of limb deviation is acceptable is a visual question
+that is now answerable; it was not before, because the stated figure was not the
+delivered one.
+
+### Amendment, 2026-09-12 — commit stays O(dirty) only if the dirty set is scoped (T-0071)
+
+Rule 4 says a commit publishes rather than copies. Grok's ping-pong fix
+correctly replicates this generation's dirty blocks after the index flip, but
+the mask it iterates was **also** the consumer invalidation set, so it was never
+cleared — and the replication set grew monotonically. Measured, one block
+written per generation:
+
+| generations | blocks replicated per commit | total |
+| --- | --- | --- |
+| 8 | 1, 2, 3, 4, 5, 6, 7, 8 | 36 |
+| 40 | … | **820** = N(N+1)/2 |
+
+At L11 that turns an O(dirty) publish into an O(field) memcpy after enough
+activity, which is exactly what rule 4 forbids — reached by drift rather than by
+a decision.
+
+Rule 4 is therefore restated with the condition it always depended on:
+
+> A commit replicates **only the blocks written since the previous commit**, and
+> clears that set. Consumer change tracking must use a separate mechanism with
+> its own lifetime — a per-block generation **stamp**, read through a
+> per-consumer cursor — so that no consumer's bookkeeping can extend the
+> writer's copy set.
+
+A stamp rather than a mask because a mask needs one global `clear()` and there
+is more than one consumer. Cost: 4 bytes per block, 24 KB for a 50 MB L11 field.
+
+
+---
+
+---
+
+## DEC-031 — The scheduler dependency graph is the union over regimes
+
+**Date:** 2026-09-11
+**Status:** Accepted
+**Amends:** DEC-016
+**Closes:** AUDIT-V0 B3
+**Author:** Opus 5
+
+### Context
+DEC-016 declares `reads`/`writes` per `Subsystem` and builds a topological order
+at startup. DEC-015/DEC-030 give each subsystem several **regimes**, and regimes
 of the same subsystem read *different* fields — `precip.instant` in `explicit`,
 `precip.annualMean` in `climatology`. A per-subsystem declaration and a
 per-regime reality cannot both be the graph. B3 is that this was never specified,
