@@ -6,10 +6,10 @@ so settlements are real while M9/M10 setup cost is excluded from the M8 timing.
 
 | civ level | cells | settlements | population | p50 ms | p95 ms | max ms |
 | --- | --- | --- | --- | --- | --- | --- |
-| L5 | 6144 | 481 | 6,135,750,746 | 0.129 | 0.259 | 0.729 |
-| L6 | 24576 | 240 | 7,414,076,670 | 0.142 | 0.365 | 0.535 |
-| L7 | 98304 | 745 | 7,237,569,388 | 0.548 | 1.203 | 1.435 |
-| L8 | 393216 | 1452 | 4,371,536,261 | 1.511 | 3.331 | 3.412 |
+| L5 | 6144 | 481 | 6,135,750,746 | 0.106 | 0.235 | 0.382 |
+| L6 | 24576 | 240 | 7,414,076,670 | 0.139 | 0.282 | 0.302 |
+| L7 | 98304 | 745 | 7,237,569,388 | 0.588 | 1.711 | 2.782 |
+| L8 | 393216 | 1452 | 4,371,536,261 | 1.486 | 3.274 | 4.163 |
 
 Budget: **20 ms** per civilisation step at T3.
 
@@ -17,11 +17,11 @@ Budget: **20 ms** per civilisation step at T3.
 
 The civilisation grid is the hydrology grid, whose default is
 `min(6, genesis level)`. **At the default configuration (L6) the p95 step is
-0.36 ms, 2% of budget.** The finer rows are the store's headroom, not the
+0.28 ms, 1% of budget.** The finer rows are the store's headroom, not the
 shipping configuration.
 
 At L8 (393,216 cells) the p95 is 3.3 ms — **inside the 20 ms budget** — while
-the p50 is 1.51 ms. That 2x spread is the shape of the cost, not noise: the
+the p50 is 1.49 ms. That 2x spread is the shape of the cost, not noise: the
 per-step work is O(settlements) and cheap, and the expensive work is the
 O(cells) territory BFS plus capacity accumulation, which at paleo detail
 runs on every 8th step. Amortised that is
