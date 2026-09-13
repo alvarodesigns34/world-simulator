@@ -303,7 +303,13 @@ async function main(): Promise<void> {
     const hFrame = telemetry.begin(ZONE.FRAME, usFromMs(now));
 
     const hSim = telemetry.begin(ZONE.SIM, usFromMs(performance.now()));
-    world.advance(wallDt * world.timeScale);
+    /* While the timeline is scrubbed into history the world is a
+       reconstruction of a past instant, so it must not advance — otherwise the
+       user would be simulating a branch they did not ask for (T-0095). */
+    if (!timeline.inHistory) {
+      world.advance(wallDt * world.timeScale);
+      timeline.record();
+    }
     telemetry.end(hSim, usFromMs(performance.now()));
 
     const sun = sunState(world.scheduler.time, world.calendar);

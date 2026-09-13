@@ -1,9 +1,24 @@
 import { format } from '@ws/core';
-import { saveRecipe, saveSnapshot, type World } from '@ws/sim';
+import { TimelineNavigator, absoluteSeconds, saveRecipe, saveSnapshot, type World } from '@ws/sim';
 
 type Download = (filename: string, text: string, type?: string) => void;
 
-/** M11 planet-native timeline controls. Scrubbing reads recorded history. */
+/**
+ * M11 planet-native timeline controls.
+ *
+ * Scrubbing RESTORES THE WORLD (T-0095). The previous version read the recorded
+ * population and temperature series, wrote a label reading
+ * "HISTORY VIEW · RECORDED SNAPSHOT", and left the planet exactly where it was:
+ * no field, no city, no scheduler slot moved. The slider now drives a
+ * `TimelineNavigator`, which restores the nearest checkpoint and replays the
+ * command log forward, so the visible planet really is the selected instant.
+ *
+ * The panel deliberately does not offer branching. While in history the world
+ * is a reconstruction and does not advance; RESUME returns to the live head
+ * exactly. Simulating onward from a past instant is a different operation with
+ * different semantics, and offering it here ambiguously would be worse than not
+ * offering it.
+ */
 export class TimelinePanel {
   readonly root: HTMLDivElement;
   private readonly time: HTMLSpanElement;
@@ -11,9 +26,13 @@ export class TimelinePanel {
   private readonly scrub: HTMLInputElement;
   private readonly readout: HTMLSpanElement;
   private readonly world: World;
+  private readonly nav: TimelineNavigator;
+  /** Scrub positions are simulated seconds; the range is 0..STEPS. */
+  private static readonly STEPS = 1000;
 
-  constructor(parent: HTMLElement, world: World, download: Download) {
+  constructor(parent: HTMLElement, world: World, download: Download, nav?: TimelineNavigator) {
     this.world = world;
+    this.nav = nav ?? new TimelineNavigator(world);
     this.root = document.createElement('div');
     this.root.setAttribute('style',
       'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;width:min(760px,calc(100vw - 40px));' +
@@ -30,12 +49,13 @@ export class TimelinePanel {
       <span data-role="status" style="margin-left:auto;color:#79b9d6">LIVE</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-top:8px">
-      <input data-role="scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Recorded timeline">
+      <input data-role="scrub" type="range" min="0" max="1000" value="1000" step="1" aria-label="Historical time">
       <span data-role="readout">history: waiting</span>
     </div>
     <div style="display:flex;gap:7px;margin-top:8px;align-items:center">
       <input data-role="years" type="number" min="1" value="1000000" style="width:105px" aria-label="Years to jump">
       <button data-act="jump">JUMP YEARS</button><button data-act="bookmark">BOOKMARK</button>
+      <button data-act="live">RESUME LIVE</button>
       <button data-act="recipe">RECIPE</button><button data-act="snapshot">SNAPSHOT</button>
     </div>`;
     parent.appendChild(this.root);
@@ -60,25 +80,59 @@ export class TimelinePanel {
     };
     this.pick<HTMLButtonElement>('[data-act=recipe]').onclick = () => download('world.recipe.json', saveRecipe(world));
     this.pick<HTMLButtonElement>('[data-act=snapshot]').onclick = () => download('world.snapshot.json', saveSnapshot(world));
-    this.scrub.oninput = () => this.showHistorical(Number(this.scrub.value));
+    this.pick<HTMLButtonElement>('[data-act=live]').onclick = () => this.resumeLive();
+    /* `oninput` fires continuously while dragging. Each call supersedes the
+       last inside the navigator, so a drag costs one reconstruction at the
+       position the user settles on rather than one per pixel. */
+    this.scrub.oninput = () => { this.scrubToFraction(Number(this.scrub.value) / TimelinePanel.STEPS); };
+  }
+
+  /** Called after each live advance so history has something to return to. */
+  record(): void {
+    this.nav.record();
+  }
+
+  get inHistory(): boolean { return this.nav.mode === 'history'; }
+
+  private resumeLive(): void {
+    this.nav.returnToLive();
+    this.scrub.value = String(TimelinePanel.STEPS);
+    this.status.textContent = 'LIVE';
+    this.status.style.color = '#79b9d6';
+    this.readout.textContent = 'history: live';
+  }
+
+  private scrubToFraction(fraction: number): void {
+    const earliest = this.nav.earliestReachable();
+    const latest = this.nav.latestReachable();
+    if (!(latest > earliest)) { this.readout.textContent = 'history: not yet recorded'; return; }
+    const target = earliest + (latest - earliest) * Math.max(0, Math.min(1, fraction));
+
+    const result = this.nav.scrubTo(target);
+    const live = this.nav.mode === 'live'
+      || Math.abs(result.at - this.nav.latestReachable()) < 1;
+    this.status.textContent = live ? 'LIVE' : 'HISTORY · WORLD RESTORED';
+    this.status.style.color = live ? '#79b9d6' : '#e0bd73';
+
+    const population = this.world.civilisation.totalPopulation;
+    const replayed = result.replayedSeconds / this.world.calendar.secondsPerYear;
+    this.readout.textContent =
+      `Y${String(result.time.year)} · pop ${population.toPrecision(4)}`
+      + ` · replayed ${replayed < 1 ? '0' : replayed.toExponential(2)} yr`;
   }
 
   update(): void {
     this.time.textContent = format(this.world.scheduler.time, this.world.calendar);
-    const samples = this.world.history.samples('population');
-    this.scrub.max = String(Math.max(0, samples.length - 1));
-    if (this.status.textContent === 'LIVE') this.scrub.value = this.scrub.max;
-  }
-
-  private showHistorical(index: number): void {
-    const population = this.world.history.samples('population');
-    const temperature = this.world.history.samples('temperature');
-    const p = population[index];
-    const t = temperature[index];
-    if (p === undefined) return;
-    this.status.textContent = index === population.length - 1 ? 'LIVE' : 'HISTORY VIEW · RECORDED SNAPSHOT';
-    this.status.style.color = index === population.length - 1 ? '#79b9d6' : '#e0bd73';
-    this.readout.textContent = `Y${String(p.time.year)} · pop ${p.value.toPrecision(4)} · ${t === undefined ? '—' : `${t.value.toFixed(2)} K`}`;
+    if (this.nav.mode !== 'live') return;
+    /* Live: the handle tracks the head, and the reachable window is whatever
+       the checkpoint store currently holds. */
+    this.scrub.value = String(TimelinePanel.STEPS);
+    const earliest = this.nav.earliestReachable();
+    const latest = absoluteSeconds(this.world.scheduler.time, this.world.calendar.secondsPerYear);
+    const span = (latest - earliest) / this.world.calendar.secondsPerYear;
+    this.readout.textContent = span > 0
+      ? `history: ${span.toExponential(2)} yr · ${String(this.nav.store.count)} checkpoints`
+      : 'history: waiting';
   }
 
   private pick<T extends HTMLElement = HTMLSpanElement>(selector: string): T {

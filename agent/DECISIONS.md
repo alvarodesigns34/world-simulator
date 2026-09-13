@@ -3066,3 +3066,74 @@ down in `economyDigest`'s own docstring rather than in a document that can rot.
   `EconomyState` and fails if any member is neither hashed nor explicitly
   excluded. Adding a field without deciding is now a test failure, which is the
   only thing that stops this recurring a third time.
+
+---
+
+## DEC-051 — Timeline history is viewing, not branching
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Simulation Architect)
+
+### Context
+
+M11's acceptance names scrub, jump, bookmarks, history and replay. Only the
+plotting half existed. The slider read recorded population and temperature
+series, wrote a label reading "HISTORY VIEW · RECORDED SNAPSHOT", and left the
+planet exactly where it was — no field, no geology, no city, no scheduler slot
+moved. The label named a snapshot that did not exist.
+
+A second defect sat underneath it: `HistoryStore` was only fed from
+`World.advance()`, and the slider's range was `samples.length - 1`. In any path
+that advanced the scheduler directly the series stayed empty and the slider had
+exactly one position.
+
+### Alternatives considered
+
+| Option | Why not |
+| --- | --- |
+| Resimulate from year 0 on each scrub | Minutes per drag at the default configuration. |
+| Snapshot every tick | Unbounded memory; a paleo run is millions of ticks. |
+| Serialise checkpoints through `persistence.ts` | Its `encode` turns every typed array into a JSON `number[]` — right for a file, ~20 bytes per cell for memory. |
+| Keep a second "preview" world | Doubles the resident state of an L8 world, and only to avoid a rewind that is already exact. |
+| Checkpoints + replay, one world | Chosen. |
+
+### Decision
+
+**Historical VIEWING and timeline MUTATION are different operations, and only
+the first is offered.**
+
+While the navigator is in history the world is a faithful reconstruction of a
+past instant and does not advance; the frame loop skips `world.advance()`.
+Returning to live restores the head checkpoint exactly. There is no branching,
+so there is no ambiguity about which timeline the command log describes.
+
+Mechanism: `CheckpointStore` captures authoritative state as the world advances,
+cloning structurally so typed arrays stay typed. Thinning is exponential —
+recent history dense, deep history logarithmically sparse — under a byte budget
+and a count cap. `TimelineNavigator.scrubTo` restores the nearest checkpoint at
+or before the target and replays the command log forward, chunked exactly as
+`applyReplayCommand` chunks it so the reconstruction follows the same
+integration path. A superseding scrub is detected on a checkpoint boundary, so a
+dragged slider never leaves the world half-restored.
+
+Restores are **in place**: arrays are filled, not replaced. The renderer, the
+field store and several subsystems hold long-lived references, and replacing
+them would leave consumers reading a detached copy — the same shape of bug as a
+slider that moves nothing.
+
+Derived city geometry, layout caches and route caches are never checkpointed;
+the route cache is explicitly cleared on restore because it is keyed on state
+that just moved.
+
+### Consequences
+
+- The scrub is verified by DIGEST, not by a label: scrub back, digest matches
+  that instant; scrub forward, matches again; return to live, matches the head.
+  Twelve tests, including bookmark and recorded-series coherence, and the
+  entity store remaining consistent enough to keep simulating from a rewind.
+- Memory is bounded by construction and the newest checkpoint is never the one
+  thinned away — it is what "return to live" needs.
+- Branching (simulating onward from a past instant, discarding the future) is
+  deliberately absent rather than ambiguous. It would invalidate the log tail
+  and every later checkpoint, and that is a different feature.
