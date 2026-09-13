@@ -27,7 +27,8 @@
     "bench:entitystore": "node tools/bench/entitystore.mjs",
     "bench:m8": "node tools/bench/m8-civilisation.mjs",
     "bench:m9": "node tools/bench/m9-city.mjs",
-    "bench:m10": "node tools/bench/m10-economy.mjs"
+    "bench:m10": "node tools/bench/m10-economy.mjs",
+    "bench:m12": "node tools/bench/m12-overlay.mjs"
     ,"stress:m11": "vitest run packages/sim/test/timeline.stress.test.ts --reporter=verbose"
     ,"test:replay": "vitest run packages/sim/test/timeline.test.ts -t replay"
     ,"test:save-roundtrip": "vitest run packages/sim/test/timeline.test.ts -t round-trip"

@@ -165,26 +165,139 @@ export class FieldOverlay {
   }
 }
 
-function buildGeodesicLookup(positions: Float64Array, width: number, height: number, count: number): Int32Array {
+/**
+ * Pixel -> nearest geodesic cell, for the equirectangular overlay (T-0100).
+ *
+ * The original was an exhaustive scan: for every pixel, every cell. At the
+ * application's default `climateN: 4` that is 51,200 x 2,562 = 131 million dot
+ * products, measured at **305 ms of main thread** the first time a user selects
+ * a geodesic field — against an M12 budget of 0.5 ms. At n=6 it was 4.7 s and
+ * at n=7, 18.8 s.
+ *
+ * Two changes, both exact — this returns the same lookup table as the scan, not
+ * an approximation of it:
+ *
+ * 1. LATITUDE BANDING WITH AN EXACT BOUND. Cells are bucketed by latitude. The
+ *    angular distance between two points is at least the difference in their
+ *    latitudes, so once a candidate at angle θ is found, any band whose entire
+ *    latitude range lies further than θ away cannot contain anything nearer and
+ *    is skipped. Bands are searched outward from the query's own, and the
+ *    search stops when the bound is exceeded. No pole special-case is needed
+ *    because the bound is in latitude, which does not converge.
+ *
+ * 2. SEEDING FROM THE PREVIOUS PIXEL. Adjacent pixels almost always resolve to
+ *    the same or an adjacent cell, so starting each pixel from its left
+ *    neighbour's answer usually makes the very first candidate optimal, and the
+ *    latitude bound then prunes nearly everything.
+ */
+export function buildGeodesicLookup(positions: Float64Array, width: number, height: number, count: number): Int32Array {
   const lookup = new Int32Array(width * height);
+
+  /* One band per ~sqrt(count) cells keeps both the band count and the
+     occupancy near sqrt(count), which is where the search is cheapest. */
+  const bands = Math.max(1, Math.min(512, Math.round(Math.sqrt(count))));
+  const bandOf = (z: number): number => {
+    /* z is sin(latitude); banding on z rather than latitude gives equal-area
+       bands, so occupancy is even for a quasi-uniform grid. */
+    const b = Math.floor(((z + 1) / 2) * bands);
+    return b < 0 ? 0 : b >= bands ? bands - 1 : b;
+  };
+
+  /* Counting sort into CSR bands: two linear passes, no per-band arrays. */
+  const bandStart = new Int32Array(bands + 1);
+  for (let i = 0; i < count; i++) {
+    const b = bandOf(positions[i * 3 + 2] as number) + 1;
+    bandStart[b] = (bandStart[b] as number) + 1;
+  }
+  for (let b = 0; b < bands; b++) bandStart[b + 1] = (bandStart[b + 1] as number) + (bandStart[b] as number);
+  const bandCell = new Int32Array(count);
+  const cursor = new Int32Array(bands);
+  for (let i = 0; i < count; i++) {
+    const b = bandOf(positions[i * 3 + 2] as number);
+    bandCell[(bandStart[b] as number) + (cursor[b] as number)] = i;
+    cursor[b] = (cursor[b] as number) + 1;
+  }
+
+  /* Latitude range of each band, for the pruning bound. */
+  const bandLatLo = new Float64Array(bands);
+  const bandLatHi = new Float64Array(bands);
+  for (let b = 0; b < bands; b++) {
+    const zLo = (b / bands) * 2 - 1;
+    const zHi = ((b + 1) / bands) * 2 - 1;
+    bandLatLo[b] = Math.asin(Math.max(-1, Math.min(1, zLo)));
+    bandLatHi[b] = Math.asin(Math.max(-1, Math.min(1, zHi)));
+  }
+
+  let seed = 0;
   for (let py = 0; py < height; py++) {
     const lat = Math.PI / 2 - ((py + 0.5) / height) * Math.PI;
     const z = Math.sin(lat);
     const radius = Math.cos(lat);
+    const home = bandOf(z);
     for (let px = 0; px < width; px++) {
       const lon = ((px + 0.5) / width) * 2 * Math.PI - Math.PI;
       const x = radius * Math.cos(lon);
       const y = radius * Math.sin(lon);
-      let best = 0;
-      let bestDot = -2;
-      for (let i = 0; i < count; i++) {
-        const dot = x * (positions[i * 3] as number) + y * (positions[i * 3 + 1] as number) + z * (positions[i * 3 + 2] as number);
-        if (dot > bestDot) { bestDot = dot; best = i; }
+
+      /* Start from the previous pixel's answer: usually already optimal. */
+      let best = seed;
+      let bestDot = x * (positions[seed * 3] as number)
+        + y * (positions[seed * 3 + 1] as number)
+        + z * (positions[seed * 3 + 2] as number);
+
+      /* Search outward from the home band. A band is skipped when its whole
+         latitude range is further than the best angle found so far; when both
+         flanks are skipped or exhausted, nothing further out can help. */
+      for (let ring = 0; ring < bands; ring++) {
+        const lower = home - ring;
+        const upper = home + ring;
+        let live = false;
+        for (const b of ring === 0 ? [home] : [lower, upper]) {
+          if (b < 0 || b >= bands) continue;
+          if (ring > 0 && prunedByLatitude(lat, bandLatLo, bandLatHi, b, bestDot)) continue;
+          live = true;
+          const from = bandStart[b] as number;
+          const to = bandStart[b + 1] as number;
+          for (let k = from; k < to; k++) {
+            const i = bandCell[k] as number;
+            const dot = x * (positions[i * 3] as number)
+              + y * (positions[i * 3 + 1] as number)
+              + z * (positions[i * 3 + 2] as number);
+            /* The exhaustive scan takes the FIRST cell achieving the maximum,
+               i.e. the lowest index. Bands are not visited in index order, so
+               the tie-break has to be explicit or the two disagree on the
+               (rare but real) exact ties a symmetric grid produces. */
+            if (dot > bestDot || (dot === bestDot && i < best)) { bestDot = dot; best = i; }
+          }
+        }
+        if (ring > 0 && !live && lower < 0 && upper >= bands) break;
+        if (ring > 0 && !live) break;
       }
+
       lookup[py * width + px] = best;
+      seed = best;
     }
   }
   return lookup;
+}
+
+/**
+ * True when no cell in `band` can be nearer than the best already found.
+ *
+ * Exact: the angular distance between two points on a sphere is at least the
+ * difference in their latitudes, so a band whose entire latitude range lies
+ * further away than the current best angle cannot improve on it.
+ */
+function prunedByLatitude(
+  lat: number, lo: Float64Array, hi: Float64Array, band: number, bestDot: number,
+): boolean {
+  const bandLo = lo[band] as number;
+  const bandHi = hi[band] as number;
+  const dLat = lat < bandLo ? bandLo - lat : lat > bandHi ? lat - bandHi : 0;
+  /* bestDot is cos(angle): a larger dot means a smaller angle. Strict `<`,
+     not `<=`: a band that can only EQUAL the current best may still hold a
+     lower-indexed cell, and the tie-break prefers it. */
+  return Math.cos(Math.min(Math.PI, dLat)) < bestDot;
 }
 
 /** Stable palette from the category id; adjacent ids do not interpolate. */

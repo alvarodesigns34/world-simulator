@@ -20,7 +20,37 @@ export interface ScientificFieldDescriptor {
   readonly interpolation: 'linear' | 'nearest' | 'mode' | 'vector';
   readonly categories?: Readonly<Record<number, string>>;
   readonly formatter?: (value: number) => string;
+  /**
+   * The `FieldStore` field this visualises, when the descriptor id differs
+   * from it (T-0098).
+   *
+   * M12's acceptance is "every registered field is visualisable". Checking that
+   * by comparing LIST LENGTHS passes trivially and means nothing: the registry
+   * and the descriptor set were both 32 and shared only 23 ids. Nine registered
+   * fields had no descriptor and nine descriptors were derived views.
+   *
+   * `source` is what lets a coverage test compare the two structures instead of
+   * their sizes. A vector descriptor lists both component fields.
+   */
+  readonly source?: readonly string[];
+  /**
+   * True for a view computed from world state that is not itself a registered
+   * field — a legitimate thing to offer, but not evidence of registry coverage.
+   */
+  readonly derived?: true;
 }
+
+/**
+ * Registered fields deliberately without a scientific descriptor.
+ *
+ * Each entry is a decision, not an omission, and the coverage test reads this
+ * list rather than a count.
+ */
+export const SCIENTIFIC_EXCLUSIONS: Readonly<Record<string, string>> = Object.freeze({
+  rotationAngle: 'A single-cell presentation counter for the planet spin debug '
+    + 'readout, stored on a cube grid only because the FieldStore has no scalar '
+    + 'kind. There is no spatial field here to visualise.',
+});
 
 export interface ScientificFieldView {
   readonly descriptor: ScientificFieldDescriptor;
@@ -39,31 +69,37 @@ export const SCIENTIFIC_FIELDS: readonly ScientificFieldDescriptor[] = [
   f({ id: 'crustThickness', label: 'Crust thickness', subsystem: 'geology', units: 'km', kind: 'continuous', grid: 'cubesphere', domain: [0, 80], ramp: 'magma', interpolation: 'linear' }),
   f({ id: 'crustAge', label: 'Crust age', subsystem: 'geology', units: 'Myr', kind: 'continuous', grid: 'cubesphere', domain: [0, 400], ramp: 'age', interpolation: 'linear' }),
   f({ id: 'uplift', label: 'Uplift', subsystem: 'geology', units: 'm', kind: 'continuous', grid: 'cubesphere', domain: [0, 9000], ramp: 'magma', interpolation: 'linear' }),
-  f({ id: 'volcanism', label: 'Volcanic activity', subsystem: 'geology', units: 'relative', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'magma', interpolation: 'linear' }),
-  f({ id: 'geologicStress', label: 'Crustal stress', subsystem: 'geology', units: 'relative', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'magma', interpolation: 'linear' }),
+  f({ id: 'volcanism', label: 'Volcanic activity', subsystem: 'geology', units: 'relative', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'magma', interpolation: 'linear' , derived: true }),
+  f({ id: 'geologicStress', label: 'Crustal stress', subsystem: 'geology', units: 'relative', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'magma', interpolation: 'linear' , derived: true }),
   f({ id: 'temperature', label: 'Surface temperature', subsystem: 'climate', units: 'K', kind: 'continuous', grid: 'geodesic', domain: [220, 320], ramp: 'temperature', interpolation: 'linear' }),
   f({ id: 'precip', label: 'Precipitation', subsystem: 'climate', units: 'kg/m²/s', kind: 'continuous', grid: 'geodesic', domain: [0, 3e-7], ramp: 'water', interpolation: 'linear' }),
   f({ id: 'humidity', label: 'Specific humidity', subsystem: 'climate', units: 'kg/kg', kind: 'continuous', grid: 'geodesic', domain: [0, 0.03], ramp: 'water', interpolation: 'linear' }),
-  f({ id: 'wind', label: 'Wind', subsystem: 'climate', units: 'm/s', kind: 'vector', grid: 'geodesic', domain: [0, 100], ramp: 'wind', interpolation: 'vector' }),
+  f({ id: 'wind', label: 'Wind', subsystem: 'climate', units: 'm/s', kind: 'vector', grid: 'geodesic', domain: [0, 100], ramp: 'wind', interpolation: 'vector', source: ['windU', 'windV'] }),
   f({ id: 'ice', label: 'Sea ice', subsystem: 'climate', units: 'fraction', kind: 'continuous', grid: 'geodesic', domain: [0, 1], ramp: 'ice', interpolation: 'linear' }),
   f({ id: 'soilMoisture', label: 'Soil moisture', subsystem: 'hydrology', units: 'm', kind: 'continuous', grid: 'cubesphere', domain: [0, 0.35], ramp: 'water', interpolation: 'linear' }),
   f({ id: 'runoff', label: 'Runoff', subsystem: 'hydrology', units: 'm/s', kind: 'continuous', grid: 'cubesphere', domain: [0, 1e-5], ramp: 'water', interpolation: 'linear' }),
   f({ id: 'riverDischarge', label: 'River discharge', subsystem: 'hydrology', units: 'm³/s', kind: 'continuous', grid: 'cubesphere', domain: [0, 1e6], ramp: 'water', interpolation: 'linear' }),
-  f({ id: 'basin', label: 'Drainage basin', subsystem: 'hydrology', units: 'id', kind: 'categorical', grid: 'cubesphere', domain: [-1, 32767], ramp: 'categories', interpolation: 'nearest' }),
+  f({ id: 'basin', label: 'Drainage basin', subsystem: 'hydrology', units: 'id', kind: 'categorical', grid: 'cubesphere', domain: [-1, 32767], ramp: 'categories', interpolation: 'nearest', source: ['basinId'] }),
   f({ id: 'snowpack', label: 'Snow water equivalent', subsystem: 'hydrology', units: 'm', kind: 'continuous', grid: 'cubesphere', domain: [0, 10], ramp: 'ice', interpolation: 'linear' }),
   f({ id: 'glacier', label: 'Glacier thickness', subsystem: 'hydrology', units: 'm', kind: 'continuous', grid: 'cubesphere', domain: [0, 5000], ramp: 'ice', interpolation: 'linear' }),
-  f({ id: 'seaDepth', label: 'Sea depth', subsystem: 'ocean', units: 'm', kind: 'continuous', grid: 'cubesphere', domain: [0, 11000], ramp: 'depth', interpolation: 'linear' }),
+  f({ id: 'seaDepth', label: 'Sea depth', subsystem: 'ocean', units: 'm', kind: 'continuous', grid: 'cubesphere', domain: [0, 11000], ramp: 'depth', interpolation: 'linear', source: ['waterDepth'] }),
   f({ id: 'biome', label: 'Biome', subsystem: 'biosphere', units: 'class', kind: 'categorical', grid: 'cubesphere', domain: [0, 15], ramp: 'biomes', interpolation: 'nearest' }),
   f({ id: 'npp', label: 'Net primary productivity', subsystem: 'biosphere', units: 'kg/m²/yr', kind: 'continuous', grid: 'cubesphere', domain: [0, 20], ramp: 'vegetation', interpolation: 'linear' }),
-  f({ id: 'biomass', label: 'Biomass', subsystem: 'biosphere', units: 'kg/m²', kind: 'continuous', grid: 'cubesphere', domain: [0, 50], ramp: 'vegetation', interpolation: 'linear' }),
+  f({ id: 'biomass', label: 'Biomass', subsystem: 'biosphere', units: 'kg/m²', kind: 'continuous', grid: 'cubesphere', domain: [0, 50], ramp: 'vegetation', interpolation: 'linear' , derived: true }),
   f({ id: 'vegetation', label: 'Vegetation density', subsystem: 'biosphere', units: 'fraction', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'vegetation', interpolation: 'linear' }),
   f({ id: 'habitability', label: 'Habitability', subsystem: 'civilisation', units: 'fraction', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'habitability', interpolation: 'linear' }),
   f({ id: 'settlementPop', label: 'Population density', subsystem: 'civilisation', units: 'people/cell', kind: 'continuous', grid: 'cubesphere', domain: [0, 4e6], ramp: 'population', interpolation: 'linear' }),
   f({ id: 'territory', label: 'Territory', subsystem: 'civilisation', units: 'polity', kind: 'categorical', grid: 'cubesphere', domain: [-1, 32767], ramp: 'categories', interpolation: 'nearest' }),
-  f({ id: 'technology', label: 'Technology', subsystem: 'civilisation', units: 'index', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'technology', interpolation: 'linear' }),
-  f({ id: 'civStress', label: 'Civilisation stress', subsystem: 'civilisation', units: 'relative', kind: 'continuous', grid: 'cubesphere', domain: [0, 4], ramp: 'magma', interpolation: 'linear' }),
+  f({ id: 'technology', label: 'Technology', subsystem: 'civilisation', units: 'index', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'technology', interpolation: 'linear' , derived: true }),
+  f({ id: 'civStress', label: 'Civilisation stress', subsystem: 'civilisation', units: 'relative', kind: 'continuous', grid: 'cubesphere', domain: [0, 4], ramp: 'magma', interpolation: 'linear' , derived: true }),
+  /* T-0098: these four are REGISTERED fields that had no descriptor, so M12's
+     "every registered field is visualisable" was not literally true. */
+  f({ id: 'crustType', label: 'Crust type', subsystem: 'geology', units: 'class', kind: 'categorical', grid: 'cubesphere', domain: [0, 1], ramp: 'categories', interpolation: 'nearest', categories: { 0: 'oceanic', 1: 'continental' } }),
+  f({ id: 'oceanMask', label: 'Ocean mask', subsystem: 'ocean', units: 'bool', kind: 'categorical', grid: 'cubesphere', domain: [0, 1], ramp: 'categories', interpolation: 'nearest', categories: { 0: 'land', 1: 'ocean' } }),
+  f({ id: 'flowAccumulation', label: 'Flow accumulation', subsystem: 'hydrology', units: 'm2', kind: 'continuous', grid: 'cubesphere', domain: [0, 6e14], ramp: 'discharge', interpolation: 'linear' }),
+  f({ id: 'population', label: 'Faunal density', subsystem: 'biosphere', units: 'density', kind: 'continuous', grid: 'cubesphere', domain: [0, 100], ramp: 'population', interpolation: 'linear' }),
   f({ id: 'oreRichness', label: 'Ore richness', subsystem: 'economy', units: 'fraction', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'ore', interpolation: 'linear' }),
-  f({ id: 'landUse', label: 'Land use', subsystem: 'economy', units: 'fraction', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'landuse', interpolation: 'linear' }),
+  f({ id: 'landUse', label: 'Land use', subsystem: 'economy', units: 'fraction', kind: 'continuous', grid: 'cubesphere', domain: [0, 1], ramp: 'landuse', interpolation: 'linear' , derived: true }),
   f({ id: 'pollution', label: 'Pollution', subsystem: 'economy', units: 'relative', kind: 'continuous', grid: 'cubesphere', domain: [0, 5e7], ramp: 'pollution', interpolation: 'linear' }),
 ];
 
@@ -82,6 +118,10 @@ export function scientificField(world: World, id: string): ScientificFieldView {
     case 'crustThickness': return cube(world.geology.crustThicknessKm, world.geology.level);
     case 'crustAge': return cube(world.geology.crustAgeMyr, world.geology.level);
     case 'uplift': return cube(world.geology.upliftM, world.geology.level);
+    case 'crustType': return cube(world.geology.crustType, world.geology.level);
+    case 'oceanMask': return cube(world.ocean.mask, world.geology.level);
+    case 'flowAccumulation': return cube(world.hydrology.contributingAreaM2);
+    case 'population': return cube(world.biosphere.populationDensity, world.biosphere.level);
     case 'volcanism': return cube(world.dynamicGeology.volcanicActivity, world.dynamicGeology.coarse.level);
     case 'geologicStress': return cube(world.dynamicGeology.stress, world.dynamicGeology.coarse.level);
     case 'temperature': return geo(world.climate.T);
@@ -206,6 +246,19 @@ export function importFieldJson(text: string): ScientificFieldView {
     ...(parsed.vectorV === undefined ? {} : { vectorV: Float64Array.from(parsed.vectorV) }) };
 }
 
+/**
+ * Time-series export, CSV.
+ *
+ * EXPORT ONLY, and deliberately so (T-0099). This is a tabular view of recorded
+ * HISTORY — one row per (series, sample) — not a serialisation of a spatial
+ * field, and there is no `importSeriesCsv` because there is nothing coherent to
+ * import into: the rows describe a trajectory the world has already taken, and
+ * writing them back would not reconstruct the state that produced them.
+ *
+ * M12's blanket "export -> import -> identical values" therefore applies to the
+ * two FIELD formats — `ws-scientific-field-v1` and `WS-RASTER-LIKE-1` — and not
+ * to this one. Saying so is more useful than a round-trip that pretends.
+ */
 export function exportSeriesCsv(world: World, ids: readonly string[]): string {
   const rows = ['series,year,seconds,value,units,span'];
   for (const id of ids) {
@@ -216,11 +269,53 @@ export function exportSeriesCsv(world: World, ids: readonly string[]): string {
   return rows.join('\n');
 }
 
-/** Documented raster container: JSON header + exact row-major values; not GeoTIFF. */
+/**
+ * Documented raster container: JSON header + exact row-major values.
+ *
+ * **This is not GeoTIFF**, and the warning is carried inside the payload so a
+ * file that escapes into a GIS workflow says so itself. Real GeoTIFF — with a
+ * CRS, tie points and IFD tags — remains deferred; a tangent-warped cube-sphere
+ * has no standard CRS to declare, which is the actual obstacle rather than the
+ * encoding work.
+ */
 export function exportRasterLike(view: ScientificFieldView): string {
   if (view.descriptor.grid !== 'cubesphere') throw new Error('raster-like export currently supports cube-sphere fields');
   return JSON.stringify({ format: 'WS-RASTER-LIKE-1', warning: 'This is not GeoTIFF.', grid: 'tangent-cubesphere',
     level: view.level, descriptor: view.descriptor, values: Array.from(view.values) });
+}
+
+/**
+ * Read a `WS-RASTER-LIKE-1` container back (T-0099).
+ *
+ * M12's acceptance says "export -> import -> identical values". That held for
+ * the JSON field format and was simply untrue for the raster one, which had no
+ * reader at all. Rather than weaken the claim, the reader exists: values come
+ * back bit-identical because they were written as exact decimal doubles, and
+ * the test asserts identity rather than closeness.
+ */
+export function importRasterLike(text: string): ScientificFieldView {
+  const parsed = JSON.parse(text) as {
+    format?: string; grid?: string; level?: number;
+    descriptor?: ScientificFieldDescriptor; values?: number[];
+  };
+  if (parsed.format !== 'WS-RASTER-LIKE-1') {
+    throw new Error(`expected WS-RASTER-LIKE-1, got '${String(parsed.format ?? 'nothing')}'`);
+  }
+  if (parsed.grid !== 'tangent-cubesphere') {
+    throw new Error(`unsupported raster grid '${String(parsed.grid ?? 'missing')}'`);
+  }
+  if (parsed.descriptor === undefined || parsed.level === undefined || !Array.isArray(parsed.values)) {
+    throw new Error('WS-RASTER-LIKE-1 payload is missing descriptor, level or values');
+  }
+  /* A cube grid has exactly 6 * 4^level cells; a payload of any other length is
+     not the raster it claims to be. */
+  const expected = 6 * 4 ** parsed.level;
+  if (parsed.values.length !== expected) {
+    throw new Error(
+      `WS-RASTER-LIKE-1 at level ${String(parsed.level)} must hold ${String(expected)} `
+      + `cells, got ${String(parsed.values.length)}`);
+  }
+  return { descriptor: parsed.descriptor, level: parsed.level, values: Float64Array.from(parsed.values) };
 }
 
 function polityField(world: World, component: (typeof CIV)[keyof typeof CIV], perCell: boolean): Float64Array {
