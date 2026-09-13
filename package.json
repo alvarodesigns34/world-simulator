@@ -1,0 +1,46 @@
+{
+  "name": "world-simulator",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "pnpm run check:types && pnpm run check:boundaries && pnpm run check:boundaries:selftest && pnpm run check:wgsl",
+    "check:types": "tsc --noEmit && tsc --noEmit -p packages/render/tsconfig.json && tsc --noEmit -p packages/app/tsconfig.json",
+    "check:boundaries": "node tools/check-boundaries.mjs",
+    "check:boundaries:selftest": "node tools/selftest-boundaries.mjs",
+    "check:wgsl": "node tools/check-wgsl.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:determinism": "vitest run -t determinism",
+    "check:sim-standalone": "node tools/check-sim-standalone.mjs",
+    "build": "vite build",
+    "dev": "vite",
+    "bench:patch": "node tools/bench/patch-size.mjs",
+    "bench:transfer": "node tools/bench/transfer.mjs",
+    "bench:profile": "node tools/bench/m1-profile.mjs",
+    "bench:descent": "node tools/bench/descent-trace.mjs",
+    "bench:fieldstore": "node tools/bench/fieldstore-hotpath.mjs",
+    "bench:entitystore": "node tools/bench/entitystore.mjs",
+    "bench:m8": "node tools/bench/m8-civilisation.mjs",
+    "bench:m9": "node tools/bench/m9-city.mjs",
+    "bench:m10": "node tools/bench/m10-economy.mjs"
+    ,"stress:m11": "vitest run packages/sim/test/timeline.stress.test.ts --reporter=verbose"
+    ,"test:replay": "vitest run packages/sim/test/timeline.test.ts -t replay"
+    ,"test:save-roundtrip": "vitest run packages/sim/test/timeline.test.ts -t round-trip"
+    ,"test:save-migration": "vitest run packages/sim/test/timeline.test.ts -t migrates"
+    ,"test:m12-visualiser": "vitest run packages/sim/test/scientific-visualisation.test.ts"
+    ,"test:m13-cinematic": "vitest run packages/render/test/cinematic.test.ts"
+    ,"diagnose:integration": "vitest run packages/sim/test/consolidation-diagnostics.test.ts --reporter=verbose"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.72",
+    "typescript": "~5.9.0",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.0",
+    "wgsl_reflect": "^1.6.0"
+  }
+}
