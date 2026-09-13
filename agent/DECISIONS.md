@@ -3003,3 +3003,66 @@ navigable coastal land cells, and rail has a stricter gradient gate. Sea lanes a
 abstract port-to-port edges; their endpoints are physical even though global
 ship geometry is intentionally deferred. Neither route geometry nor render caches
 becomes authoritative world state.
+
+---
+
+## DEC-050 — `World.digest()` is a continuation digest
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Simulation Architect)
+**Supersedes the implicit scope of:** DEC-040 (T-0082).
+
+### Context
+
+DEC-040 fixed a digest that could not see M5–M7. The same defect returned for
+M9, M10 and the scheduler, which is the second occurrence and therefore a
+process problem rather than an oversight:
+
+- `city/state.ts` describes its authoritative state as "what persistence
+  stores, and what determinism hashes". It was the former and not the latter:
+  `World.digest()` never passed `cities` to `hashWorldState`, and `cityDigest`
+  itself omitted `settlementIndex`, `foundedYear` and `layoutGeneration`.
+- `economyDigest` covered stock, price, extracted, pollution and land use, but
+  not `production`, `consumption` or `imports`. M8 runs in the Civilisation
+  phase, which precedes Economy, so `capacityMultiplier` and
+  `technologyMultiplier` read the PREVIOUS tick's values. Two worlds could
+  therefore share a digest and feed a different number of people on the very
+  next step.
+- Nothing covered `topologyBasis`/`routingBasis`, which decide whether the next
+  step rebuilds the transport graph.
+- Nothing covered the scheduler at all.
+
+### Decision
+
+`World.digest()` answers **"will these two worlds continue identically?"**, not
+"do these two worlds hold the same numbers right now?".
+
+Concretely it folds the physical fields, all authoritative M8/M9/M10 state, and
+the scheduler's state machine — reusing `SchedulerSnapshot`, which is already by
+construction exactly what persistence must restore to continue a world. Reusing
+it means the digest cannot drift from the save format.
+
+There is deliberately **one** digest, not a physical/continuation pair. A second
+digest would be a second thing to choose correctly at every call site, and the
+failure mode of choosing wrong is silent.
+
+Every member of `EconomyState` is classified A (continuation-relevant),
+B (diagnostic), C (derived), or D (scratch), and the classification is written
+down in `economyDigest`'s own docstring rather than in a document that can rot.
+
+### Consequences
+
+- Two worlds with identical arrays but different cadence, due time, regime or
+  tick now produce different digests. That is the point: the next thing each
+  computes is different.
+- `loadSnapshot` verification is strictly stronger — it now catches a scheduler
+  restore that silently loses a slot's `coveredThrough`. All existing
+  save/replay tests still pass, which is evidence the restore was already
+  faithful.
+- Derived city geometry is still excluded, and a test builds a full
+  600k-building layout and requires the digest not to move. DEC-043 stands.
+- **The classification is enforced structurally**: a test enumerates the live
+  `EconomyState` and fails if any member is neither hashed nor explicitly
+  excluded. Adding a field without deciding is now a test failure, which is the
+  only thing that stops this recurring a third time.

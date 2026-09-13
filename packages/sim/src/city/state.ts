@@ -311,12 +311,21 @@ export function cityDigest(s: CityState): number {
     x = Math.imul(x ^ (x >>> 16), 0x7feb352d) >>> 0;
     return (x ^ (x >>> 15)) >>> 0;
   };
+  /* EVERY authoritative field, in declaration order. T-0094: this previously
+     omitted `settlementIndex`, `foundedYear` and `layoutGeneration`, all three
+     of which change how the city evolves or which layout it regenerates — and
+     the whole digest was not reachable from `World.digest()` at all. */
   let h = mix(0x9e3779b1, s.id);
+  h = mix(h, s.settlementIndex);
   h = mix(h, s.cell);
+  h = mix(h, Math.round(s.foundedYear * 1e3));
   h = mix(h, s.era);
   h = mix(h, Math.round(s.population * 1e3));
   h = mix(h, Math.round(s.radiusM * 1e3));
   h = mix(h, Math.round(s.technology * 1e6));
+  /* The layout cache keys on this, so two cities agreeing on everything else
+     but differing here regenerate different geometry on the next request. */
+  h = mix(h, s.layoutGeneration);
   h = mix(h, s.districts.length);
   for (const d of s.districts) {
     h = mix(h, d.kind);

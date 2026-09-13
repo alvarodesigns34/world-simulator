@@ -260,6 +260,15 @@ export function citiesDigest(r: CityRegistry): number {
   h = mix(h, r.cities.length);
   h = mix(h, r.promotedTotal);
   h = mix(h, r.demotedTotal);
+  /* Which settlement id the NEXT promotion gets, and the settlement->city map
+     that decides whether a settlement is promoted at all. Both steer the next
+     tick; neither was covered. `cacheBytes` and `generatedTotal` are cache
+     bookkeeping and deliberately are not. */
+  h = mix(h, r.nextCityId);
+  for (let i = 0; i < r.settlementToCity.length; i++) {
+    const v = r.settlementToCity[i] as number;
+    if (v >= 0) { h = mix(h, i); h = mix(h, v); }
+  }
   for (const c of r.cities) h = mix(h, cityDigest(c));
   return h >>> 0;
 }

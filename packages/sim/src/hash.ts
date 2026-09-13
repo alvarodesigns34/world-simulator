@@ -29,6 +29,28 @@
  * rounding, which keeps the digest stable under legitimate reassociation
  * (worker partitioning) while staying sensitive to real divergence.
  *
+ * WHAT THIS DIGEST MEANS (T-0094, DEC-050).
+ *
+ * It is a CONTINUATION digest: it covers everything that determines how the
+ * world evolves from here, not merely what its numbers are right now.
+ *
+ * That distinction is not academic. Two worlds can hold identical physical
+ * arrays and still be different worlds — if one's climate subsystem is due in
+ * an hour and the other's in a century, or if one is in the paleo regime and
+ * the other synoptic, the next thing each computes is different. A digest that
+ * called those equal would be answering a question nobody asks: both of its
+ * consumers, the determinism gate and save/replay verification, want to know
+ * "will these two continue identically?"
+ *
+ * So the scheduler's state machine is folded alongside the fields, reusing
+ * `SchedulerSnapshot` — which is already, by construction, exactly what
+ * persistence must restore to continue a world. Reusing it means the digest
+ * cannot drift from the save format.
+ *
+ * There is deliberately ONE digest rather than a physical/continuation pair.
+ * A second digest would be a second thing to pick correctly at each call site,
+ * and the failure mode of picking wrong is silent.
+ *
  * Not a cryptographic hash.
  */
 
@@ -41,6 +63,8 @@ import type { BiosphereState } from './biosphere/system.js';
 import type { OceanState } from './ocean/sea.js';
 import type { CivilisationState } from './civilisation/system.js';
 import { economyDigest, type EconomyState } from './economy/system.js';
+import { citiesDigest, type CityRegistry } from './city/system.js';
+import type { SchedulerSnapshot } from './scheduler/scheduler.js';
 
 /* ---- 32-bit folding primitives -------------------------------------- */
 
@@ -278,8 +302,58 @@ export interface WorldHashInput {
   readonly ocean?: OceanState;
   readonly civilisation?: CivilisationState;
   readonly economy?: EconomyState;
+  /** M9 authoritative city state (not layouts — those are derived). */
+  readonly cities?: CityRegistry;
+  /**
+   * The scheduler's continuation state.
+   *
+   * Two worlds whose physical arrays agree but whose next due time, cadence or
+   * regime differ are NOT the same reproducible world: the next thing each will
+   * compute is different. See the header note on what this digest means.
+   */
+  readonly scheduler?: SchedulerSnapshot;
   readonly seaLevel: number;
   readonly time: SimTime;
+}
+
+/**
+ * Fold the scheduler's state machine.
+ *
+ * `SchedulerSnapshot` is already exactly the set of things persistence has to
+ * restore to continue a world, which makes it the right definition of
+ * continuation state — this reuses it rather than inventing a second one that
+ * could drift from it.
+ */
+function foldScheduler(h: number, s: SchedulerSnapshot): number {
+  let acc = mix(mix(h, s.tick), s.state === 'running' ? 1 : s.state === 'paused' ? 2 : 3);
+  acc = foldScalar(acc, s.time.seconds, 1e-6);
+  acc = mix(acc, s.time.year);
+  acc = mix(acc, s.slots.length);
+  for (const slot of s.slots) {
+    /* Subsystem id as a string fold: the slot ORDER is the resolved dependency
+       order, so a reordering is itself a difference worth catching. */
+    for (let i = 0; i < slot.id.length; i++) acc = mix(acc, slot.id.charCodeAt(i));
+    const c = slot.cadence;
+    acc = mix(acc, c.kind === 'every' ? 1 : c.kind === 'everyNOf' ? 2 : 3);
+    if (c.kind === 'every') acc = foldScalar(acc, c.dt as unknown as number, 1e-6);
+    if (c.kind === 'everyNOf') {
+      acc = mix(acc, c.n);
+      const of = c.of as unknown as string;
+      for (let i = 0; i < of.length; i++) acc = mix(acc, of.charCodeAt(i));
+    }
+    acc = mix(acc, slot.due.year);
+    acc = foldScalar(acc, slot.due.seconds, 1e-6);
+    acc = mix(acc, slot.steps);
+    acc = foldScalar(acc, slot.lastDt as unknown as number, 1e-6);
+    acc = mix(acc, slot.lastRun === null ? 0 : 1);
+    if (slot.lastRun !== null) {
+      acc = mix(acc, slot.lastRun.year);
+      acc = foldScalar(acc, slot.lastRun.seconds, 1e-6);
+    }
+    acc = mix(acc, slot.coveredThrough.year);
+    acc = foldScalar(acc, slot.coveredThrough.seconds, 1e-6);
+  }
+  return acc;
 }
 
 /**
@@ -309,5 +383,10 @@ export function hashWorldState(args: WorldHashInput): number {
   /* M10 folds through its own digest: stocks, prices, cumulative extraction,
      the pollution field, land use and the network topology. */
   h = args.economy !== undefined ? mix(h, economyDigest(args.economy)) : mix(h, 0xc7);
+  /* M9 authoritative city state. `city/state.ts` calls this state "what
+     persistence stores, and what determinism hashes" — it was the former and
+     not the latter until T-0094. Layouts are derived and stay out. */
+  h = args.cities !== undefined ? mix(h, citiesDigest(args.cities)) : mix(h, 0xc8);
+  h = args.scheduler !== undefined ? foldScheduler(h, args.scheduler) : mix(h, 0xc9);
   return h >>> 0;
 }

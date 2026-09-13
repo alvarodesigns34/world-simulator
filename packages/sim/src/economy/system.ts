@@ -763,6 +763,46 @@ export function updateLandUse(e: EconomyState, civ: CivilisationState): void {
   }
 }
 
+/**
+ * Digest of the economy's CONTINUATION state (T-0094).
+ *
+ * The classification below is the substance of this function; the folding is
+ * mechanical. Every member of `EconomyState` is in exactly one class.
+ *
+ * A — AUTHORITATIVE / CONTINUATION-RELEVANT. Read on a later tick, so two
+ *     worlds differing here diverge. All folded.
+ *       stock, price, extracted, landUse, pollution   (already were)
+ *       production, consumption, imports              (were NOT — see below)
+ *       year, topologyBasis, routingBasis, steps      (were NOT)
+ *       network (via networkDigest)
+ *
+ *     `production`, `consumption` and `imports` are the ones that mattered.
+ *     M8 runs in the Civilisation phase, which precedes Economy, so
+ *     `capacityMultiplier` and `technologyMultiplier` read the PREVIOUS tick's
+ *     values; `imports` additionally survives into the next `produce()` as
+ *     available fuel and ore. Two worlds could therefore agree on the old
+ *     digest and feed a different number of people on the very next step.
+ *
+ *     `topologyBasis` and `routingBasis` are a state machine: they decide
+ *     whether the next step rebuilds the transport topology and clears the
+ *     route cache. Same digest, different rebuild, different world.
+ *
+ * B — DIAGNOSTIC. Recomputed from scratch every step before anything reads
+ *     them: totalTrade, totalProduction, worstShortage. Not folded.
+ *
+ * C — DERIVED / REGENERABLE. `resources` is a pure function of geology, the
+ *     biosphere and the seed, refreshed whenever those change; folding it would
+ *     be folding the geology twice. `network.routeCache` is a cache keyed by
+ *     inputs that are themselves folded.
+ *
+ * D — SCRATCH. Fully written before being read within a step, so their value at
+ *     a tick boundary cannot influence anything: energyOutput, emission,
+ *     fuelBurnt, traffic, emissionPerCell, advectScratch. Not folded.
+ *
+ * `level`, `cellCount` and `capacity` are structural constants of the
+ * configuration; they are folded because it is free and a mismatch there means
+ * two incomparable worlds are being compared.
+ */
 export function economyDigest(e: EconomyState): number {
   const mix = (h: number, v: number): number => {
     let x = (h ^ Math.imul(v | 0, 0x9e3779b1)) >>> 0;
@@ -770,6 +810,11 @@ export function economyDigest(e: EconomyState): number {
     return (x ^ (x >>> 15)) >>> 0;
   };
   let h = mix(0x9e3779b1, e.steps);
+  h = mix(h, e.level);
+  h = mix(h, e.cellCount);
+  h = mix(h, e.capacity);
+  h = mix(h, e.topologyBasis);
+  h = mix(h, e.routingBasis);
   h = mix(h, networkDigest(e.network));
   const fold = (a: Float64Array, q: number): void => {
     for (let i = 0; i < a.length; i++) {
@@ -782,8 +827,15 @@ export function economyDigest(e: EconomyState): number {
   };
   fold(e.stock, 1e3);
   fold(e.price, 1e6);
+  fold(e.production, 1e3);
+  fold(e.consumption, 1e3);
+  fold(e.imports, 1e3);
   fold(e.extracted, 1e3);
   fold(e.pollution, 1e6);
   fold(e.landUse, 1e6);
+  /* Simulated years elapsed; a scalar, folded through the same quantiser. */
+  const y = Math.round(e.year * 1e3);
+  h = mix(h, y | 0);
+  h = mix(h, Math.floor(y / 0x100000000) | 0);
   return h >>> 0;
 }

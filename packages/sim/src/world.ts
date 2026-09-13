@@ -402,7 +402,9 @@ export function createWorld(opts: WorldOptions = {}): World {
       advanceDeepTime(world, worldRef, years);
     },
     digest(): number {
-      /* T-0082: every authoritative subsystem, not just geology + climate.
+      /* T-0082 covered M5-M7; T-0094 adds M9 cities, the M10 arrays M8 reads
+         from the previous tick, and the scheduler's own state machine. This is
+         a CONTINUATION digest — see the note at the top of hash.ts.
          O(total state) — a checkpoint operation, never on the tick path. */
       return hashWorldState({
         seed,
@@ -414,6 +416,8 @@ export function createWorld(opts: WorldOptions = {}): World {
         ocean: worldRef.ocean,
         civilisation: worldRef.civilisation,
         economy: worldRef.economy,
+        cities: worldRef.cities,
+        scheduler: scheduler.snapshot(),
         seaLevel: ocean.seaLevel,
         time: scheduler.time,
       });
