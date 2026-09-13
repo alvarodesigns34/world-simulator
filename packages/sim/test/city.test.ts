@@ -325,7 +325,8 @@ describe('M9 in the world', () => {
     expect(la.nodeCount).toBe(lb.nodeCount);
     expect(la.edgeCount).toBe(lb.edgeCount);
     expect(Array.from(la.nodeXY.slice(0, 2000))).toEqual(Array.from(lb.nodeXY.slice(0, 2000)));
-  });
+    /* Builds two complete worlds and evolves each through 400 kyr. */
+  }, 30000);
 });
 
 describe('M9 district composition reflects the society', () => {

@@ -2782,3 +2782,115 @@ An M8 settlement is a POLITY. Its city population is
 - Bridging is a technology consequence too: `maxBridgeSpanM` runs from 25 m to
   ~1.4 km, so a bronze-age town stops at a river an industrial city crosses.
   Tested both ways on the same river.
+
+---
+
+## DEC-045 — Trade is local arbitrage; there is no global route
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+M10 has to move goods between hundreds of polities, every tick, across time
+scales from a year to a megayear. The obvious implementation is a shortest-path
+solve per commodity per pair.
+
+### Alternatives considered
+
+| Option | Why not |
+| --- | --- |
+| Dijkstra/Floyd–Warshall over the settlement graph | O(N²logN) or O(N³) per tick to answer a question the economy never asks. At 621 polities that is a global solve every year of simulated time. |
+| Per-cell flow routing | Worse: the graph is then the whole raster. |
+| Precomputed all-pairs, invalidated on change | The settlement set changes constantly (founding, collapse, relocation), so "on change" is "most ticks". |
+| Local arbitrage on a sparse graph | Chosen. |
+
+### Decision
+
+Goods move along an edge when the price gap between its ends exceeds the cost
+of carrying them, iterated a few passes per tick. Spatial equilibrium emerges
+from repeated local exchange — the same equilibrium a global optimiser finds,
+reached the way real markets reach it, at O(edges) with no path ever computed.
+Long-distance trade is a CHAIN of local exchanges, which is also how it
+historically worked.
+
+Paths are computed for exactly one thing: deciding where to build. That is a
+topology question, it changes only when the settlement set does, and it is
+answered by neighbour adjacency (one O(cells) sweep of the claim raster) plus a
+coastal ring — never per tick and never per commodity.
+
+### Consequences
+
+- The graph is SPARSE: 621 polities give 1 485 edges, linear not quadratic.
+  Measured step cost at the default configuration is **3.06 ms p95**, 15% of
+  the 20 ms budget (`tools/bench/m10-economy.out.md`).
+- Transport cost is the whole mechanism, so it must be commensurate with the
+  price scale. It was not initially: a 500 km cart journey cost 4.0 against
+  goods priced near 1, so no pair of prices in the model's own bounded range
+  could ever justify a shipment and total trade over 1 000 simulated years was
+  exactly zero. Costs are now calibrated in the same units as prices, and
+  per-commodity value density (`BULK`) is what makes stone stay home while
+  manufactured goods cross continents.
+- Infrastructure is hysteretic authoritative state: a road built stays built.
+  That is why old empires leave roads behind and why the network does not
+  flicker with every price wobble.
+
+---
+
+## DEC-046 — Economic quantities are defined relative to the simulation, not in
+absolute units
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Author:** Opus 5 (Principal Architect)
+
+### Context
+
+M10's first implementation priced production per square metre and demand per
+person, with no relation between the two constants. The result was not "slightly
+miscalibrated": food supply was ~650× short and fuel ~8× short, so every polity
+sat in permanent famine, no stock ever accumulated, nothing was ever burnt for
+energy, no pollution was ever emitted, and the entire M10 → M4 coupling was dead
+code that looked like it worked. A later version fixed the scale but left every
+price pinned at the cap, which made all prices EQUAL, which meant no arbitrage
+gap, which meant total trade over 1 000 simulated years of exactly zero.
+
+Each of these was found by a benchmark or a test, not by reading the code. An
+inert economy is very hard to distinguish from a working one by inspection.
+
+### Decision
+
+Nothing in M10 is calibrated against an absolute unit. Three rules:
+
+1. **Food output is M8's carrying capacity**, times per-capita demand, times a
+   surplus over subsistence. They are the same physical fact, so they cannot
+   disagree.
+2. **Every other commodity is scaled by its territory's endowment RELATIVE to
+   the planetary mean.** What drives the model is comparative advantage, so an
+   ore-rich territory exports ore whatever the absolute abundance the geology
+   happens to produce. This is what makes the calibration survive changes to the
+   endowment model.
+3. **Price responds to flow as well as stock.** Stock-only pricing pins every
+   price at the cap whenever stocks are thin; identical prices mean no trade.
+
+### Consequences
+
+- Demand is expressed in food-normalised units, so the coefficients state
+  something checkable: a modern person consumes about as much energy as food and
+  rather less in manufactured goods.
+- The `ABUNDANCE` constant is 8, not the ~1.15 an average territory implies. The
+  gap is an emergent result worth stating: polities settle where the FARMLAND
+  is — flat, low, well watered — while ore sits on convergent margins and old
+  shield, which M8's habitability rates poorly. Settled land is systematically
+  ore-poor, and the constant absorbs that real anti-correlation.
+- Food prices come out UNIFORM across polities at equilibrium. That is also a
+  real result, not a defect: M8 drives every population to its own carrying
+  capacity, so every polity has the same food per head and there is no gap to
+  arbitrage. Dispersion appears only away from equilibrium. The traded
+  commodities are the ones whose supply is set by the ground rather than by the
+  population.
+- Measured over 1 000 years: production settles at 1.03e11 and moves <0.01%,
+  trade runs at ~1.8e8 units/step, ore prices span 1.68–9.01 and goods
+  3.81–12.00 across polities, and pollution reaches an emission/deposition
+  balance rather than accumulating without limit.

@@ -251,11 +251,28 @@ function reachCells(population: number, tech: number): number {
   return Math.min(64, 1 + Math.sqrt(Math.max(0, population) / 2000) * (1 + 3 * tech));
 }
 
+/**
+ * What M10 does back to M8.
+ *
+ * Passed in rather than read out, so the dependency runs one way: civilisation
+ * does not import the economy, it accepts a forcing. Both arrays are indexed by
+ * settlement slot and default to 1 when absent, so M8 runs correctly on its own
+ * — which is what makes the economy's contribution testable by comparing a run
+ * with it against a run without.
+ */
+export interface EconomicForcing {
+  /** Multiplier on carrying capacity: food trade feeds people the land cannot. */
+  readonly capacity?: ArrayLike<number>;
+  /** Multiplier on the technology growth rate: energy and goods per head. */
+  readonly technology?: ArrayLike<number>;
+}
+
 export function stepCivilisation(
   s: CivilisationState,
   h: HydrologyState,
   dtYears: number,
   cfg: CivConfig,
+  forcing: EconomicForcing = {},
 ): void {
   if (!(dtYears > 0) || !Number.isFinite(dtYears)) return;
   const store = s.store;
@@ -290,6 +307,17 @@ export function stepCivilisation(
     growTerritory(s, h, pop, tech, cell);
   }
   accumulateCapacity(s, cap, terr, tech, h);
+  /* Trade is the difference between what the land feeds and what the polity
+     feeds. Applied after the land-based capacity is accumulated, so the base
+     stays a property of the geography. */
+  const capMul = forcing.capacity;
+  if (capMul !== undefined) {
+    for (let i = 0; i < store.bound; i++) {
+      if (!store.aliveAt(i)) continue;
+      const m = capMul[i] as number;
+      if (Number.isFinite(m) && m > 0) cap[i] = (cap[i] as number) * m;
+    }
+  }
 
   /* --- demography, technology, collapse --- */
   let total = 0;
@@ -331,7 +359,8 @@ export function stepCivilisation(
     const surplus = Math.max(0, 1 - load);
     const scale = log10(1 + Math.max(0, p1)) / 6;
     const target = Math.min(1, 0.15 + 0.85 * scale);
-    const rate = 2.5e-4 * surplus * scale;
+    const techMul = forcing.technology !== undefined ? (forcing.technology[i] as number) : 1;
+    const rate = 2.5e-4 * surplus * scale * (Number.isFinite(techMul) && techMul > 0 ? techMul : 1);
     tech[i] = relax(tech[i] as number, target, rate, dtYears);
 
     pop[i] = p1;

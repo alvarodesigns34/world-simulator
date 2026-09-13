@@ -40,6 +40,7 @@ import type { HydrologyState } from './hydrology/system.js';
 import type { BiosphereState } from './biosphere/system.js';
 import type { OceanState } from './ocean/sea.js';
 import type { CivilisationState } from './civilisation/system.js';
+import { economyDigest, type EconomyState } from './economy/system.js';
 
 /* ---- 32-bit folding primitives -------------------------------------- */
 
@@ -275,6 +276,7 @@ export interface WorldHashInput {
   readonly dynamicGeology?: DynamicGeologyState;
   readonly ocean?: OceanState;
   readonly civilisation?: CivilisationState;
+  readonly economy?: EconomyState;
   readonly seaLevel: number;
   readonly time: SimTime;
 }
@@ -303,5 +305,8 @@ export function hashWorldState(args: WorldHashInput): number {
   h = args.biosphere !== undefined ? foldBiosphere(h, args.biosphere) : mix(h, 0xc4);
   h = args.dynamicGeology !== undefined ? foldDynamicGeology(h, args.dynamicGeology) : mix(h, 0xc5);
   h = args.civilisation !== undefined ? foldCivilisation(h, args.civilisation) : mix(h, 0xc6);
+  /* M10 folds through its own digest: stocks, prices, cumulative extraction,
+     the pollution field, land use and the network topology. */
+  h = args.economy !== undefined ? mix(h, economyDigest(args.economy)) : mix(h, 0xc7);
   return h >>> 0;
 }

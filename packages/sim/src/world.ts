@@ -19,6 +19,7 @@ import {
 } from '@ws/core';
 import {
   FieldStore,
+  cubeDim,
   fieldId,
   gridId,
   subsystemId,
@@ -74,6 +75,20 @@ import {
   stepCities,
   type CityRegistry,
 } from './city/index.js';
+import { mapGeoToCube } from './coupling.js';
+import {
+  COMMODITY,
+  advectPollution,
+  capacityMultiplier,
+  initEconomy,
+  initNetwork,
+  initResources,
+  refreshEconomyResources,
+  stepEconomy,
+  technologyMultiplier,
+  updateLandUse,
+  type EconomyState,
+} from './economy/index.js';
 import { TileCache } from './tiles/cache.js';
 import { MemoryTileStore } from './tiles/storage.js';
 
@@ -84,6 +99,7 @@ export const OWNER_CLIMATE = subsystemId('climate');
 export const OWNER_ROTATION = subsystemId('planetRotation');
 export const OWNER_HYDROLOGY = subsystemId('hydrology');
 export const OWNER_BIOSPHERE = subsystemId('biosphere');
+export const OWNER_ECONOMY = subsystemId('economy');
 
 export const FID = {
   elevation: fieldId('elevation'),
@@ -114,6 +130,8 @@ export const FID = {
   npp: fieldId('npp'),
   population: fieldId('population'),
   habitability: fieldId('habitability'),
+  pollution: fieldId('pollution'),
+  oreRichness: fieldId('oreRichness'),
   settlementPop: fieldId('settlementPop'),
   territory: fieldId('territory'),
 } as const;
@@ -146,6 +164,7 @@ export interface World {
   readonly civilisation: CivilisationState;
   readonly habitability: HabitabilityState;
   readonly cities: CityRegistry;
+  readonly economy: EconomyState;
   readonly tiles: TileCache;
   readonly commands: CommandLog;
   readonly terrainLevel: number;
@@ -168,6 +187,12 @@ interface WorldRuntimeRef {
   habitability: HabitabilityState;
   civConfig: CivConfig;
   cities: CityRegistry;
+  economy: EconomyState;
+  /** Reusable per-settlement forcing buffers; sized once, never per tick. */
+  capMul: Float64Array;
+  techMul: Float64Array;
+  /** Wind resampled onto the economy grid, for pollution advection (T-0080). */
+  windOnCube: { u: Float64Array; v: Float64Array };
 }
 
 const DEFAULT_SEED = makeSeed(0x51a5, 0x1a51);
@@ -207,6 +232,9 @@ export function createWorld(opts: WorldOptions = {}): World {
   const civConfig: CivConfig = { seed, ...opts.civilisation };
   const civilisation = initCivilisation(hydrology, biosphere, habitability, civConfig);
   const cities = initCityRegistry(seed, civilisation.store.capacity);
+  const resources = initResources(hydrology);
+  const economy = initEconomy(civilisation, resources, initNetwork(civilisation.store.capacity));
+  refreshEconomyResources(economy, geology, hydrology, biosphere, { seed });
 
   const cubeGrid = gridId('cubesphere', terrainLevel);
   const geoGrid = gridId('geodesic', climateN);
@@ -243,6 +271,8 @@ export function createWorld(opts: WorldOptions = {}): World {
     .declare(f32(FID.habitability, hydroGrid, OWNER_CIVILISATION, 'frac', [0, 1], 'slow'))
     .declare(f32(FID.settlementPop, hydroGrid, OWNER_CIVILISATION, 'people', [0, 5e7], 'slow'))
     .declare(i16(FID.territory, hydroGrid, OWNER_CIVILISATION, 'id', [-1, 32767], 'slow'))
+    .declare(f32(FID.pollution, hydroGrid, OWNER_ECONOMY, 'rel', [0, 1e6], 'slow'))
+    .declare(f32(FID.oreRichness, hydroGrid, OWNER_ECONOMY, 'frac', [0, 1], 'slow'))
     .seal();
 
   publishGeology(store, geology, ocean);
@@ -250,6 +280,7 @@ export function createWorld(opts: WorldOptions = {}): World {
   publishHydrology(store, hydrology);
   publishBiosphere(store, biosphere);
   publishCivilisation(store, civilisation);
+  publishEconomy(store, economy);
 
   const tiles = new TileCache({ storage: opts.tileStorage ?? new MemoryTileStore(), capacity: 2048 });
   const commands = createCommandLog();
@@ -266,6 +297,13 @@ export function createWorld(opts: WorldOptions = {}): World {
     habitability,
     civConfig,
     cities,
+    economy,
+    capMul: new Float64Array(civilisation.store.capacity).fill(1),
+    techMul: new Float64Array(civilisation.store.capacity).fill(1),
+    windOnCube: {
+      u: new Float64Array(hydrology.cellCount),
+      v: new Float64Array(hydrology.cellCount),
+    },
   };
 
   const scheduler = new Scheduler({
@@ -274,12 +312,13 @@ export function createWorld(opts: WorldOptions = {}): World {
     store,
     maxStepsPerAdvance: 8192,
   })
-    .register(makeGeology(store, worldRef, calendar))
+    .register(makeGeology(store, worldRef, calendar, seed))
     .register(makeHydrology(store, worldRef, calendar))
     .register(makeClimate(store, worldRef, orbit, calendar))
     .register(makeOcean(store, worldRef))
     .register(makeBiosphere(store, worldRef, calendar))
     .register(makeCivilisation(store, worldRef, calendar))
+    .register(makeEconomy(store, worldRef, calendar))
     .register(makeRotation(store))
     .build();
 
@@ -297,6 +336,7 @@ export function createWorld(opts: WorldOptions = {}): World {
     civilisation,
     habitability,
     cities,
+    economy,
     tiles,
     commands,
     terrainLevel,
@@ -328,6 +368,7 @@ export function createWorld(opts: WorldOptions = {}): World {
         dynamicGeology: worldRef.dynamicGeology,
         ocean: worldRef.ocean,
         civilisation: worldRef.civilisation,
+        economy: worldRef.economy,
         seaLevel: ocean.seaLevel,
         time: scheduler.time,
       });
@@ -400,6 +441,7 @@ function transitionRegime(world: World, ref: WorldRuntimeRef, regime: Regime): v
     : regime === 'climatology' ? duration(10 * y)
     : duration(500 * y);
   world.scheduler.setCadence(OWNER_CIVILISATION, { kind: 'every', dt: civDt });
+  world.scheduler.setCadence(OWNER_ECONOMY, { kind: 'every', dt: civDt });
   ref.civilisation.detail = regime === 'paleo' ? 'aggregate' : 'full';
   world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: climateDt });
   resumeClimate(ref.climate);
@@ -477,7 +519,7 @@ function fillF32(store: FieldStore, id: FieldId, owner: SubsystemId, src: ArrayL
   f.commit();
 }
 
-function makeGeology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar): Subsystem {
+function makeGeology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar, seed: Seed): Subsystem {
   return {
     id: OWNER_GEOLOGY,
     phase: 'Geology',
@@ -508,6 +550,9 @@ function makeGeology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calendar
          instead of a parallel world with its own opinions. */
       refreshHabitability(ref.habitability, ref.hydrology, ref.biosphere);
       rebuildSiteIndex(ref.civilisation, ref.civConfig);
+      /* What is in the ground changed, so what the ground is worth changed.
+         Move a plate boundary and the mining regions move with it. */
+      refreshEconomyResources(ref.economy, ref.geology, ref.hydrology, ref.biosphere, { seed });
       publishGeologyFields(store, ref.geology);
     },
   };
@@ -566,7 +611,15 @@ function makeCivilisation(store: FieldStore, ref: WorldRuntimeRef, calendar: Cal
       /* Habitability tracks the biosphere between geological refreshes: a
          drought that kills the NPP must empty the towns, not just the fields. */
       refreshHabitability(ref.habitability, ref.hydrology, ref.biosphere);
-      stepCivilisation(ref.civilisation, ref.hydrology, years, ref.civConfig);
+      /* The economy's arrows back into M8, read from LAST tick's economy —
+         economy runs in a later phase, so this is one-directional and the
+         dependency graph stays acyclic (DEC-031). */
+      for (let i = 0; i < ref.civilisation.store.bound; i++) {
+        ref.capMul[i] = capacityMultiplier(ref.economy, ref.civilisation, i);
+        ref.techMul[i] = technologyMultiplier(ref.economy, ref.civilisation, i);
+      }
+      stepCivilisation(ref.civilisation, ref.hydrology, years, ref.civConfig,
+        { capacity: ref.capMul, technology: ref.techMul });
       /* M9 follows M8 in the same phase and the same tick: a city is what a
          settlement's people do to the ground, so it must never observe a
          population from a different step. No geometry is built here — only
@@ -616,6 +669,46 @@ function publishCivilisation(store: FieldStore, c: CivilisationState): void {
   pop.commit();
   terr.markAllDirty();
   terr.commit();
+}
+
+function makeEconomy(
+  store: FieldStore,
+  ref: WorldRuntimeRef,
+  calendar: Calendar,
+): Subsystem {
+  return {
+    id: OWNER_ECONOMY,
+    phase: 'Economy',
+    cadence: { kind: 'every', dt: duration(calendar.secondsPerYear) },
+    /* Reads the wind it advects pollution with, and the terrain the resource
+       map is built on. Writes only its own fields. */
+    reads: [FID.windU, FID.windV, FID.elevation],
+    writes: [FID.pollution, FID.oreRichness],
+    step: (ctx) => {
+      const years = (ctx.dt as number) / calendar.secondsPerYear;
+      stepEconomy(ref.economy, ref.civilisation, ref.hydrology, years);
+      updateLandUse(ref.economy, ref.civilisation);
+      /* Wind lives on the geodesic climate grid; pollution on the cube. The
+         resample is coordinate-aware (T-0080) — indexing one array with the
+         other's index would blow every plume in an arbitrary direction. */
+      mapGeoToCube(ref.climate.u, ref.climate.grid.n, ref.hydrology.level, ref.windOnCube.u);
+      mapGeoToCube(ref.climate.v, ref.climate.grid.n, ref.hydrology.level, ref.windOnCube.v);
+      advectPollution(ref.economy, ref.windOnCube.u, ref.windOnCube.v, years, cubeDim);
+      publishEconomy(store, ref.economy);
+    },
+  };
+}
+
+function publishEconomy(store: FieldStore, e: EconomyState): void {
+  fillF32(store, FID.pollution, OWNER_ECONOMY, e.pollution);
+  const ore = store.mut(FID.oreRichness, OWNER_ECONOMY);
+  const raw = ore.rawMut() as Float32Array;
+  const N = e.resources.cellCount;
+  const base = COMMODITY.ORE * N;
+  const n = Math.min(raw.length, N);
+  for (let i = 0; i < n; i++) raw[i] = e.resources.endowment[base + i] as number;
+  ore.markAllDirty();
+  ore.commit();
 }
 
 function makeRotation(store: FieldStore): Subsystem {
