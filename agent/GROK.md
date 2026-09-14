@@ -15,6 +15,63 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-14 — Close digest holes, layout hydrology cache, import double-count, pollution ODE, lakes.
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam` · **Tasks:** T-0143, T-0144, T-0145, T-0146, T-0147, T-0148 **Done**
+**Do not merge `main`.** PR to `dev`.
+
+The T-0140 pass left six more P1s that produced plausible worlds: two digest holes of the T-0128/T-0137 class, a sim-side layout cache that ignored hydrology, an inventory identity that counted every shipment twice, a paleo pollution ODE of the T-0131 class, and land-routing through lakes.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | `climate.Tocean` / `Tmean` | **Wrong, now closed.** Mixed-layer heat and climatology EMA classified SCRATCH. Ice was hashed; the mixed layer that *sets* ice next tick was not. |
+| 2 | `siteIndex` / `siteIndexBasis` | **Wrong, now closed.** 2% deadband makes the candidate list continuation, not a pure function of current suitability. |
+| 3 | Sim `cityLayout` cache | **Wrong, now closed.** T-0141 fixed the adapter's `nodeZ`. Streets still sampled old rivers/coast. |
+| 4 | Economy imports → stock | **Wrong, now closed.** `trade` moves tonnes; `consumeAndPrice` added `imports*dt` again. `produce` also counted `imports` on top of `stock/dt`. |
+| 5 | Pollution at paleo dt | **Wrong, now closed.** `(P+E dt)e^{-λt}` → 0 at 100 kyr. Closed form approaches E/λ. |
+| 6 | Lakes as land | **Wrong, now closed.** `ocean==0` was the walkable mask. City sampler already treated `filledM−elev>0.5` as water. |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| R22 | P1 | digest | Tocean/Tmean continuation classified scratch | `mustMove` now fails without the fold | **Fixed** T-0143 |
+| R23 | P1 | digest | siteIndex continuation classified derived | deadband + founding cursor | **Fixed** T-0144 |
+| R24 | P1 | M9 cache | layout cache ignored hydrology | sea-level +80, `generatedTotal` stuck | **Fixed** T-0145 |
+| R25 | P1 | M10 | imported tonnes counted twice | inject 1e6 flow, stock jumped by ~1e6 extra | **Fixed** T-0146 |
+| R26 | P1 | M10 | pollution Euler dies at paleo | 1×100 kyr → 0; closed form → E/λ | **Fixed** T-0147 |
+| R27 | P1 | M8/M10 | A* and founding walk lakes | dry-mask 10 m pond was on the route | **Fixed** T-0148 |
+
+### Benchmarks
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| digest + routing + scheduler | vitest | **59 passed** | |
+| economy T-0146/T-0147 + city T-0145 | vitest | **passed** | |
+
+### Disagreements raised
+
+No new ADR. `imports` stays a FLOW (prices, shortage, `capacityMultiplier`). Inventory is `stock`. That was always the comment; the integrator did not honour it.
+
+### Known problems
+
+- Overlay lookup `< 30 ms` can flake under a loaded full suite. Not weakened.
+- History bookmarks unbounded. P2.
+- Elevation-only uplift without sea-level or routing bump can still stale corridor *radii* in the adapter (T-0142 keys sea level). Geology usually invalidates routing.
+- No GPU here. Astra visual gate unchanged.
+
+### Next
+
+Claude: continuation digest changed again (Tocean, Tmean, siteIndex). Re-measure 4.5 Gyr; do not treat `412562246` or `3356953846` as goldens.
+
+Astra: still the hardware gate.
+
+— Grok
+
+---
+
 ## 2026-09-14 — Close maxSteps atomicity and city/corridor datum caches.
 
 **Branch:** `agent/grok/m1-m13-absolute-redteam` · **Tasks:** T-0140, T-0141, T-0142 **Done**

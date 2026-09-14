@@ -278,6 +278,20 @@ describe('T-0094 the digest is a CONTINUATION digest', () => {
     });
   }, 60000);
 
+  it('sees climate.Tocean and climate.Tmean', () => {
+    const w = evolved(2);
+    mustMove(w, 'climate.Tocean', () => {
+      const o = w.climate.Tocean[0] as number;
+      w.climate.Tocean[0] = o + 1;
+      return () => { w.climate.Tocean[0] = o; };
+    });
+    mustMove(w, 'climate.Tmean', () => {
+      const o = w.climate.Tmean[0] as number;
+      w.climate.Tmean[0] = o + 1;
+      return () => { w.climate.Tmean[0] = o; };
+    });
+  }, 60000);
+
   it('agrees between a world and its own snapshot round-trip', () => {
     /* The property the whole thing exists for: restoring a save must reproduce
        a world that continues identically, and the digest is what says so. */
@@ -336,6 +350,17 @@ describe('T-0094 M8 civilisation coverage still holds', () => {
       w.civilisation.store.destroy(a);
       return () => { w.civilisation.store.restore(snap); };
     });
+    mustMove(w, 'civ.siteIndex', () => {
+      expect(w.civilisation.siteIndex.length).toBeGreaterThan(0);
+      const o = w.civilisation.siteIndex[0] as number;
+      w.civilisation.siteIndex[0] = o + 1;
+      return () => { w.civilisation.siteIndex[0] = o; };
+    });
+    mustMove(w, 'civ.siteIndexBasis', () => {
+      const o = w.civilisation.siteIndexBasis;
+      w.civilisation.siteIndexBasis = o + 1;
+      return () => { w.civilisation.siteIndexBasis = o; };
+    });
   }, 60000);
 });
 
@@ -344,10 +369,10 @@ describe('T-0137 classifiers name every member', () => {
     const COVERED = new Set([
       'store', 'claim', 'totalPopulation', 'foundedTotal', 'collapsedTotal',
       'relocatedTotal', 'topologyVersion', 'nextCulture', 'steps', 'year',
-      'siteCursor',
+      'siteCursor', 'siteIndex', 'siteIndexBasis',
     ]);
     const DERIVED = new Set([
-      'habitability', 'claimDistance', 'cellAreaM2', 'siteIndex', 'siteIndexBasis',
+      'habitability', 'claimDistance', 'cellAreaM2',
     ]);
     const CONFIG = new Set(['level', 'cellCount', 'detail']);
     const DIAGNOSTIC = new Set(['strainedCount']);
@@ -361,7 +386,7 @@ describe('T-0137 classifiers name every member', () => {
   }, 60000);
 
   it('classifies ClimateState', () => {
-    const COVERED = new Set(['T', 'q', 'u', 'v', 'h', 'precipMean', 'ice', 'regime', 'steps']);
+    const COVERED = new Set(['T', 'q', 'u', 'v', 'h', 'precipMean', 'ice', 'regime', 'steps', 'Tocean', 'Tmean']);
     const GEOMETRY = new Set([
       'n', 'grid', 'lat', 'sinLat', 'cosLat', 'eastX', 'eastY',
       'northX', 'northY', 'northZ', 'gradCoeffE', 'gradCoeffN',
@@ -369,7 +394,7 @@ describe('T-0137 classifiers name every member', () => {
       'areaM2', 'elev', 'ocean',
     ]);
     const SCRATCH = new Set([
-      'precip', 'precipAcc', 'evapAcc', 'Tocean', 'Tmean', 'qsat',
+      'precip', 'precipAcc', 'evapAcc', 'qsat',
       'gradT', 'gradH', 'gradElev', 'edgeFlux', 'outgoing',
       'transportDelta', 'heightDelta',
     ]);

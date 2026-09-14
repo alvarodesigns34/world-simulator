@@ -472,7 +472,6 @@ function produce(
        clean share is a separate term rather than a fudge, because it is what
        eventually decouples growth from emissions. */
     const fuelAvailable = (e.production[at(e, COMMODITY.FUEL, i)] as number)
-      + (e.imports[at(e, COMMODITY.FUEL, i)] as number)
       + (e.stock[at(e, COMMODITY.FUEL, i)] as number) / Math.max(dtYears, 1);
     const wantEnergy = scale * demandPerCapita(COMMODITY.ENERGY, t);
     const perUnit = 3.6 * (0.25 + 0.55 * t);
@@ -491,7 +490,6 @@ function produce(
        substitute coal for iron. */
     const wantGoods = scale * demandPerCapita(COMMODITY.GOODS, t);
     const oreIn = (e.production[at(e, COMMODITY.ORE, i)] as number)
-      + (e.imports[at(e, COMMODITY.ORE, i)] as number)
       + (e.stock[at(e, COMMODITY.ORE, i)] as number) / Math.max(dtYears, 1);
     const labour = P * 0.42 * (0.15 + 2.2 * t);
     e.production[at(e, COMMODITY.GOODS, i)] = Math.max(0, Math.min(
@@ -534,8 +532,12 @@ function consumeAndPrice(
       if (k === COMMODITY.ORE) drain += (e.production[at(e, COMMODITY.GOODS, i)] as number) / 1.1;
       if (k === COMMODITY.FUEL) drain += e.fuelBurnt[i] as number;
 
+      /* Stock is inventory. Trade already moved last tick's shipments into
+         `stock`; adding `imports*dt` here credited the same tonnes twice
+         (T-0146). `imports` remains the FLOW for prices, shortages and
+         `capacityMultiplier`. Production constraints read `stock/dt`. */
       const supply = (e.production[idx] as number) + (e.imports[idx] as number);
-      const net = (supply - drain) * dtYears;
+      const net = (e.production[idx] as number - drain) * dtYears;
       let s = (e.stock[idx] as number) + net;
       /* Energy is not storable; everything else is, and spoils slowly. */
       if (k === COMMODITY.ENERGY) s = Math.max(0, supply - drain) * 0.01;
@@ -646,6 +648,23 @@ export function arbitragePasses(dtYears: number, nodeCount: number): number {
 
 /* ---- pollution and its coupling back to the climate ------------------ */
 
+const POLLUTION_DECAY = 0.03;
+
+/**
+ * Exact step of P' = E − λP over `dt`.
+ *
+ * Path-independent: one interval equals n equal substeps to f64 rounding.
+ * The Euler `(P + E·dt) e^{−λt}` collapses to ~0 at a paleo 100 kyr tick
+ * and never approaches the E/λ equilibrium (T-0147).
+ */
+export function sourceDecayStep(p0: number, rate: number, dt: number, lambda = POLLUTION_DECAY): number {
+  if (!(p0 > 0) && !(rate > 0)) return 0;
+  if (!(dt > 0) || !Number.isFinite(dt)) return Math.max(0, p0);
+  if (!(lambda > 0)) return Math.max(0, p0 + rate * dt);
+  const survive = exp(-lambda * dt);
+  return Math.max(0, p0 * survive + (rate / lambda) * (1 - survive));
+}
+
 /**
  * Emit each polity's combustion into the pollution field, then let it decay.
  *
@@ -668,26 +687,31 @@ function emitPollution(e: EconomyState, civ: CivilisationState, dtYears: number)
    * O(cells) regardless of how many polities exist. */
   const perCell = e.emissionPerCell;
   perCell.fill(0);
+  const seatBonus = e.advectScratch;
+  seatBonus.fill(0);
   for (let i = 0; i < store.bound; i++) {
     if (!store.aliveAt(i)) continue;
-    const emitted = (e.emission[i] as number) * dtYears;
-    if (!(emitted > 0)) continue;
+    const rate = e.emission[i] as number;
+    if (!(rate > 0)) continue;
     /* Half at the seat — industry is where the people are, not spread evenly
-       over an empire — and half across the territory. */
+       over an empire — and half across the territory. Rates, not E·dt: the
+       closed form consumes the annual rate. */
     const seat = cellOf[i] as number;
     if (seat >= 0 && seat < e.cellCount) {
-      e.pollution[seat] = (e.pollution[seat] as number) + emitted * 0.5;
+      seatBonus[seat] = (seatBonus[seat] as number) + rate * 0.5;
     }
-    perCell[i] = (emitted * 0.5) / Math.max(1, terr[i] as number);
+    perCell[i] = (rate * 0.5) / Math.max(1, terr[i] as number);
   }
 
-  const survive = exp(-dtYears * 0.03);
   for (let c = 0; c < e.cellCount; c++) {
     const owner = civ.claim[c] as number;
-    const add = owner >= 0 && owner < perCell.length && store.aliveAt(owner)
+    const territorial = owner >= 0 && owner < perCell.length && store.aliveAt(owner)
       ? (perCell[owner] as number) : 0;
-    /* Deposition and chemical loss, exponential so it is dt-exact. */
-    e.pollution[c] = ((e.pollution[c] as number) + add) * survive;
+    e.pollution[c] = sourceDecayStep(
+      e.pollution[c] as number,
+      territorial + (seatBonus[c] as number),
+      dtYears,
+    );
   }
 }
 
@@ -811,9 +835,11 @@ export function updateLandUse(e: EconomyState, civ: CivilisationState): void {
  *     `production`, `consumption` and `imports` are the ones that mattered.
  *     M8 runs in the Civilisation phase, which precedes Economy, so
  *     `capacityMultiplier` and `technologyMultiplier` read the PREVIOUS tick's
- *     values; `imports` additionally survives into the next `produce()` as
- *     available fuel and ore. Two worlds could therefore agree on the old
- *     digest and feed a different number of people on the very next step.
+ *     values. `imports` is the trade FLOW (units/year) that prices, shortages
+ *     and carrying capacity read; the tonnes themselves live in `stock`,
+ *     because `trade` already moved them. Folding `imports` still matters:
+ *     two worlds with the same stock and different last-tick flows feed a
+ *     different number of people next civilisation step.
  *
  *     `topologyBasis` and `routingBasis` are a state machine: they decide
  *     whether the next step rebuilds the transport topology and clears the

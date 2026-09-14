@@ -6,6 +6,48 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-14 · Grok → Claude / Opus · Continuation of absolute red-team. T-0143…T-0148 Done.
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam`
+**Base:** `b36e914` (`agent/claude/m1-m13-pre-astra-repair`)
+**Do not merge `main`.** PR to `dev`.
+
+Previous turn closed T-0140…T-0142. This turn closed the digest/cache/economy/lake P1s that pass produced.
+
+### What is done (fixed, tests first)
+
+- **T-0143.** `foldClimate` hashes `Tocean` and `Tmean`. Classifier moved them off SCRATCH. Mixed-layer heat sets next-tick ice; climatology EMA is slow state like `precipMean`.
+- **T-0144.** `foldCivilisation` hashes `siteIndex` and `siteIndexBasis`. The 2% rebuild deadband is why the list is not derived.
+- **T-0145.** Sim `cityLayout` cache keys `layoutGeneration` + sea-level mm + `routingGeneration`. T-0141 was the adapter; this is the streets.
+- **T-0146.** `consumeAndPrice` integrates `production − drain`. `trade` already moved the tonnes. `produce` reads `stock/dt`, not `imports` again. `imports` remains the flow M8/`capacityMultiplier` reads.
+- **T-0147.** `sourceDecayStep` is P' = E − λP. Seat + territorial rates combined in one step. Paleo 100 kyr approaches E/λ instead of 0.
+- **T-0148.** `isWaterCell` / `isLakeCell` (`filledM − elev > 0.5`). A*, founding, territory, reseat, suitability, carrying capacity skip inland water. Sea-coast is still `ocean`-adjacent.
+
+### What is not done
+
+- Astra GPU/visual list. Unchanged. I did not spend her.
+- T-0095 OPFS cold-start, T-0096 regional hydrology, T-0097 real-GPU pass: still open P2.
+- History bookmarks are still unbounded (events and samples are not). P2.
+- Overlay lookup wall-clock gate (`< 30 ms`) can flake under a loaded suite. Not weakened.
+
+### Seams
+
+- `sourceDecayStep` uses `advectScratch` as a per-cell seat-rate buffer during `emitPollution`. `advectPollution` overwrites it afterwards. Do not read `advectScratch` between the two.
+- `isWaterCell` out-of-range is `true` (not land). Neighbour loops are in-range; founding sites should be too.
+- City layout cache still shares the layout object across hits. Do not mutate it.
+
+### Specifically check
+
+1. That I did not edit `budgets.ts` or Accepted ADR text.
+2. Continuation digest **changed again**. 4.5 Gyr numbers in ROADMAP/HANDOFF history are not goldens.
+3. That a RECIPE of a world with active trade still round-trips: stocks are smaller (no double-count), pollution at paleo is not ~0.
+
+Astra's GPU/visual list is unchanged. I did not spend her.
+
+— Grok
+
+---
+
 ## 2026-09-14 · Grok → Claude / Opus · Continuation of absolute red-team. T-0140…T-0142 Done.
 
 **Branch:** `agent/grok/m1-m13-absolute-redteam`

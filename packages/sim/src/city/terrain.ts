@@ -180,8 +180,9 @@ function distanceToPolyline(pts: Float64Array, x: number, y: number): number {
  * A `TerrainSampler` for a city sitting on cell `cell`.
  *
  * Captures the fields by reference, so it reflects the world as it is when
- * sampled. A layout built from it is only valid while that state holds, which
- * is exactly why `CityState.layoutGeneration` exists.
+ * sampled. A layout built from it is only valid while that hydrology holds,
+ * which is why `cityLayout` keys the cache on sea level and
+ * `routingGeneration` as well as `layoutGeneration`.
  */
 export function cityTerrainSampler(h: HydrologyState, cell: number): TerrainSampler {
   const frame = localFrameAtCell(cell, h.level);

@@ -38,7 +38,7 @@ import {
 } from '@ws/data';
 import { DOMAIN, exp, hashFloat01x64, log10, type Seed } from '@ws/core';
 import type { BiosphereState } from '../biosphere/system.js';
-import type { HydrologyState } from '../hydrology/system.js';
+import { isWaterCell, type HydrologyState } from '../hydrology/system.js';
 import { refreshHabitability, type HabitabilityState } from './suitability.js';
 
 const DIRS = [DIR.POS_U, DIR.NEG_U, DIR.POS_V, DIR.NEG_V] as const;
@@ -424,7 +424,7 @@ function reseatOrCollapse(
   for (let c = 0; c < s.cellCount; c++) {
     const o = s.claim[c] as number;
     if (o < 0 || o >= bound || !store.aliveAt(o)) continue;
-    if (h.ocean[c] !== 0) continue;
+    if (isWaterCell(h, c)) continue;
     const q = suit[c] as number;
     if (!(q > 0)) continue;
     const b = bestSuit[o] as number;
@@ -437,7 +437,7 @@ function reseatOrCollapse(
   for (let i = 0; i < bound; i++) {
     if (!store.aliveAt(i)) continue;
     const c = cell[i] as number;
-    const habitable = c >= 0 && c < s.cellCount && h.ocean[c] === 0 && (suit[c] as number) > 0;
+    const habitable = c >= 0 && c < s.cellCount && !isWaterCell(h, c) && (suit[c] as number) > 0;
     if (habitable) continue;
     const move = bestCell[i] as number;
     if (move >= 0) {
@@ -510,7 +510,7 @@ function growTerritory(
   for (let i = 0; i < store.bound; i++) {
     if (!store.aliveAt(i)) continue;
     const c = cell[i] as number;
-    if (c < 0 || c >= s.cellCount || h.ocean[c] !== 0) continue;
+    if (c < 0 || c >= s.cellCount || isWaterCell(h, c)) continue;
     reach[i] = reachCells(pop[i] as number, tech[i] as number);
     /* A seed contests its own cell against any settlement already there;
        lower index wins, deterministically. */
@@ -538,7 +538,7 @@ function growTerritory(
         /* Unclaimable land is unclaimable: ocean and dead ground are not
            territory just because someone is adjacent to them. */
         if ((suit[j] as number) <= 0) continue;
-        if (h.ocean[j] !== 0) continue;
+        if (isWaterCell(h, j)) continue;
         if (s.claim[j] === -1) {
           s.claim[j] = owner;
           s.claimDistance[j] = distance;
@@ -614,7 +614,7 @@ function accumulateCapacity(
     /* A claim outliving its settlement is inert, never inherited. */
     if (owner < 0 || !store.aliveAt(owner)) continue;
     /* Land under permanent ice or ocean feeds nobody even if it is claimed. */
-    if (h.ocean[c] !== 0) continue;
+    if (isWaterCell(h, c)) continue;
     cap[owner] = (cap[owner] as number) + (food[c] as number) * (s.cellAreaM2[c] as number);
     terr[owner] = (terr[owner] as number) + 1;
   }
@@ -664,7 +664,7 @@ function foundSettlements(
       const c = sites[(s.siteCursor + k) % sites.length] as number;
       const owner = s.claim[c] as number;
       if (owner !== -1 && store.aliveAt(owner)) continue;
-      if (h.ocean[c] !== 0) continue;
+      if (isWaterCell(h, c)) continue;
       const q = suit[c] as number;
       if (q < threshold) continue;
       /* A stateless hash gates founding, so the same world founds the same

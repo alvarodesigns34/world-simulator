@@ -299,6 +299,28 @@ describe('M9 in the world', () => {
     /* Builds a world through 400 kyr and lays out a large city twice. */
   }, 30000);
 
+  it('T-0145 rebuilds a cached layout when hydrology moves without a new ring', () => {
+    const w = evolved();
+    const c = largestCity(w.cities)!;
+    dropAllLayouts(w.cities);
+    const n0 = w.cities.generatedTotal;
+    cityLayout(w.cities, c, w.hydrology, CITY_LOD.STREETS);
+    expect(w.cities.generatedTotal).toBe(n0 + 1);
+    cityLayout(w.cities, c, w.hydrology, CITY_LOD.STREETS);
+    expect(w.cities.generatedTotal).toBe(n0 + 1);
+    const gen = c.layoutGeneration;
+    w.hydrology.seaLevelM += 80;
+    cityLayout(w.cities, c, w.hydrology, CITY_LOD.STREETS);
+    expect(c.layoutGeneration).toBe(gen);
+    expect(w.cities.generatedTotal, 'sea-level change reused streets sampled at the old datum')
+      .toBe(n0 + 2);
+    const routing = w.hydrology.routingGeneration;
+    w.hydrology.routingGeneration = routing + 1;
+    cityLayout(w.cities, c, w.hydrology, CITY_LOD.STREETS);
+    expect(w.cities.generatedTotal, 'routingGeneration change reused a stale river layout')
+      .toBe(n0 + 3);
+  }, 30000);
+
   it('places cities on real terrain with real elevation variation', () => {
     const w = evolved();
     const c = largestCity(w.cities)!;

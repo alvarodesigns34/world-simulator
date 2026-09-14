@@ -17,7 +17,7 @@
 import { pow } from '@ws/core';
 import { DIR, cubeDim, cubeIndex, neighbor } from '@ws/data';
 import { BIOME, type BiosphereState } from '../biosphere/system.js';
-import type { HydrologyState } from '../hydrology/system.js';
+import { isWaterCell, type HydrologyState } from '../hydrology/system.js';
 
 const DIRS = [DIR.POS_U, DIR.NEG_U, DIR.POS_V, DIR.NEG_V] as const;
 
@@ -73,7 +73,7 @@ export function refreshHabitability(
   const n = cubeDim(s.level);
   let suitable = 0;
   for (let i = 0; i < s.cellCount; i++) {
-    if (h.ocean[i] !== 0) {
+    if (isWaterCell(h, i)) {
       s.suitability[i] = 0;
       s.baseFoodDensity[i] = 0;
       s.coastal[i] = 0;

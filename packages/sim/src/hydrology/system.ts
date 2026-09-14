@@ -129,6 +129,28 @@ export interface HydrologyState {
   routingGeneration: number;
 }
 
+/**
+ * Depression-fill depth M5 treats as a standing lake (metres).
+ *
+ * Same threshold `buildLakes` and `cityTerrainSampler.waterAt` already use.
+ * A cell this deep is water: it is not a founding site, not territory, and
+ * not a land-road cell. Shallower pits stay land — priority-flood fills
+ * every sink, and calling all of them lakes would disconnect continents.
+ */
+export const LAKE_DEPTH_M = 0.5;
+
+/** Inland standing water: ocean-mask dry, depression-fill wet. */
+export function isLakeCell(h: HydrologyState, cell: number): boolean {
+  if (cell < 0 || cell >= h.cellCount || h.ocean[cell] !== 0) return false;
+  return (h.filledM[cell] as number) - (h.elevationM[cell] as number) > LAKE_DEPTH_M;
+}
+
+/** Ocean or inland lake. The walkable/sitable mask's complement. */
+export function isWaterCell(h: HydrologyState, cell: number): boolean {
+  if (cell < 0 || cell >= h.cellCount) return true;
+  return h.ocean[cell] !== 0 || isLakeCell(h, cell);
+}
+
 interface Routing {
   filled: Float64Array;
   receiver: Int32Array;

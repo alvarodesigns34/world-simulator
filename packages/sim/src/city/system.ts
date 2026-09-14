@@ -54,6 +54,10 @@ interface CacheEntry {
   layout: CityLayout;
   lod: CityLod;
   generation: number;
+  /** Sea level the layout was sampled at, millimetres. */
+  seaMm: number;
+  /** Hydrology routing generation the layout was sampled at. */
+  routingGeneration: number;
   bytes: number;
   lastUsed: number;
 }
@@ -176,7 +180,14 @@ export function cityLayout(
   if (cache === undefined) throw new Error('city registry was not initialised through initCityRegistry');
   clock++;
   const hit = cache.get(c.id);
-  if (hit !== undefined && hit.generation === c.layoutGeneration && hit.lod >= lod) {
+  const seaMm = Math.round(h.seaLevelM * 1000);
+  if (
+    hit !== undefined &&
+    hit.generation === c.layoutGeneration &&
+    hit.seaMm === seaMm &&
+    hit.routingGeneration === h.routingGeneration &&
+    hit.lod >= lod
+  ) {
     hit.lastUsed = clock;
     return hit.layout;
   }
@@ -185,7 +196,15 @@ export function cityLayout(
   r.generatedTotal++;
   const bytes = estimateLayoutCost(c, lod).bytes;
   if (hit !== undefined) r.cacheBytes -= hit.bytes;
-  cache.set(c.id, { layout, lod, generation: c.layoutGeneration, bytes, lastUsed: clock });
+  cache.set(c.id, {
+    layout,
+    lod,
+    generation: c.layoutGeneration,
+    seaMm,
+    routingGeneration: h.routingGeneration,
+    bytes,
+    lastUsed: clock,
+  });
   r.cacheBytes += bytes;
   evict(r, cache);
   return layout;

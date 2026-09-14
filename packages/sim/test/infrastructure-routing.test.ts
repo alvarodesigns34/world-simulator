@@ -8,7 +8,7 @@ import {
   routeLandInfrastructure,
   seaRoute,
 } from '../src/economy/routing.js';
-import type { HydrologyState } from '../src/hydrology/system.js';
+import { isLakeCell, isWaterCell, type HydrologyState } from '../src/hydrology/system.js';
 
 function corridor(): HydrologyState {
   const level = 3;
@@ -26,7 +26,8 @@ function corridor(): HydrologyState {
     }
   }
   dischargeM3s[cubeIndex(0, level, 4, 2)] = 500;
-  return { level, cellCount: count, ocean, elevationM, dischargeM3s, areaM2 } as unknown as HydrologyState;
+  const filledM = elevationM.slice();
+  return { level, cellCount: count, ocean, elevationM, filledM, dischargeM3s, areaM2 } as unknown as HydrologyState;
 }
 
 /** Face 0 entirely land with one enclosed pond; every other face ocean. */
@@ -48,7 +49,8 @@ function enclosedSea(): HydrologyState {
   const pond = cubeIndex(0, level, 4, 4);
   ocean[pond] = 1;
   elevationM[pond] = -50;
-  return { level, cellCount: count, ocean, elevationM, dischargeM3s, areaM2 } as unknown as HydrologyState;
+  const filledM = elevationM.slice();
+  return { level, cellCount: count, ocean, elevationM, filledM, dischargeM3s, areaM2 } as unknown as HydrologyState;
 }
 
 describe('M10 physical infrastructure routing', () => {
@@ -131,5 +133,38 @@ describe('M10 physical infrastructure routing', () => {
       if (h.ocean[i] === 0) expect(labels[i]).toBe(-1);
       else expect(labels[i]).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('T-0148 does not route a land road through an inland lake', () => {
+    /* ocean==0 is not land. A 10 m depression-fill on a dry-mask cell is a
+       lake; A* used to walk it like a valley. */
+    const level = 3;
+    const n = 1 << level;
+    const count = 6 * n * n;
+    const ocean = new Uint8Array(count).fill(1);
+    const elevationM = new Float64Array(count).fill(-1000);
+    const filledM = new Float64Array(count).fill(-1000);
+    const dischargeM3s = new Float64Array(count);
+    const areaM2 = new Float64Array(count).fill(8e11);
+    for (let x = 1; x <= 6; x++) {
+      for (const y of [2, 3]) {
+        const i = cubeIndex(0, level, x, y);
+        ocean[i] = 0;
+        elevationM[i] = 100;
+        filledM[i] = 100;
+      }
+    }
+    const lake = cubeIndex(0, level, 3, 3);
+    filledM[lake] = 110;
+    const h = { level, cellCount: count, ocean, elevationM, filledM, dischargeM3s, areaM2 } as unknown as HydrologyState;
+    expect(isLakeCell(h, lake)).toBe(true);
+    expect(isWaterCell(h, lake)).toBe(true);
+
+    const start = cubeIndex(0, level, 1, 3);
+    const goal = cubeIndex(0, level, 6, 3);
+    const route = routeLandInfrastructure(h, start, goal);
+    expect([...route.cells]).not.toContain(lake);
+    expect([...route.cells].every((cell) => !isWaterCell(h, cell))).toBe(true);
+    expect(route.cells.length).toBeGreaterThan(2);
   });
 });

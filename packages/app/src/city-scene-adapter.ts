@@ -62,6 +62,10 @@ interface GeometryEntry {
   readonly lod: CityLod;
   /** Vertical datum the cached `nodeZ` is relative to, millimetres. */
   readonly baseZMm: number;
+  /** Sea level the streets were sampled at, millimetres. */
+  readonly seaMm: number;
+  /** Hydrology routing generation the streets were sampled at. */
+  readonly routingGeneration: number;
   readonly geometry: CityGeometry;
 }
 
@@ -190,24 +194,37 @@ export class CitySceneAdapter {
   ): CityGeometry {
     const hit = this.geometry.get(city.id);
     const baseZMm = Math.round(baseZ * 1000);
+    const seaMm = Math.round(world.hydrology.seaLevelM * 1000);
+    const routingGeneration = world.hydrology.routingGeneration;
     /* A cached layout at a HIGHER lod satisfies a lower request, matching the
        rule `cityLayout` itself uses, so backing away from a city does not throw
-       its streets away and then rebuild them on the way back in. */
-    if (hit !== undefined && hit.generation === city.layoutGeneration && hit.lod >= lod) {
+       its streets away and then rebuild them on the way back in. Hydrology is
+       part of the key: T-0145 rebuilds streets when sea or routing moves, and
+       serving the dry graph at a new datum would be a stale city. */
+    if (
+      hit !== undefined &&
+      hit.generation === city.layoutGeneration &&
+      hit.lod >= lod &&
+      hit.seaMm === seaMm &&
+      hit.routingGeneration === routingGeneration
+    ) {
       if (hit.baseZMm === baseZMm) return { ...hit.geometry, frame };
-      /* T-0141. Sea level / terrain can move the datum without bumping
-         layoutGeneration. Re-express the cached node heights; do not throw
-         the streets away. */
+      /* T-0141. Elevation-only datum shift with hydrology unchanged: re-express
+         the cached node heights; do not throw the streets away. */
       const dz = (hit.baseZMm - baseZMm) / 1000;
       const nodeZ = new Float32Array(hit.geometry.nodeZ);
       for (let i = 0; i < hit.geometry.nodeCount; i++) nodeZ[i] = (nodeZ[i] as number) + dz;
       const geometry = { ...hit.geometry, frame, nodeZ };
-      this.geometry.set(city.id, { generation: hit.generation, lod: hit.lod, baseZMm, geometry });
+      this.geometry.set(city.id, {
+        generation: hit.generation, lod: hit.lod, baseZMm, seaMm, routingGeneration, geometry,
+      });
       return geometry;
     }
     const layout = cityLayout(world.cities, city, world.hydrology, lod);
     const geometry = geometryFromLayout(layout, frame, baseZ);
-    this.geometry.set(city.id, { generation: city.layoutGeneration, lod, baseZMm, geometry });
+    this.geometry.set(city.id, {
+      generation: city.layoutGeneration, lod, baseZMm, seaMm, routingGeneration, geometry,
+    });
     if (this.geometry.size > 256) {
       /* Bounded. The layouts themselves are budgeted by M9's own cache; this
          map only holds the render-side view of them. */

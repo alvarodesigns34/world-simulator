@@ -35,6 +35,7 @@ import {
   productionOf,
   refreshResources,
   resetEconomySlot,
+  sourceDecayStep,
   stepEconomy,
   stockOf,
   technologyMultiplier,
@@ -408,6 +409,44 @@ describe('M10 feeds back into M8 and M4', () => {
     e.pollution.fill(5);
     advectPollution(e, new Float64Array(3), new Float64Array(3), 1, cubeDim);
     for (let c = 0; c < e.cellCount; c++) expect(e.pollution[c]).toBe(5);
+  });
+
+  it('T-0146 imported goods are not credited to stock twice', () => {
+    /* trade() already moves tonnes into stock AND records imports as a rate.
+       consumeAndPrice then did stock += (production + imports - drain)*dt, so
+       last tick's shipment was counted again. Freeze trade this step and
+       inject a known import flow so the only extra would be that double-count. */
+    const w = evolved(4);
+    const e = w.economy;
+    const i = biggest(w);
+    const idx = COMMODITY.FOOD * e.capacity + i;
+    e.imports[idx] = 1e6;
+    const stock0 = e.stock[idx] as number;
+    const imports0 = e.imports[idx] as number;
+    e.price.fill(1);
+    stepEconomy(e, w.civilisation, w.hydrology, 1);
+    const stock1 = e.stock[idx] as number;
+    const prod = e.production[idx] as number;
+    const cons = e.consumption[idx] as number;
+    const spoil = Math.exp(-0.004);
+    const withoutDouble = Math.max(0, stock0 + (prod - cons)) * spoil;
+    const withDouble = Math.max(0, stock0 + (prod + imports0 - cons)) * spoil;
+    expect(Math.abs(withDouble - withoutDouble)).toBeGreaterThan(1);
+    expect(stock1).toBeCloseTo(withoutDouble, 6);
+  }, 30000);
+
+  it('T-0147 pollution closed-form is path-independent and not (P+Edt)e^{-λt}', () => {
+    const p0 = 10;
+    const rate = 2;
+    const lambda = 0.03;
+    let chunked = p0;
+    for (let i = 0; i < 100; i++) chunked = sourceDecayStep(chunked, rate, 1, lambda);
+    const once = sourceDecayStep(p0, rate, 100, lambda);
+    expect(once).toBeCloseTo(chunked, 9);
+    const eulerPaleo = (p0 + rate * 100_000) * Math.exp(-lambda * 100_000);
+    const paleo = sourceDecayStep(p0, rate, 100_000, lambda);
+    expect(paleo).toBeGreaterThan(eulerPaleo + 1);
+    expect(paleo).toBeCloseTo(rate / lambda, 8);
   });
 });
 

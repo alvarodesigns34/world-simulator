@@ -20,7 +20,7 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ## Now — M1–M13 absolute red-team (Grok, 2026-09-13)
 
-Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact. **T-0120…T-0142 are Done** (no T-0132). Remaining M1–M13 work is GPU/visual (Astra) and the open P2s T-0095/T-0096/T-0097.
+Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact. **T-0120…T-0148 are Done** (no T-0132). Remaining M1–M13 work is GPU/visual (Astra) and the open P2s T-0095/T-0096/T-0097.
 
 | ID | Title | Owner | Status | Pri | Acceptance |
 | --- | --- | --- | --- | --- | --- |
@@ -46,6 +46,12 @@ Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known au
 | **T-0140** | **`maxSteps` throw committed slots then left `_time` behind** | **Grok** | **Done** | **P1** | Throw is atomic: time, due, steps, lastRun and subsystem log match the call start. Catching it then advancing a legal dt matches a never-thrown twin. |
 | **T-0141** | **City geometry cache ignored the vertical datum** | **Grok** | **Done** | **P1** | Sea-level change with unchanged `layoutGeneration` re-expresses cached `nodeZ`. Cached adapter matches a cold one. |
 | **T-0142** | **Corridor cache ignored sea level** | **Grok** | **Done** | **P1** | Sea-level change with unchanged `topologyGeneration` rebuilds corridor radii. Cached adapter matches a cold one. |
+| **T-0143** | **Digest blind to `climate.Tocean` and `climate.Tmean`** | **Grok** | **Done** | **P1** | `mustMove` each. Mixed-layer heat and climatology EMA are continuation, not scratch. |
+| **T-0144** | **Digest blind to `siteIndex` / `siteIndexBasis`** | **Grok** | **Done** | **P1** | 2% rebuild deadband makes the candidate list continuation state. `mustMove` both. |
+| **T-0145** | **Sim cityLayout cache keyed only on `layoutGeneration`** | **Grok** | **Done** | **P1** | Sea-level or `routingGeneration` change with unchanged ring rebuilds streets. |
+| **T-0146** | **Trade stock-move plus `imports*dt` double-counted inventory** | **Grok** | **Done** | **P1** | With trade frozen, stock follows local net, not local net plus last-tick shipments. |
+| **T-0147** | **Pollution Euler `(P+E dt)e^{-λt}` dies at paleo dt** | **Grok** | **Done** | **P1** | Closed-form `P0 e^{-λt}+(E/λ)(1-e^{-λt})`. 100×1 yr agrees with 1×100 yr. Paleo approaches E/λ, not 0. |
+| **T-0148** | **Lakes (`filledM−elev>0.5`) treated as land** | **Grok** | **Done** | **P1** | A* / founding / territory / reseat / suitability skip inland water. Route around a dry-mask lake. |
 
 ---
 

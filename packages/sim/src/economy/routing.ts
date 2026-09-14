@@ -7,7 +7,7 @@
  */
 
 import { DIR, cubeDim, cubeIndex, neighbor } from '@ws/data';
-import type { HydrologyState } from '../hydrology/system.js';
+import { isWaterCell, type HydrologyState } from '../hydrology/system.js';
 
 const DIRS = [DIR.POS_U, DIR.NEG_U, DIR.POS_V, DIR.NEG_V] as const;
 /* Routing is a topology-time operation, but a rebuild can ask for dozens of
@@ -36,7 +36,7 @@ export interface PhysicalRoute {
  * `oceanBasinLabels` answers the question the old name was pretending to.
  */
 export function findCoastalOutlet(h: HydrologyState, origin: number): number {
-  if (origin < 0 || origin >= h.cellCount || h.ocean[origin] !== 0) return -1;
+  if (origin < 0 || origin >= h.cellCount || isWaterCell(h, origin)) return -1;
   const queue = new Int32Array(h.cellCount);
   const seen = new Uint8Array(h.cellCount);
   let head = 0;
@@ -47,7 +47,7 @@ export function findCoastalOutlet(h: HydrologyState, origin: number): number {
     const cell = queue[head++] as number;
     if (isCoastalLand(h, cell)) return cell;
     for (const next of neighbours(cell, h.level)) {
-      if (seen[next] !== 0 || h.ocean[next] !== 0) continue;
+      if (seen[next] !== 0 || isWaterCell(h, next)) continue;
       seen[next] = 1;
       queue[tail++] = next;
     }
@@ -60,7 +60,7 @@ export function routeLandInfrastructure(
   start: number,
   goal: number,
 ): PhysicalRoute {
-  if (h.ocean[start] !== 0 || h.ocean[goal] !== 0) {
+  if (isWaterCell(h, start) || isWaterCell(h, goal)) {
     throw new Error('land infrastructure endpoints must be on land');
   }
   const count = h.cellCount;
@@ -78,7 +78,7 @@ export function routeLandInfrastructure(
     closed[cell] = 1;
     if (cell === goal) break;
     for (const next of neighbours(cell, h.level)) {
-      if (closed[next] !== 0 || h.ocean[next] !== 0) continue;
+      if (closed[next] !== 0 || isWaterCell(h, next)) continue;
       const dh = Math.abs((h.elevationM[next] as number) - (h.elevationM[cell] as number));
       const gradient = dh / stepM;
       /* Grades above 45% are impassable at this aggregate resolution. */
@@ -211,7 +211,7 @@ function adjacentBasins(h: HydrologyState, labels: Int32Array, cell: number): nu
 }
 
 export function isCoastalLand(h: HydrologyState, cell: number): boolean {
-  if (cell < 0 || cell >= h.cellCount || h.ocean[cell] !== 0) return false;
+  if (cell < 0 || cell >= h.cellCount || isWaterCell(h, cell)) return false;
   for (const next of neighbours(cell, h.level)) if (h.ocean[next] !== 0) return true;
   return false;
 }

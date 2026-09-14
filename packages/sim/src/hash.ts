@@ -168,6 +168,8 @@ function foldClimate(h: number, c: ClimateState): number {
   acc = foldFloats(acc, c.h, 1e-9);
   acc = foldFloats(acc, c.precipMean, 1e-15);
   acc = foldFloats(acc, c.ice, 1e-9);
+  acc = foldFloats(acc, c.Tocean, Q_TEMP);
+  acc = foldFloats(acc, c.Tmean, Q_TEMP);
   return mix(acc, c.steps);
 }
 
@@ -290,6 +292,8 @@ function foldCivilisation(h: number, c: CivilisationState): number {
   acc = mix(acc, c.nextCulture);
   acc = mix(acc, c.steps);
   acc = mix(acc, c.siteCursor);
+  acc = mix(acc, c.siteIndexBasis);
+  acc = foldInts(acc, c.siteIndex);
   acc = mix(acc, c.store.freeContinuationDigest());
   return foldScalar(acc, c.year, 1e-6);
 }
