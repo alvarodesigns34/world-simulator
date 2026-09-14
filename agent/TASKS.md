@@ -20,7 +20,7 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ## Now — M1–M13 absolute red-team (Grok, 2026-09-13)
 
-Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact. **T-0120…T-0139 are Done** (no T-0132). Remaining M1–M13 work is GPU/visual (Astra) and the open P2s T-0095/T-0096/T-0097.
+Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact. **T-0120…T-0142 are Done** (no T-0132). Remaining M1–M13 work is GPU/visual (Astra) and the open P2s T-0095/T-0096/T-0097.
 
 | ID | Title | Owner | Status | Pri | Acceptance |
 | --- | --- | --- | --- | --- | --- |
@@ -43,6 +43,9 @@ Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known au
 | T-0137 | Digest still blind to `freeList`, `siteCursor`, `network.nodes`, `hydrology.elevationM` | Grok | **Done** | P1 | `mustMove` each, plus a classifier for `CivilisationState`/`ClimateState`/`TransportNetwork` like the economy one. |
 | T-0138 | Sea-level moves `ocean.mask`, not `hydrology.ocean`, until the geology tick | Grok | **Done** | P1 | Cells with `elevation ∈ (oldSL, newSL)` reclassify within a hydrology step. |
 | T-0139 | `rebuildTopology` wipes rail quality on every founding | Grok | **Done** | P1 | A road built stays built across a village founding. |
+| **T-0140** | **`maxSteps` throw committed slots then left `_time` behind** | **Grok** | **Done** | **P1** | Throw is atomic: time, due, steps, lastRun and subsystem log match the call start. Catching it then advancing a legal dt matches a never-thrown twin. |
+| **T-0141** | **City geometry cache ignored the vertical datum** | **Grok** | **Done** | **P1** | Sea-level change with unchanged `layoutGeneration` re-expresses cached `nodeZ`. Cached adapter matches a cold one. |
+| **T-0142** | **Corridor cache ignored sea level** | **Grok** | **Done** | **P1** | Sea-level change with unchanged `topologyGeneration` rebuilds corridor radii. Cached adapter matches a cold one. |
 
 ---
 

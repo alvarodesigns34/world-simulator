@@ -305,4 +305,49 @@ describe('T-0101 city scene adapter', () => {
        kilometres away. The town under the camera is a few radii out. */
     expect(nearest).toBeLessThan(8 * Math.max(2000, town.radiusM));
   });
+
+  it('T-0141 a sea-level change re-expresses cached city heights, matching a cold adapter', () => {
+    const flooded = urbanWorld();
+    const city = largestCity(flooded.cities)!;
+    const elev = flooded.hydrology.elevationM[city.cell] as number;
+    const frame = surfaceFrameAt(city.cell, flooded.hydrology.level, R);
+    const d = Math.max(1500, city.radiusM * 0.8);
+    const cam = {
+      x: frame.ox + frame.ux * d, y: frame.oy + frame.uy * d, z: frame.oz + frame.uz * d,
+    };
+    const adapter = new CitySceneAdapter({ radiusM: R, maxCities: 1 });
+    const dry = adapter.build(flooded, cam);
+    expect(dry.stats.buildings + dry.stats.streets).toBeGreaterThan(0);
+    const dryBytes = Array.from(dry.scene.data.subarray(0, dry.scene.count * CITY_INSTANCE_FLOATS));
+
+    /* Force the city's vertical datum onto sea level without touching layoutGeneration. */
+    flooded.hydrology.seaLevelM = elev + 80;
+    const cached = adapter.build(flooded, cam);
+    const fresh = new CitySceneAdapter({ radiusM: R, maxCities: 1 }).build(flooded, cam);
+    const cachedBytes = Array.from(cached.scene.data.subarray(0, cached.scene.count * CITY_INSTANCE_FLOATS));
+    const freshBytes = Array.from(fresh.scene.data.subarray(0, fresh.scene.count * CITY_INSTANCE_FLOATS));
+    expect(cachedBytes, 'cached adapter diverged from a cold rebuild after the datum moved')
+      .toEqual(freshBytes);
+    expect(cachedBytes, 'flooded city bytes equalled the dry cache — datum was ignored')
+      .not.toEqual(dryBytes);
+  }, 120_000);
+
+  it('T-0142 a sea-level change rebuilds cached corridor radii, matching a cold adapter', () => {
+    const flooded = urbanWorld();
+    const cam = { x: 0, y: 0, z: R + 400_000 };
+    const adapter = new CitySceneAdapter({ radiusM: R, maxCities: 0 });
+    const dry = adapter.build(flooded, cam);
+    expect(dry.stats.links + dry.stats.ports).toBeGreaterThan(0);
+    const dryBytes = Array.from(dry.scene.data.subarray(0, dry.scene.count * CITY_INSTANCE_FLOATS));
+
+    flooded.hydrology.seaLevelM += 8_000;
+    const cached = adapter.build(flooded, cam);
+    const fresh = new CitySceneAdapter({ radiusM: R, maxCities: 0 }).build(flooded, cam);
+    const cachedBytes = Array.from(cached.scene.data.subarray(0, cached.scene.count * CITY_INSTANCE_FLOATS));
+    const freshBytes = Array.from(fresh.scene.data.subarray(0, fresh.scene.count * CITY_INSTANCE_FLOATS));
+    expect(cachedBytes, 'cached corridors diverged from a cold rebuild after sea level moved')
+      .toEqual(freshBytes);
+    expect(cachedBytes, 'flooded corridor bytes equalled the dry cache — sea level was ignored')
+      .not.toEqual(dryBytes);
+  }, 120_000);
 });

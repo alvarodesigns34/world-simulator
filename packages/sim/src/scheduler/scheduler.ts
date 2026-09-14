@@ -51,9 +51,10 @@ export interface SchedulerOptions {
   readonly startTime: SimTime;
   readonly store?: FieldStore;
   /**
-   * Largest simulated span a single subsystem step may cover. A step longer than
-   * its cadence is clamped and the remainder carried, so a huge timeScale cannot
-   * turn one step into an arbitrarily long integration.
+   * Hard cap on slot-runs inside one `advance()`. Not a step-dt clamp: a
+   * cadence that would require more runs than this throws rather than
+   * dropping work (DEC-016 rule 5). The throw is atomic — slots, `_time`
+   * and subsystem state are left as they were before the call.
    */
   readonly maxStepsPerAdvance?: number;
 }
@@ -184,21 +185,108 @@ export class Scheduler {
     //
     // Slots are a plain array in schedule order, so the inner loop IS the
     // resolved order — no Map iteration reaches a result here.
+    //
+    // T-0140. The guard used to live AFTER runSlot. A throw then left
+    // `_time` at the start of the advance while slots.due / steps / lastRun
+    // and the FieldStore had already committed the partial work. Catching
+    // that error and advancing a legal dt skipped the remaining cadence
+    // windows (due already past `_time`) — a continuation corruption, not
+    // a loud failure. Count first; throw with the scheduler untouched.
+    if (this.countSlotRuns(target) > this.maxSteps) {
+      throw new Error(
+        `scheduler exceeded ${String(this.maxSteps)} steps in one advance() — ` +
+          `the timeScale is too large for the declared cadences, or a cadence is too small`,
+      );
+    }
+    this.runDueSlots(target);
+    this._time = target;
+    this._tick++;
+  }
+
+  /**
+   * How many slot-runs `runDueSlots` would commit to reach `target`.
+   *
+   * Walks a copy of the due/steps/lastRun/coveredThrough machine. Stops at
+   * `maxSteps + 1` so a pathological cadence cannot spin the counter.
+   */
+  private countSlotRuns(target: SimTime): number {
+    const n = this.slots.length;
+    const due: SimTime[] = new Array(n);
+    const steps: number[] = new Array(n);
+    const lastRun: (SimTime | null)[] = new Array(n);
+    const covered: SimTime[] = new Array(n);
+    const indexOf = new Map<string, number>();
+    for (let i = 0; i < n; i++) {
+      const slot = this.slots[i]!;
+      due[i] = slot.due;
+      steps[i] = slot.steps;
+      lastRun[i] = slot.lastRun;
+      covered[i] = slot.coveredThrough;
+      indexOf.set(slot.entry.subsystem.id as string, i);
+    }
+
     let guard = 0;
     for (;;) {
-      // Earliest due instant that is still within this advance.
-      // everyNOf is NOT in this scan: it follows its leader by step count.
-      // onDemand is not in this scan. A non-positive `every` dt is a build error,
-      // but is also skipped here so it cannot pin `due` and hang.
+      let earliest: SimTime | null = null;
+      for (let i = 0; i < n; i++) {
+        const c = this.slots[i]!.cadence;
+        if (c.kind === 'onDemand' || c.kind === 'everyNOf') continue;
+        if (c.kind === 'every' && c.dt <= 0) continue;
+        const d = due[i]!;
+        if (compare(d, target) >= 0) continue;
+        if (earliest === null || compare(d, earliest) < 0) earliest = d;
+      }
+      if (earliest === null) break;
+
+      for (let i = 0; i < n; i++) {
+        const c = this.slots[i]!.cadence;
+        if (c.kind === 'onDemand') continue;
+        if (c.kind === 'every') {
+          if (compare(due[i]!, earliest) !== 0) continue;
+          const stepDt = c.dt;
+          if (stepDt <= 0) continue;
+          steps[i] = (steps[i] as number) + 1;
+          lastRun[i] = due[i]!;
+          const next = addDuration(due[i]!, stepDt, this.calendar);
+          due[i] = next;
+          covered[i] = next;
+        } else if (c.kind === 'everyNOf') {
+          const li = indexOf.get(c.of as string);
+          if (li === undefined) continue;
+          const leaderLast = lastRun[li]!;
+          const leaderSteps = steps[li] as number;
+          if (
+            leaderLast !== null &&
+            compare(leaderLast, earliest) === 0 &&
+            leaderSteps > 0 &&
+            leaderSteps % c.n === 0
+          ) {
+            const windowStart = covered[i]!;
+            const stepDt = diff(covered[li]!, windowStart, this.calendar);
+            if (stepDt <= 0) continue;
+            steps[i] = (steps[i] as number) + 1;
+            lastRun[i] = windowStart;
+            due[i] = addDuration(windowStart, stepDt, this.calendar);
+            covered[i] = covered[li]!;
+          } else {
+            continue;
+          }
+        } else {
+          continue;
+        }
+        if (++guard > this.maxSteps) return guard;
+      }
+    }
+    return guard;
+  }
+
+  private runDueSlots(target: SimTime): void {
+    for (;;) {
       let earliest: SimTime | null = null;
       for (const slot of this.slots) {
-        const kind = slot.cadence.kind;
-        if (kind === 'onDemand' || kind === 'everyNOf') continue;
-        if (kind === 'every' && slot.cadence.dt <= 0) continue;
-        // Strictly BEFORE the target: a step at instant T covers [T, T+dt), so
-        // a subsystem due exactly at `target` belongs to the next advance. Using
-        // <= here would run a 3-day advance at t=0,1,2,3 — four steps for three
-        // days — and would double-count the boundary on every call.
+        const c = slot.cadence;
+        if (c.kind === 'onDemand' || c.kind === 'everyNOf') continue;
+        if (c.kind === 'every' && c.dt <= 0) continue;
         if (compare(slot.due, target) >= 0) continue;
         if (earliest === null || compare(slot.due, earliest) < 0) earliest = slot.due;
       }
@@ -216,40 +304,21 @@ export class Scheduler {
         } else if (c.kind === 'everyNOf') {
           const leader = this.byId.get(c.of as string);
           if (leader === undefined) continue;
-          // Leader ran this instant and has just reached a multiple of n.
           if (
             leader.lastRun !== null &&
             compare(leader.lastRun, earliest) === 0 &&
             leader.steps > 0 &&
             leader.steps % c.n === 0
           ) {
-            // The exact span since this follower last ran, so the windows tile
-            // the leader's timeline. Works whatever the leader's cadence does.
             const windowStart = slot.coveredThrough;
             const stepDt = diff(leader.coveredThrough, windowStart, this.calendar);
             if (stepDt <= 0) continue;
             this.runSlot(slot, stepDt, windowStart);
             slot.coveredThrough = leader.coveredThrough;
-          } else {
-            continue;
           }
-        } else {
-          continue;
-        }
-
-        if (++guard > this.maxSteps) {
-          // Not silently dropped: dropping a step changes results, which is a
-          // determinism bug wearing a performance costume (DEC-016 rule 5).
-          throw new Error(
-            `scheduler exceeded ${String(this.maxSteps)} steps in one advance() — ` +
-              `the timeScale is too large for the declared cadences, or a cadence is too small`,
-          );
         }
       }
     }
-
-    this._time = target;
-    this._tick++;
   }
 
   private runSlot(slot: Slot, stepDt: Duration, time: SimTime): void {

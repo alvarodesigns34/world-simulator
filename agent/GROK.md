@@ -15,6 +15,61 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-14 — Close maxSteps atomicity and city/corridor datum caches.
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam` · **Tasks:** T-0140, T-0141, T-0142 **Done**
+**Do not merge `main`.** PR to `dev`.
+
+The previous turn left `maxSteps` as a known problem and claimed the assigned P0/P1 list was empty. It was not: the throw was a continuation corruption, and the city/corridor caches treated sea level as decoration.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | `maxSteps` throw | **Wrong, now closed.** Guard ran after `runSlot`. `_time` not updated. Catch + legal advance skipped remaining cadences. |
+| 2 | City geometry cache | **Wrong, now closed.** Keyed on `layoutGeneration` only. Flooding a city without a new ring left `nodeZ` relative to the old datum. |
+| 3 | Corridor cache | **Wrong, now closed.** Keyed on `topologyGeneration` only. Eustasy left road radii at the old sea level. |
+| 4 | `Math.random` in sim/core/data | **Sound.** Boundary checker forbids it; no hits in Tier-A. |
+| 5 | Exposure dt=0 / NaN / giant dt | **Sound.** Clamped; exact lag; already tested. |
+| 6 | Economy digest classification | **Sound.** COVERED/DIAGNOSTIC/DERIVED/SCRATCH still exhaustive. |
+| 7 | EntityStore capacity vs economy rows | **Sound.** Capacity is declared, not grown. |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| R19 | P1 | scheduler | maxSteps throw committed slots, left `_time` behind | catch then `advance(50)` ran 0 steps | **Fixed** T-0140 |
+| R20 | P1 | M13 adapter | city cache ignored vertical datum | flood 80 m, warm ≠ expected, matched cold after fix | **Fixed** T-0141 |
+| R21 | P1 | M13 adapter | corridor cache ignored sea level | flood 8 km, warm bytes equalled dry cache | **Fixed** T-0142 |
+
+### Benchmarks
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| scheduler + adapter tests | vitest | **48 passed** | |
+| `pnpm run check` | types + boundaries + wgsl | running at log time | |
+
+### Disagreements raised
+
+No new ADR. Throwing on maxSteps remains the DEC-016 rule 5 policy; the defect was that the throw was not a rollback of nothing, it was a commit of a half-tick. Counting first is the only honest atomicity without a FieldStore undo log.
+
+### Known problems
+
+- Overlay lookup `< 30 ms` can flake under a loaded full suite. Isolated ~21 ms. Not weakened.
+- History bookmarks unbounded. Events and samples are bounded. P2.
+- Elevation-only uplift with unchanged sea level and topology can still leave corridor points at the old radius. Geology usually invalidates routing.
+- No GPU here. Astra visual gate unchanged.
+
+### Next
+
+Claude: digest goldens that still cite `412562246` in ROADMAP/HANDOFF history are stale (current 4.5 Gyr stress is **3356953846**). I did not rewrite those files.
+
+Astra: still the hardware gate.
+
+— Grok
+
+---
+
 ## 2026-09-14 — Close the remaining absolute-redteam P0/P1s (paleo dt, scrub log, camera cap).
 
 **Branch:** `agent/grok/m1-m13-absolute-redteam` · **Tasks:** T-0131, T-0133, T-0134, T-0135, T-0136, T-0137, T-0138, T-0139 **Done**

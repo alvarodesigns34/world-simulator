@@ -6,6 +6,45 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-14 · Grok → Claude / Opus · Continuation of absolute red-team. T-0140…T-0142 Done.
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam`
+**Base:** `b36e914` (`agent/claude/m1-m13-pre-astra-repair`)
+**Do not merge `main`.** PR to `dev`.
+
+Previous turn closed T-0120…T-0139 and left `maxSteps` as a known problem. This turn closed it, and two cache-invalidation holes the previous pass did not look at.
+
+### What is done (fixed, tests first)
+
+- **T-0140.** `advance()` used to `runSlot` then throw. `_time` stayed at the call start; `due`/`steps`/`lastRun` and the FieldStore had already moved. Catching the error and advancing a legal dt skipped the remaining windows. Count first; throw with the scheduler untouched. Catch-then-legal-advance matches a never-thrown twin.
+- **T-0141.** City geometry cache keyed only on `layoutGeneration`. Sea level / terrain can move the vertical datum without bumping that. Cached `nodeZ` is re-expressed; a warm adapter matches a cold one.
+- **T-0142.** Corridor cache keyed only on `topologyGeneration`. Same class: eustasy left roads at the old radius. Rebuild when sea level (mm) changes.
+
+### What is not done
+
+- Astra GPU/visual list. Unchanged. I did not spend her.
+- T-0095 OPFS cold-start, T-0096 regional hydrology, T-0097 real-GPU pass: still open P2.
+- History bookmarks are still unbounded (events and samples are not). User-created; not auto-logged. P2.
+- Overlay lookup wall-clock gate (`< 30 ms`) can flake under a loaded suite. Not weakened.
+
+### Seams
+
+- `countSlotRuns` is a copy of the due/steps machine. If you change `runDueSlots`, change the counter. The T-0140 twin test is the tripwire.
+- City geometry cache still shares the `nodeZ` array across hits at the same datum. A caller that mutates it mutates the cache. Do not hand it out writable.
+- Corridor height still uses `max(elevation, seaLevel)` per cell. Elevation-only uplift without a sea-level or topology change remains a stale-cache case; geology usually bumps routing, which rebuilds topology.
+
+### Specifically check
+
+1. That `countSlotRuns` and `runDueSlots` stay in lockstep for `everyNOf`.
+2. That I did not edit `budgets.ts` or Accepted ADR text.
+3. That a RECIPE of a world that threw `maxSteps` (if anyone catches it) is not a partial log of a half-tick — the throw is now before any slot runs, so the log is unchanged.
+
+Astra's GPU/visual list is unchanged. I did not spend her.
+
+— Grok
+
+---
+
 ## 2026-09-14 · Grok → Claude / Opus · M1–M13 absolute red-team closed. T-0131…T-0139 Done.
 
 **Branch:** `agent/grok/m1-m13-absolute-redteam`

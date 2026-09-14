@@ -15,8 +15,9 @@
  *
  * DERIVED, NOT STORED. Everything produced here is regenerable from the world
  * and is thrown away freely: the geometry cache keys on `layoutGeneration` and
- * the corridor cache on `topologyGeneration`, so a stale frame is impossible
- * rather than unlikely. Dropping the whole cache costs time, never state.
+ * the city's vertical datum, and the corridor cache on `topologyGeneration`
+ * plus sea level, so a stale frame is impossible rather than unlikely.
+ * Dropping the whole cache costs time, never state.
  */
 
 import {
@@ -59,6 +60,8 @@ const DISTRICT_TINT: readonly (readonly [number, number, number])[] = [
 interface GeometryEntry {
   readonly generation: number;
   readonly lod: CityLod;
+  /** Vertical datum the cached `nodeZ` is relative to, millimetres. */
+  readonly baseZMm: number;
   readonly geometry: CityGeometry;
 }
 
@@ -100,6 +103,7 @@ export class CitySceneAdapter {
   private readonly geometry = new Map<number, GeometryEntry>();
   private readonly corridors: CorridorEntry[] = [];
   private corridorGeneration = -1;
+  private corridorSeaMm = Number.NaN;
   private ports = new Float64Array(0);
   private buffer: Float32Array = new Float32Array(0);
   private links: InfrastructureLink[] = [];
@@ -111,6 +115,7 @@ export class CitySceneAdapter {
     this.geometry.clear();
     this.corridors.length = 0;
     this.corridorGeneration = -1;
+    this.corridorSeaMm = Number.NaN;
     this.ports = new Float64Array(0);
   }
 
@@ -184,15 +189,25 @@ export class CitySceneAdapter {
     world: World, city: CityState, lod: CityLod, frame: SurfaceFrame, baseZ: number,
   ): CityGeometry {
     const hit = this.geometry.get(city.id);
+    const baseZMm = Math.round(baseZ * 1000);
     /* A cached layout at a HIGHER lod satisfies a lower request, matching the
        rule `cityLayout` itself uses, so backing away from a city does not throw
        its streets away and then rebuild them on the way back in. */
     if (hit !== undefined && hit.generation === city.layoutGeneration && hit.lod >= lod) {
-      return { ...hit.geometry, frame };
+      if (hit.baseZMm === baseZMm) return { ...hit.geometry, frame };
+      /* T-0141. Sea level / terrain can move the datum without bumping
+         layoutGeneration. Re-express the cached node heights; do not throw
+         the streets away. */
+      const dz = (hit.baseZMm - baseZMm) / 1000;
+      const nodeZ = new Float32Array(hit.geometry.nodeZ);
+      for (let i = 0; i < hit.geometry.nodeCount; i++) nodeZ[i] = (nodeZ[i] as number) + dz;
+      const geometry = { ...hit.geometry, frame, nodeZ };
+      this.geometry.set(city.id, { generation: hit.generation, lod: hit.lod, baseZMm, geometry });
+      return geometry;
     }
     const layout = cityLayout(world.cities, city, world.hydrology, lod);
     const geometry = geometryFromLayout(layout, frame, baseZ);
-    this.geometry.set(city.id, { generation: city.layoutGeneration, lod, geometry });
+    this.geometry.set(city.id, { generation: city.layoutGeneration, lod, baseZMm, geometry });
     if (this.geometry.size > 256) {
       /* Bounded. The layouts themselves are budgeted by M9's own cache; this
          map only holds the render-side view of them. */
@@ -213,7 +228,8 @@ export class CitySceneAdapter {
     const net = world.economy.network;
     const h = world.hydrology;
     const radius = this.options.radiusM ?? EARTH_GEOMETRY.radius;
-    if (net.topologyGeneration !== this.corridorGeneration) {
+    const seaMm = Math.round(h.seaLevelM * 1000);
+    if (net.topologyGeneration !== this.corridorGeneration || seaMm !== this.corridorSeaMm) {
       this.corridors.length = 0;
       const maxPoints = this.options.maxCorridorPoints ?? 96;
       const portCells = new Set<number>();
@@ -269,6 +285,7 @@ export class CitySceneAdapter {
       }
       this.ports = ports;
       this.corridorGeneration = net.topologyGeneration;
+      this.corridorSeaMm = seaMm;
       this.links = [];
     }
 

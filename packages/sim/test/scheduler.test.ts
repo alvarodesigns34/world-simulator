@@ -247,6 +247,47 @@ describe('scheduler: execution', () => {
     expect(() => s.advance(duration(1000))).toThrow(/exceeded 100 steps/);
   });
 
+  it('T-0140 maxSteps throw is atomic: slots and time stay at the call start', () => {
+    const log: string[] = [];
+    const s = new Scheduler({
+      calendar: CAL,
+      startTime: simTime(0, 0, CAL),
+      maxStepsPerAdvance: 100,
+    })
+      .register(sub('fast', { dt: duration(1), log }))
+      .build();
+    const before = s.snapshot();
+    expect(() => s.advance(duration(1000))).toThrow(/exceeded 100 steps/);
+    const after = s.snapshot();
+    expect(after.time).toEqual(before.time);
+    expect(after.tick).toBe(before.tick);
+    expect(after.slots[0]!.steps).toBe(0);
+    expect(after.slots[0]!.due).toEqual(before.slots[0]!.due);
+    expect(after.slots[0]!.lastRun).toBeNull();
+    expect(log).toHaveLength(0);
+  });
+
+  it('T-0140 catching maxSteps then advancing a legal dt matches a never-thrown twin', () => {
+    const mk = (log: string[]) =>
+      new Scheduler({
+        calendar: CAL,
+        startTime: simTime(0, 0, CAL),
+        maxStepsPerAdvance: 100,
+      })
+        .register(sub('fast', { dt: duration(1), log }))
+        .build();
+    const thrown: string[] = [];
+    const s = mk(thrown);
+    expect(() => s.advance(duration(1000))).toThrow(/exceeded 100 steps/);
+    s.advance(duration(50));
+
+    const control: string[] = [];
+    mk(control).advance(duration(50));
+    expect(thrown).toEqual(control);
+    expect(s.time.seconds).toBeCloseTo(50, 9);
+    expect(s.stepCount(subsystemId('fast'))).toBe(50);
+  });
+
   it('pause stops advancement; resume restores it', () => {
     const log: string[] = [];
     const s = build(log);
