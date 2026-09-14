@@ -1,0 +1,8 @@
+{
+  "name": "@ws/render",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": { "@ws/core": "workspace:*", "@ws/data": "workspace:*" }
+}

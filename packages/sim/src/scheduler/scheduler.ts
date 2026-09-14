@@ -1,0 +1,436 @@
+/**
+ * The scheduler (T-0012, DEC-016, DEC-030, DEC-031).
+ *
+ * Advances simulation time and runs due subsystems in the deterministic order
+ * `buildSchedule` resolved. Regime cadence changes occur only at logged command
+ * boundaries (DEC-037). Worker results still publish through the ordered main
+ * boundary rather than arrival order.
+ *
+ * COMMIT DISCIPLINE (DEC-016 rule 3). Results are applied at tick boundaries in
+ * the fixed subsystem order, never on arrival. A job that finishes early waits.
+ * That is the price of being asynchronous and deterministic at once, and it is
+ * cheap: the only cost is latency, invisible at simulation time scales.
+ *
+ * everyNOf `dt` is the SPAN the follower integrates, measured from its own
+ * `coveredThrough` to the leader's — not `leader.lastDt * n` (T-0072).
+ *
+ * `(time, dt)` is the half-open span `[time, time + dt)` for every `every`
+ * subsystem, and a follower's spans must tile the leader's timeline with no gap
+ * and no overlap. `lastDt * n` satisfies that only while the leader's cadence
+ * never varies, and DEC-030 regimes exist to vary it: a leader stepping
+ * 1 d, 1 d, 10 d has covered 12 days, not 30. It was also wrong at the boundary
+ * today — the first follower span started mid-timeline and left [0, 2d)
+ * uncovered.
+ *
+ * everyNOf means "every N steps of X", not "lastDt * n". Followers are not
+ * in the due-time scan; they run in the same inner loop as their leader, after
+ * it (build-time validated), when `leader.steps % n === 0`. A zero dt therefore
+ * cannot pin `due` and spin `advance()` until maxSteps (or forever — the
+ * `stepDt <= 0` continue used not to increment the guard).
+ *
+ * resume() must NOT reset `due` to now. Slow-state cadence is path-independent
+ * (DEC-030) only if quiesce/resume does not phase-shift it.
+ */
+
+import {
+  addDuration,
+  compare,
+  diff,
+  duration,
+  invariant,
+  type Calendar,
+  type Duration,
+  type SimTime,
+} from '@ws/core';
+import type { FieldStore, SubsystemId } from '@ws/data';
+import { buildSchedule, type ScheduleEntry } from './graph.js';
+import type { Cadence, Subsystem } from './types.js';
+
+export interface SchedulerOptions {
+  readonly calendar: Calendar;
+  readonly startTime: SimTime;
+  readonly store?: FieldStore;
+  /**
+   * Hard cap on slot-runs inside one `advance()`. Not a step-dt clamp: a
+   * cadence that would require more runs than this throws rather than
+   * dropping work (DEC-016 rule 5). The throw is atomic — slots, `_time`
+   * and subsystem state are left as they were before the call.
+   */
+  readonly maxStepsPerAdvance?: number;
+}
+
+export type RunState = 'running' | 'paused' | 'quiesced';
+
+interface Slot {
+  readonly entry: ScheduleEntry;
+  cadence: Cadence;
+  /** Next simulation instant at which this subsystem is due. */
+  due: SimTime;
+  steps: number;
+  lastDt: Duration;
+  lastRun: SimTime | null;
+  /**
+   * End of the simulated span this slot has integrated, i.e. the exclusive
+   * upper bound of the last `[time, time + dt)` it ran. An everyNOf follower
+   * derives its span from the difference between its own and its leader's.
+   */
+  coveredThrough: SimTime;
+}
+
+export interface SchedulerSnapshot {
+  readonly schema: 1;
+  readonly time: SimTime;
+  readonly tick: number;
+  readonly state: RunState;
+  readonly slots: readonly {
+    readonly id: string;
+    readonly cadence: Cadence;
+    readonly due: SimTime;
+    readonly steps: number;
+    readonly lastDt: Duration;
+    readonly lastRun: SimTime | null;
+    readonly coveredThrough: SimTime;
+  }[];
+}
+
+export class Scheduler {
+  readonly calendar: Calendar;
+  private readonly slots: Slot[] = [];
+  private readonly byId = new Map<string, Slot>();
+  private schedule: readonly ScheduleEntry[] = [];
+  private readonly registered: Subsystem[] = [];
+  private readonly store: FieldStore | undefined;
+  private readonly maxSteps: number;
+
+  private _time: SimTime;
+  private _tick = 0;
+  private _state: RunState = 'running';
+  private built = false;
+
+  constructor(opts: SchedulerOptions) {
+    this.calendar = opts.calendar;
+    this._time = opts.startTime;
+    this.store = opts.store;
+    this.maxSteps = opts.maxStepsPerAdvance ?? 512;
+  }
+
+  register(s: Subsystem): this {
+    invariant(!this.built, `cannot register '${String(s.id)}' after build()`);
+    this.registered.push(s);
+    return this;
+  }
+
+  /**
+   * Resolve the order. Throws on a cycle, a write conflict, an undeclared owner
+   * or an unknown field (DEC-031 rule 3).
+   */
+  build(): this {
+    invariant(!this.built, 'scheduler already built');
+    this.schedule = buildSchedule(this.registered, this.store);
+    for (const entry of this.schedule) {
+      const slot: Slot = {
+        entry,
+        cadence: entry.subsystem.cadence,
+        due: this._time,
+        steps: 0,
+        lastDt: duration(0),
+        lastRun: null,
+        coveredThrough: this._time,
+      };
+      this.slots.push(slot);
+      this.byId.set(entry.subsystem.id as string, slot);
+    }
+    this.built = true;
+    return this;
+  }
+
+  get time(): SimTime {
+    return this._time;
+  }
+  get tick(): number {
+    return this._tick;
+  }
+  get state(): RunState {
+    return this._state;
+  }
+  get order(): readonly ScheduleEntry[] {
+    return this.schedule;
+  }
+
+  stepCount(id: SubsystemId): number {
+    return this.byId.get(id as string)?.steps ?? 0;
+  }
+
+  /**
+   * Advance simulation time by `dt` and run everything that falls due.
+   *
+   * Subsystems run in resolved order within each tick, and a subsystem due more
+   * than once runs the right number of times. Order never depends on how the
+   * span was reached, only on the schedule.
+   */
+  advance(dt: Duration): void {
+    invariant(this.built, 'call build() before advance()');
+    if (this._state !== 'running') return;
+    invariant(dt >= 0, 'cannot advance simulation time backwards');
+
+    const target = addDuration(this._time, dt, this.calendar);
+
+    // Advance instant by instant, NOT subsystem by subsystem.
+    //
+    // At each simulation instant, every subsystem due at that instant runs once,
+    // in resolved order. Draining one subsystem to `target` before starting the
+    // next would run `terrain` three times and only then `rivers` three times,
+    // which breaks the dependency order the graph was built to guarantee: rivers
+    // would read sediment from a later step than the one it is paired with.
+    //
+    // Slots are a plain array in schedule order, so the inner loop IS the
+    // resolved order — no Map iteration reaches a result here.
+    //
+    // T-0140. The guard used to live AFTER runSlot. A throw then left
+    // `_time` at the start of the advance while slots.due / steps / lastRun
+    // and the FieldStore had already committed the partial work. Catching
+    // that error and advancing a legal dt skipped the remaining cadence
+    // windows (due already past `_time`) — a continuation corruption, not
+    // a loud failure. Count first; throw with the scheduler untouched.
+    if (this.countSlotRuns(target) > this.maxSteps) {
+      throw new Error(
+        `scheduler exceeded ${String(this.maxSteps)} steps in one advance() — ` +
+          `the timeScale is too large for the declared cadences, or a cadence is too small`,
+      );
+    }
+    this.runDueSlots(target);
+    this._time = target;
+    this._tick++;
+  }
+
+  /**
+   * How many slot-runs `runDueSlots` would commit to reach `target`.
+   *
+   * Walks a copy of the due/steps/lastRun/coveredThrough machine. Stops at
+   * `maxSteps + 1` so a pathological cadence cannot spin the counter.
+   */
+  private countSlotRuns(target: SimTime): number {
+    const n = this.slots.length;
+    const due: SimTime[] = new Array(n);
+    const steps: number[] = new Array(n);
+    const lastRun: (SimTime | null)[] = new Array(n);
+    const covered: SimTime[] = new Array(n);
+    const indexOf = new Map<string, number>();
+    for (let i = 0; i < n; i++) {
+      const slot = this.slots[i]!;
+      due[i] = slot.due;
+      steps[i] = slot.steps;
+      lastRun[i] = slot.lastRun;
+      covered[i] = slot.coveredThrough;
+      indexOf.set(slot.entry.subsystem.id as string, i);
+    }
+
+    let guard = 0;
+    for (;;) {
+      let earliest: SimTime | null = null;
+      for (let i = 0; i < n; i++) {
+        const c = this.slots[i]!.cadence;
+        if (c.kind === 'onDemand' || c.kind === 'everyNOf') continue;
+        if (c.kind === 'every' && c.dt <= 0) continue;
+        const d = due[i]!;
+        if (compare(d, target) >= 0) continue;
+        if (earliest === null || compare(d, earliest) < 0) earliest = d;
+      }
+      if (earliest === null) break;
+
+      for (let i = 0; i < n; i++) {
+        const c = this.slots[i]!.cadence;
+        if (c.kind === 'onDemand') continue;
+        if (c.kind === 'every') {
+          if (compare(due[i]!, earliest) !== 0) continue;
+          const stepDt = c.dt;
+          if (stepDt <= 0) continue;
+          steps[i] = (steps[i] as number) + 1;
+          lastRun[i] = due[i]!;
+          const next = addDuration(due[i]!, stepDt, this.calendar);
+          due[i] = next;
+          covered[i] = next;
+        } else if (c.kind === 'everyNOf') {
+          const li = indexOf.get(c.of as string);
+          if (li === undefined) continue;
+          const leaderLast = lastRun[li]!;
+          const leaderSteps = steps[li] as number;
+          if (
+            leaderLast !== null &&
+            compare(leaderLast, earliest) === 0 &&
+            leaderSteps > 0 &&
+            leaderSteps % c.n === 0
+          ) {
+            const windowStart = covered[i]!;
+            const stepDt = diff(covered[li]!, windowStart, this.calendar);
+            if (stepDt <= 0) continue;
+            steps[i] = (steps[i] as number) + 1;
+            lastRun[i] = windowStart;
+            due[i] = addDuration(windowStart, stepDt, this.calendar);
+            covered[i] = covered[li]!;
+          } else {
+            continue;
+          }
+        } else {
+          continue;
+        }
+        if (++guard > this.maxSteps) return guard;
+      }
+    }
+    return guard;
+  }
+
+  private runDueSlots(target: SimTime): void {
+    for (;;) {
+      let earliest: SimTime | null = null;
+      for (const slot of this.slots) {
+        const c = slot.cadence;
+        if (c.kind === 'onDemand' || c.kind === 'everyNOf') continue;
+        if (c.kind === 'every' && c.dt <= 0) continue;
+        if (compare(slot.due, target) >= 0) continue;
+        if (earliest === null || compare(slot.due, earliest) < 0) earliest = slot.due;
+      }
+      if (earliest === null) break;
+
+      for (const slot of this.slots) {
+        const c = slot.cadence;
+        if (c.kind === 'onDemand') continue;
+
+        if (c.kind === 'every') {
+          if (compare(slot.due, earliest) !== 0) continue;
+          const stepDt = c.dt;
+          if (stepDt <= 0) continue;
+          this.runSlot(slot, stepDt, slot.due);
+        } else if (c.kind === 'everyNOf') {
+          const leader = this.byId.get(c.of as string);
+          if (leader === undefined) continue;
+          if (
+            leader.lastRun !== null &&
+            compare(leader.lastRun, earliest) === 0 &&
+            leader.steps > 0 &&
+            leader.steps % c.n === 0
+          ) {
+            const windowStart = slot.coveredThrough;
+            const stepDt = diff(leader.coveredThrough, windowStart, this.calendar);
+            if (stepDt <= 0) continue;
+            this.runSlot(slot, stepDt, windowStart);
+            slot.coveredThrough = leader.coveredThrough;
+          }
+        }
+      }
+    }
+  }
+
+  private runSlot(slot: Slot, stepDt: Duration, time: SimTime): void {
+    const sys = slot.entry.subsystem;
+    if (this.store !== undefined) this.store.beginStep(sys.id, sys.writes);
+    try {
+      sys.step({ time, dt: stepDt, step: slot.steps });
+    } finally {
+      if (this.store !== undefined) this.store.endStep();
+    }
+    slot.steps++;
+    slot.lastDt = stepDt;
+    slot.lastRun = time;
+    slot.due = addDuration(time, stepDt, this.calendar);
+    slot.coveredThrough = slot.due;
+  }
+
+  /**
+   * Change the cadence of a regime-switched FAST subsystem at an explicit
+   * command boundary. The new regime starts a fresh half-open span at the
+   * current simulation instant; slow subsystems must never use this method.
+   */
+  setCadence(id: SubsystemId, cadence: Cadence): void {
+    invariant(this.built, 'call build() before setCadence()');
+    const slot = this.byId.get(id as string);
+    invariant(slot !== undefined, `unknown subsystem '${String(id)}'`);
+    invariant(cadence.kind === 'every' && cadence.dt > 0, 'runtime cadence must be positive every(dt)');
+    slot.cadence = cadence;
+    slot.due = this._time;
+    slot.coveredThrough = this._time;
+    slot.lastRun = null;
+  }
+
+  cadenceOf(id: SubsystemId): Cadence | undefined {
+    return this.byId.get(id as string)?.cadence;
+  }
+
+  snapshot(): SchedulerSnapshot {
+    return {
+      schema: 1,
+      time: this._time,
+      tick: this._tick,
+      state: this._state,
+      slots: this.slots.map((slot) => ({
+        id: slot.entry.subsystem.id as string,
+        cadence: slot.cadence,
+        due: slot.due,
+        steps: slot.steps,
+        lastDt: slot.lastDt,
+        lastRun: slot.lastRun,
+        coveredThrough: slot.coveredThrough,
+      })),
+    };
+  }
+
+  restore(snapshot: SchedulerSnapshot): void {
+    invariant(snapshot.schema === 1, `unsupported scheduler snapshot schema ${String(snapshot.schema)}`);
+    invariant(snapshot.slots.length === this.slots.length, 'scheduler snapshot topology mismatch');
+    this._time = snapshot.time;
+    this._tick = snapshot.tick;
+    this._state = snapshot.state;
+    for (const saved of snapshot.slots) {
+      const slot = this.byId.get(saved.id);
+      invariant(slot !== undefined, `scheduler snapshot has unknown subsystem '${saved.id}'`);
+      slot.cadence = saved.cadence;
+      slot.due = saved.due;
+      slot.steps = saved.steps;
+      slot.lastDt = saved.lastDt;
+      slot.lastRun = saved.lastRun;
+      slot.coveredThrough = saved.coveredThrough;
+    }
+  }
+
+  pause(): void {
+    if (this._state === 'running') this._state = 'paused';
+  }
+
+  resumeRunning(): void {
+    if (this._state === 'paused') this._state = 'running';
+  }
+
+  /**
+   * DEC-030: `quiesce` is a no-op for slow state and discards transients for
+   * fast state. Called in resolved order so the sequence is deterministic.
+   */
+  quiesce(): void {
+    for (const slot of this.slots) {
+      slot.entry.subsystem.quiesce?.({
+        time: this._time,
+        dt: slot.lastDt,
+        step: slot.steps,
+      });
+    }
+    this._state = 'quiesced';
+  }
+
+  /**
+   * Resume from aggregates + world seed. Pure, so replay stays stable.
+   *
+   * Does NOT reset `due`. Resetting due to `_time` phase-shifts every slow
+   * cadence (DEC-030 amendment 1): a 10-year ice step that was 4 years from
+   * due would fire immediately, and two recipes that quiesced at different
+   * wall-clock moments would diverge.
+   */
+  resume(): void {
+    for (const slot of this.slots) {
+      slot.entry.subsystem.resume?.({
+        time: this._time,
+        dt: slot.lastDt,
+        step: slot.steps,
+      });
+    }
+    this._state = 'running';
+  }
+}
