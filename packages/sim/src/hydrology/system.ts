@@ -23,6 +23,55 @@ import {
 
 const DIRS = [DIR.POS_U, DIR.NEG_U, DIR.POS_V, DIR.NEG_V] as const;
 const WATER_DENSITY = 1000;
+/** Seconds in the hydrology year. Same number the 1-year cap used to take. */
+const YEAR_SECONDS = 365.25 * 86400;
+/**
+ * Snow→ice conversion. The old Euler took `min(0.001 * snow, 1e-7 * dt)` per
+ * CALL, and the production paleo/climatology window was capped at 1 year, so
+ * 0.1 % / year is the rate that window actually integrated. The 0.001 was a
+ * per-step fraction: one 100 kyr step converted 0.1 % and a hundred 1 kyr
+ * steps converted the pack. First-order closed form of that rate, volume-capped
+ * at the original 1e-7 m/s.
+ */
+const COMPACT_LAMBDA = 0.001 / YEAR_SECONDS;
+const COMPACT_RATE_CAP = 1e-7;
+const FIRN_THRESHOLD_M = 0.5;
+
+/**
+ * Snow pack under constant snowfall. Accumulation and firn conversion run
+ * together: excess' = p − λ excess, so a 100 kyr step and a hundred 1 kyr
+ * steps agree (T-0131). Conversion stops at the 0.5 m seasonal pack.
+ */
+function packSnow(
+  snow0: number,
+  precipRateMps: number,
+  dt: number,
+  canConvert: boolean,
+): { snow: number; converted: number } {
+  if (!(dt > 0)) return { snow: snow0, converted: 0 };
+  if (!canConvert) return { snow: snow0 + precipRateMps * dt, converted: 0 };
+  let snow = snow0;
+  let remaining = dt;
+  if (snow < FIRN_THRESHOLD_M) {
+    if (!(precipRateMps > 0)) return { snow, converted: 0 };
+    const tFill = (FIRN_THRESHOLD_M - snow) / precipRateMps;
+    if (tFill >= remaining) return { snow: snow + precipRateMps * remaining, converted: 0 };
+    snow = FIRN_THRESHOLD_M;
+    remaining -= tFill;
+  }
+  const excess0 = snow - FIRN_THRESHOLD_M;
+  const eq = precipRateMps / COMPACT_LAMBDA;
+  let excess = eq + (excess0 - eq) * exp(-COMPACT_LAMBDA * remaining);
+  if (excess < 0) excess = 0;
+  let converted = excess0 + precipRateMps * remaining - excess;
+  const cap = COMPACT_RATE_CAP * remaining;
+  if (converted > cap) {
+    converted = cap;
+    excess = excess0 + precipRateMps * remaining - converted;
+    if (excess < 0) { converted += excess; excess = 0; }
+  }
+  return { snow: FIRN_THRESHOLD_M + excess, converted: converted < 0 ? 0 : converted };
+}
 
 export interface RiverNetwork {
   readonly from: Int32Array;
@@ -187,10 +236,13 @@ export function rebuildHydrologyRouting(state: HydrologyState, geology: GeologyS
 }
 
 export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSeconds: number): WaterBudget {
-  /* Climatology/paleo calls are representative water-budget windows. Keep the
-     bucket integration stable while scheduler time advances coarsely. */
-  const elapsedSeconds = dtSeconds;
-  dtSeconds = Math.min(dtSeconds, 365.25 * 86400);
+  /* T-0131. The simulated interval is the interval. Soil already integrates
+     it closed-form (T-0083 / T-0107). Snow, glacier, melt, lakes and the
+     water-budget volumes used to take `min(dt, 1 yr)`, so a paleo 100 kyr
+     step accumulated one year of snow while 100 × 1 kyr accumulated a
+     century. Slow water is path-independent under constant forcing; a
+     representative-window cap is the same class of bug the soil solver had. */
+  const elapsedSeconds = Math.max(0, dtSeconds);
   resampleClimate(climate, state.level, state.temperatureK, state.precipitationRate);
   /*
    * A direct hydrology diagnostic can be handed a millennial window without a
@@ -206,7 +258,7 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
    * atmosphere first, so no cell is dry enough to fall back, and the same test
    * asserts that too.
    */
-  if (elapsedSeconds >= 1_000 * 365.25 * 86400) {
+  if (elapsedSeconds >= 1_000 * YEAR_SECONDS) {
     for (let i = 0; i < state.cellCount; i++) {
       if ((state.precipitationRate[i] as number) < 1e-8) {
         state.precipitationRate[i] = reducedColumnRainRate(state.temperatureK[i] as number);
@@ -224,27 +276,33 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
     const area = state.areaM2[i] as number;
     const T = state.temperatureK[i] as number;
     const p = Math.max(0, state.precipitationRate[i] as number) / WATER_DENSITY;
-    const inputM = p * dtSeconds;
+    const inputM = p * elapsedSeconds;
     precipitation += inputM * area;
     let rainM = inputM;
-    if (T < 273.15) {
-      state.snowpackM[i] = (state.snowpackM[i] as number) + inputM;
-      rainM = 0;
-    }
     let meltM = 0;
-    if (T > 273.15) {
-      const potential = (T - 273.15) * 2e-8 * dtSeconds;
-      meltM = Math.min(state.snowpackM[i] as number, potential);
-      state.snowpackM[i] = (state.snowpackM[i] as number) - meltM;
+    if (T < 273.15) {
+      rainM = 0;
+      const packed = packSnow(
+        state.snowpackM[i] as number,
+        p,
+        elapsedSeconds,
+        (state.elevationM[i] as number) > 1000,
+      );
+      state.snowpackM[i] = packed.snow;
+      state.glacierM[i] = (state.glacierM[i] as number) + packed.converted;
+    } else if (T > 273.15) {
+      const potentialRate = (T - 273.15) * 2e-8;
+      const snow0 = state.snowpackM[i] as number;
+      const snowMelt = Math.min(snow0, potentialRate * elapsedSeconds);
+      state.snowpackM[i] = snow0 - snowMelt;
+      let iceMelt = 0;
       if ((state.snowpackM[i] as number) <= 0.01 && (state.glacierM[i] as number) > 0) {
-        const gm = Math.min(state.glacierM[i] as number, potential * 0.08);
-        state.glacierM[i] = (state.glacierM[i] as number) - gm;
-        meltM += gm;
+        const timeUsed = potentialRate > 0 ? snowMelt / potentialRate : elapsedSeconds;
+        const remaining = Math.max(0, elapsedSeconds - timeUsed);
+        iceMelt = Math.min(state.glacierM[i] as number, potentialRate * 0.08 * remaining);
+        state.glacierM[i] = (state.glacierM[i] as number) - iceMelt;
       }
-    } else if ((state.snowpackM[i] as number) > 0.5 && (state.elevationM[i] as number) > 1000) {
-      const compact = Math.min((state.snowpackM[i] as number) * 0.001, 1e-7 * dtSeconds);
-      state.snowpackM[i] = (state.snowpackM[i] as number) - compact;
-      state.glacierM[i] = (state.glacierM[i] as number) + compact;
+      meltM = snowMelt + iceMelt;
     }
     /* SOIL WATER BALANCE, solved over the interval rather than split (T-0083).
      *
@@ -297,11 +355,14 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
      */
     const capacity = 0.35;
     const s0 = state.soilMoistureM[i] as number;
-    const supplyM = rainM + meltM;
+    /* Liquid rain feeds the soil. Meltwater is a finite stock being dumped
+       on a nonlinear bucket: averaging it over the interval is the same
+       path-dependence the soil closed form was written to kill. It runs off. */
+    const supplyM = rainM;
     /* Infiltration is rate-limited: a downpour runs off, it does not all soak
        in however dry the ground is. */
     const infiltrationRate = 2e-7 + 2e-6 * capacity;
-    const rechargeRate = Math.min(supplyM / Math.max(dtSeconds, 1), infiltrationRate);
+    const rechargeRate = Math.min(supplyM / Math.max(elapsedSeconds, 1), infiltrationRate);
     const potentialEtRate = Math.max(0, T - 250) * 4e-11;
     /* Baseflow at saturation, m/s. ~0.032 m/yr, which against a typical
        evapotranspiration of ~0.048 m/yr puts the land water balance near the
@@ -318,12 +379,12 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
          the bounded representative climatology window. */
       sUnclamped = sEq + (s0 - sEq) * exp(-k * elapsedSeconds);
     } else {
-      sUnclamped = s0 + rechargeRate * dtSeconds;
+      sUnclamped = s0 + rechargeRate * elapsedSeconds;
     }
     const sFinal = Math.min(capacity, Math.max(0, sUnclamped));
     /* Saturation excess: water the profile could not hold becomes runoff. */
     const saturationExcess = Math.max(0, sUnclamped - capacity);
-    const rechargeM = rechargeRate * dtSeconds;
+    const rechargeM = rechargeRate * elapsedSeconds;
     const absorbed = sFinal - s0;
     /* Everything that entered and did not stay, left one of two ways, split in
        proportion to the two loss rates. Closes exactly:
@@ -334,19 +395,20 @@ export function stepHydrology(state: HydrologyState, climate: ClimateState, dtSe
     const baseflowM = departed - evapM;
     state.soilMoistureM[i] = sFinal;
     evaporation += evapM * area;
-    /* Infiltration-excess overland flow, saturation excess, and baseflow. */
-    const runoffM = Math.max(0, supplyM - rechargeM) + saturationExcess + baseflowM;
-    state.runoffMps[i] = runoffM / Math.max(dtSeconds, 1);
+    /* Infiltration-excess overland flow, saturation excess, baseflow, and
+       melt that did not enter the profile. */
+    const runoffM = Math.max(0, supplyM - rechargeM) + saturationExcess + baseflowM + meltM;
+    state.runoffMps[i] = runoffM / Math.max(elapsedSeconds, 1);
   }
   updateDischarge(state);
   let oceanOutflow = 0;
   for (let i = 0; i < state.cellCount; i++) {
     const r = state.receiver[i] as number;
-    if (r >= 0 && state.ocean[r] !== 0) oceanOutflow += (state.dischargeM3s[i] as number) * dtSeconds;
+    if (r >= 0 && state.ocean[r] !== 0) oceanOutflow += (state.dischargeM3s[i] as number) * elapsedSeconds;
   }
   let retainedByLakes = 0;
   for (const lake of state.lakes) {
-    const inflow = lake.outlet >= 0 ? (state.dischargeM3s[lake.outlet] as number) * dtSeconds : 0;
+    const inflow = lake.outlet >= 0 ? (state.dischargeM3s[lake.outlet] as number) * elapsedSeconds : 0;
     lake.inflowM3 = inflow;
     lake.evaporationM3 = Math.min(lake.volumeM3, inflow * 0.002);
     const retained = Math.min(inflow, Math.max(0, lake.capacityM3 - lake.volumeM3 + lake.evaporationM3));
@@ -600,6 +662,37 @@ function updateDynamicSeaLevel(state: HydrologyState): void {
   const meanT = oceanMean(state.temperatureK, state.areaM2, state.ocean);
   const thermal = 2.1e-4 * (meanT - state.referenceOceanTemperatureK) * 3700;
   state.seaLevelM = state.referenceSeaLevelM + eustatic + thermal;
+}
+
+/**
+ * Recompute `hydrology.ocean` from elevation vs the sea level this step just
+ * wrote, and rebuild routing if any cell flipped (T-0138).
+ *
+ * Called from the hydrology *subsystem* after `stepHydrology`, not from the
+ * water-budget kernel: the kernel is invoked as a diagnostic with arbitrary
+ * chunking, and flipping the land mask between chunks would make the soil
+ * closed form look path-dependent when it is not.
+ */
+export function syncHydrologyCoast(state: HydrologyState): number {
+  let flipped = 0;
+  for (let i = 0; i < state.cellCount; i++) {
+    const wet = (state.elevationM[i] as number) < state.seaLevelM ? 1 : 0;
+    if (wet !== state.ocean[i]) {
+      state.ocean[i] = wet;
+      flipped++;
+    }
+  }
+  if (flipped === 0) return 0;
+  const r = routeSurface(state.elevationM, state.ocean, state.areaM2, state.level);
+  state.filledM.set(r.filled);
+  state.receiver.set(r.receiver);
+  state.topologicalOrder.set(r.order);
+  state.basinId.set(r.basin);
+  state.contributingAreaM2.set(r.area);
+  state.lakes = buildLakes(state.elevationM, state.filledM, state.receiver, state.areaM2, state.level);
+  updateDischarge(state);
+  state.routingGeneration++;
+  return flipped;
 }
 
 function STABLE_CELL_AREA(state: HydrologyState): number {

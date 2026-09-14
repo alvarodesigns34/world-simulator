@@ -36,6 +36,7 @@ function authoritativeArrays(w: ReturnType<typeof freshWorld>): Array<[string, {
   const d = w.dynamicGeology;
   return [
     ['hydrology.filledM', h.filledM],
+    ['hydrology.elevationM', h.elevationM],
     ['hydrology.contributingAreaM2', h.contributingAreaM2],
     ['hydrology.runoffMps', h.runoffMps],
     ['hydrology.dischargeM3s', h.dischargeM3s],
@@ -121,7 +122,10 @@ describe('T-0082 world digest coverage', () => {
       }],
       ['hydrology.budget.residual inputs', () => {
         const o = w.hydrology.budget.storageChangeM3;
-        w.hydrology.budget.storageChangeM3 = o + 1;
+        /* Paleo now integrates the full interval, so the budget is planetary
+           water × 100 kyr. +1 m³ is below f64 ulp there. */
+        const delta = Math.max(1, Math.abs(o) * 1e-6, 1e12);
+        w.hydrology.budget.storageChangeM3 = o + delta;
         return () => { w.hydrology.budget.storageChangeM3 = o; };
       }],
       ['biosphere.extinctions', () => {

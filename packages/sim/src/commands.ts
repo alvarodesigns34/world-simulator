@@ -24,10 +24,19 @@ export interface CommandLog {
   readonly entries: readonly LoggedCommand[];
   push(cmd: Command): void;
   restore(entries: readonly LoggedCommand[]): void;
+  /**
+   * Close the current coalesce window (T-0133).
+   *
+   * Consecutive `advance`s merge into one entry so a 60 Hz loop does not write
+   * a 60-line recipe per second. A checkpoint is a replay boundary: the next
+   * advance must be a new entry, or `commandCount` cannot find it.
+   */
+  seal(): void;
 }
 
 export function createCommandLog(now: () => { readonly year: number; readonly seconds: number }): CommandLog {
   const entries: LoggedCommand[] = [];
+  let coalesce = true;
   return {
     get entries() {
       return entries;
@@ -35,7 +44,7 @@ export function createCommandLog(now: () => { readonly year: number; readonly se
     push(cmd: Command): void {
       if (cmd.kind === 'advance') {
         const last = entries[entries.length - 1];
-        if (last?.cmd.kind === 'advance') {
+        if (coalesce && last?.cmd.kind === 'advance') {
           entries[entries.length - 1] = {
             ...last,
             cmd: { kind: 'advance', seconds: last.cmd.seconds + cmd.seconds },
@@ -43,6 +52,7 @@ export function createCommandLog(now: () => { readonly year: number; readonly se
           return;
         }
       }
+      coalesce = true;
       entries.push({ seq: entries.length, time: { ...now() }, cmd });
     },
     restore(saved: readonly LoggedCommand[]): void {
@@ -51,6 +61,10 @@ export function createCommandLog(now: () => { readonly year: number; readonly se
         time: { ...entry.time },
         cmd: { ...entry.cmd },
       })));
+      coalesce = true;
+    },
+    seal(): void {
+      coalesce = false;
     },
   };
 }

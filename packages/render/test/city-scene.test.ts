@@ -221,6 +221,23 @@ describe('T-0101 the scene stays bounded and honest about it', () => {
     expect(scene.data.length).toBeGreaterThanOrEqual(scene.count * CITY_INSTANCE_FLOATS);
   });
 
+  it('fills maxInstances from the city under the camera, not a larger distant one', () => {
+    const town = { ...city(24, 4_000), frame: frameAt(0) };
+    const capital = { ...city(8_000, 4_000), frame: frameAt(0.2) };
+    const scene = buildCityScene({
+      ...camAbove(500), cities: [capital, town], links: [],
+      maxBuildings: 1_000_000, maxInstances: 20,
+    });
+    expect(scene.count).toBeGreaterThan(0);
+    expect(scene.count).toBeLessThanOrEqual(20);
+    let far = 0;
+    for (let i = 0; i < scene.count; i++) {
+      const o = i * CITY_INSTANCE_FLOATS;
+      if (Math.abs(scene.data[o + 1] as number) > 12_000) far++;
+    }
+    expect(far, 'instance cap spent on the distant capital').toBe(0);
+  });
+
   it('reuses a caller-provided buffer, so a frame allocates nothing', () => {
     const c = city(2_000);
     const buffer = new Float32Array(1 << 16 * 0 | 65536 * CITY_INSTANCE_FLOATS);

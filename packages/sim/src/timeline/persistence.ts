@@ -7,6 +7,7 @@ import { createWorld, publishWorldState, type SerializableWorldOptions, type Wor
 import type { SchedulerSnapshot } from '../scheduler/scheduler.js';
 import type { HistorySnapshot } from './history.js';
 import { SCIENTIFIC_FIELDS, type ScientificFieldDescriptor } from '../visualisation/scientific.js';
+import { absoluteSeconds } from './checkpoints.js';
 
 export const SAVE_SCHEMA = 2;
 export const ENGINE_SCHEMA = 'world-simulator-m13';
@@ -40,13 +41,58 @@ export interface SnapshotSave {
   readonly checksum: string;
 }
 
+/**
+ * The command log of the world as it currently is, not as it will be (T-0133).
+ *
+ * While the navigator is in history the live tail is still on `world.commands`
+ * so a later `returnToLive` can keep it. A save of that reconstructed instant
+ * must not claim the future: advances are split at `now`, and later commands
+ * are dropped. A live save is unchanged — `now` is the end of the last
+ * advance, so the log is copied whole.
+ */
+export function commandLogAsOf(world: World): LoggedCommand[] {
+  const year = world.calendar.secondsPerYear;
+  const at = absoluteSeconds(world.scheduler.time, year);
+  const out: LoggedCommand[] = [];
+  /* Walk from genesis. Advance timestamps are the END of a (possibly
+     coalesced) interval, so they cannot be used as starts. Recipe replay
+     is a running clock; a historical save has to be too. */
+  let t = 0;
+  for (const entry of world.commands.entries) {
+    const cmd = entry.cmd;
+    if (cmd.kind === 'advance') {
+      if (t >= at - 1e-9) break;
+      const take = Math.min(cmd.seconds, at - t);
+      if (take > 1e-12) {
+        out.push({ seq: out.length, time: { ...entry.time }, cmd: { kind: 'advance', seconds: take } });
+      }
+      t += take;
+      if (take < cmd.seconds - 1e-12) break;
+      continue;
+    }
+    if (cmd.kind === 'advanceDeepTime') {
+      if (t >= at - 1e-9) break;
+      const takeYears = Math.min(cmd.years, (at - t) / year);
+      if (takeYears > 1e-12) {
+        out.push({ seq: out.length, time: { ...entry.time }, cmd: { kind: 'advanceDeepTime', years: takeYears } });
+      }
+      t += takeYears * year;
+      if (takeYears < cmd.years - 1e-12) break;
+      continue;
+    }
+    if (t > at + 1e-6) break;
+    out.push({ seq: out.length, time: { ...entry.time }, cmd: { ...cmd } });
+  }
+  return out;
+}
+
 export function saveRecipe(world: World): string {
   const payload = {
     kind: 'recipe' as const,
     schema: SAVE_SCHEMA as 2,
     engine: ENGINE_SCHEMA,
     options: world.creationOptions,
-    commands: world.commands.entries,
+    commands: commandLogAsOf(world),
     expectedDigest: world.digest(),
   };
   return seal(payload);
@@ -82,7 +128,7 @@ export function saveSnapshot(world: World): string {
     schema: SAVE_SCHEMA as 2,
     engine: ENGINE_SCHEMA,
     options: world.creationOptions,
-    commandLog: world.commands.entries,
+    commandLog: commandLogAsOf(world),
     scheduler: world.scheduler.snapshot(),
     entities: world.civilisation.store.snapshot(),
     history: world.history.snapshot(),

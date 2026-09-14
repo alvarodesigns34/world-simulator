@@ -180,6 +180,7 @@ function foldHydrology(h: number, w: HydrologyState): number {
   acc = foldInts(acc, w.topologicalOrder);
   acc = foldInts(acc, w.basinId);
   acc = foldInts(acc, w.ocean);
+  acc = foldFloats(acc, w.elevationM, Q_ELEV);
   acc = foldFloats(acc, w.filledM, Q_ELEV);
   acc = foldFloats(acc, w.contributingAreaM2, Q_AREA);
   acc = foldFloats(acc, w.runoffMps, Q_FLOW);
@@ -288,6 +289,8 @@ function foldCivilisation(h: number, c: CivilisationState): number {
   acc = mix(acc, c.topologyVersion);
   acc = mix(acc, c.nextCulture);
   acc = mix(acc, c.steps);
+  acc = mix(acc, c.siteCursor);
+  acc = mix(acc, c.store.freeContinuationDigest());
   return foldScalar(acc, c.year, 1e-6);
 }
 

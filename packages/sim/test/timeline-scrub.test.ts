@@ -18,6 +18,8 @@ import {
   captureCheckpoint,
   createWorld,
   restoreCheckpoint,
+  replayRecipe,
+  saveRecipe,
 } from '@ws/sim';
 
 function world() {
@@ -282,5 +284,51 @@ describe('T-0095 history and bookmarks stay coherent across a scrub', () => {
     /* And it can keep simulating from the reconstructed state. */
     w.advance(10_000 * w.calendar.secondsPerYear);
     expect(Number.isFinite(w.civilisation.totalPopulation)).toBe(true);
+  }, 180000);
+});
+
+describe('T-0133 scrub replays the command log, not raw dt', () => {
+  it('keeps a between-checkpoint setTimeScale on the reconstructed side', () => {
+    const w = world();
+    const nav = new TimelineNavigator(w, { maxCheckpoints: 8 });
+    nav.record();
+    expect(w.climate.regime).toBe('explicit');
+    w.apply({ kind: 'setTimeScale', scale: 1e8 });
+    expect(w.climate.regime).toBe('paleo');
+    const year = w.calendar.secondsPerYear;
+    w.advance(100_000 * year);
+    nav.record();
+
+    nav.scrubTo(50_000 * year);
+    expect(nav.mode).toBe('history');
+    expect(w.climate.regime, 'scrub dropped the paleo command and integrated explicit').toBe('paleo');
+    expect(w.timeScale).toBe(1e8);
+  }, 180000);
+
+  it('keeps a between-checkpoint setRegime on the reconstructed side', () => {
+    const w = world();
+    const nav = new TimelineNavigator(w, { maxCheckpoints: 8 });
+    nav.record();
+    w.apply({ kind: 'setRegime', regime: 'paleo' });
+    const year = w.calendar.secondsPerYear;
+    w.advance(100_000 * year);
+    nav.record();
+
+    nav.scrubTo(40_000 * year);
+    expect(w.climate.regime).toBe('paleo');
+  }, 180000);
+
+  it('save-while-in-history snapshots the reconstructed log, not the live tail', () => {
+    const w = world();
+    w.apply({ kind: 'setTimeScale', scale: 1e8 });
+    const nav = new TimelineNavigator(w, { maxCheckpoints: 16 });
+    const marks = evolve(w, nav, 3);
+    const live = w.digest();
+    nav.scrubTo(marks[0] as number);
+    const historical = w.digest();
+    expect(historical).not.toBe(live);
+
+    const recipe = saveRecipe(w);
+    expect(replayRecipe(recipe).digest(), 'historical save replayed the live tail').toBe(historical);
   }, 180000);
 });

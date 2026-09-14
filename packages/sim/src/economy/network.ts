@@ -120,6 +120,20 @@ export function initNetwork(capacity: number): TransportNetwork {
   };
 }
 
+function edgeKey(storeA: number, storeB: number, coastal: boolean): string {
+  const lo = storeA < storeB ? storeA : storeB;
+  const hi = storeA < storeB ? storeB : storeA;
+  return `${String(lo)}:${String(hi)}:${coastal ? '1' : '0'}`;
+}
+
+function applyEdgeEconomics(edge: TransportEdge): void {
+  const base = MODE_COST_PER_M[edge.mode] as number;
+  const trackCost = MODE_COST_PER_M[MODE.TRACK] as number;
+  const effective = base + (trackCost - base) * (1 - edge.quality) * (edge.mode === MODE.SEA ? 0 : 1);
+  edge.unitCost = edge.distanceM * effective;
+  edge.capacity = (MODE_CAPACITY[edge.mode] as number) * (0.25 + 0.75 * edge.quality);
+}
+
 /**
  * Rebuild the topology from the current settlement set.
  *
@@ -139,6 +153,17 @@ export function rebuildTopology(
 ): void {
   const store = civ.store;
   const cellCol = store.column(CIV.cell);
+
+  /* T-0139. Infrastructure is hysteretic: a road built stays built. The
+     previous rebuild started every edge at TRACK/quality 0, so a village
+     founding (topologyVersion++) wiped the rail network. Key by SETTLEMENT
+     index, not node index — founding shifts node numbers. */
+  const prev = new Map<string, { mode: ModeId; quality: number }>();
+  for (const e of net.edges) {
+    const sa = net.nodes[e.a] as number;
+    const sb = net.nodes[e.b] as number;
+    prev.set(edgeKey(sa, sb, e.mode === MODE.SEA), { mode: e.mode, quality: e.quality });
+  }
 
   const nodes: number[] = [];
   net.nodeOf.fill(-1);
@@ -213,6 +238,12 @@ export function rebuildTopology(
       capacity: MODE_CAPACITY[coastal ? MODE.SEA : MODE.TRACK] as number,
       route,
     };
+    const inherited = prev.get(edgeKey(ai, bi, coastal));
+    if (inherited !== undefined) {
+      e.mode = inherited.mode;
+      e.quality = inherited.quality;
+      applyEdgeEconomics(e);
+    }
     adjacency[lo]!.push(net.edges.length);
     adjacency[hi]!.push(net.edges.length);
     net.edges.push(e);
@@ -342,11 +373,7 @@ export function investInInfrastructure(
 
     /* A half-built road is not half a road: cost falls with quality but never
        below the mode's floor, and capacity scales with it. */
-    const base = MODE_COST_PER_M[edge.mode] as number;
-    const trackCost = MODE_COST_PER_M[MODE.TRACK] as number;
-    const effective = base + (trackCost - base) * (1 - edge.quality) * (edge.mode === MODE.SEA ? 0 : 1);
-    edge.unitCost = edge.distanceM * effective;
-    edge.capacity = (MODE_CAPACITY[edge.mode] as number) * (0.25 + 0.75 * edge.quality);
+    applyEdgeEconomics(edge);
 
     const km = edge.distanceM / 1000;
     if (edge.mode === MODE.RAIL) net.railKm += km * edge.quality;
@@ -364,6 +391,8 @@ export function networkDigest(net: TransportNetwork): number {
   };
   let h = mix(0x9e3779b1, net.edges.length);
   h = mix(h, net.topologyGeneration);
+  h = mix(h, net.nodes.length);
+  for (let i = 0; i < net.nodes.length; i++) h = mix(h, net.nodes[i] as number);
   for (const e of net.edges) {
     h = mix(h, e.a);
     h = mix(h, e.b);

@@ -343,6 +343,26 @@ export class EntityStore {
     return h >>> 0;
   }
 
+  /**
+   * Continuation of the LIFO free list (T-0137).
+   *
+   * `digest()` is the live set: two worlds that differ only in which dead
+   * slot holds leftover bytes are the same world. The NEXT create, however,
+   * pops this list, so the order of free indices is continuation state —
+   * a founding that lands in slot 7 is not the same world as one that lands
+   * in slot 3, even after T-0123 zeros the inherited row.
+   */
+  freeContinuationDigest(): number {
+    const mix = (x: number, v: number): number => {
+      let y = (x ^ Math.imul(v | 0, 0x9e3779b1)) >>> 0;
+      y = Math.imul(y ^ (y >>> 16), 0x7feb352d) >>> 0;
+      return (y ^ (y >>> 15)) >>> 0;
+    };
+    let h = mix(0x51eef1ee, this.freeCount);
+    for (let i = 0; i < this.freeCount; i++) h = mix(h, this.freeList[i] as number);
+    return h >>> 0;
+  }
+
   /** Authoritative, renderer-free state used by M11 snapshot saves. */
   snapshot(): EntityStoreSnapshot {
     const columns: Record<string, readonly number[]> = {};

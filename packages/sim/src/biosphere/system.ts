@@ -7,6 +7,7 @@
  * ocean/ice cells.
  */
 
+import { exp } from '@ws/core';
 import { DIR, cubeDim, cubeIndex, neighbor } from '@ws/data';
 import type { HydrologyState } from '../hydrology/system.js';
 
@@ -82,7 +83,12 @@ export function initBiosphere(h: HydrologyState): BiosphereState {
 
 export function stepBiosphere(s: BiosphereState, h: HydrologyState, dtYears: number, season: number): void {
   diagnoseBiomes(s, h);
-  const dt = Math.min(20, Math.max(0, dtYears));
+  /* T-0136. The previous form took `min(20, dtYears)` then one Euler step, so
+     a paleo 100 kyr tick integrated 20 years of biomass. Slow pools have
+     closed forms (logistic biomass, exponential phenology); the damped
+     trophic chain substeps at 1 year until it stops moving, which is the
+     equilibrium the 100 kyr window actually occupies. */
+  const dt = Math.max(0, dtYears);
   for (let i = 0; i < s.cellCount; i++) {
     const impossible = s.biome[i] === BIOME.OCEAN || s.biome[i] === BIOME.ICE;
     if (impossible) {
@@ -105,35 +111,65 @@ export function stepBiosphere(s: BiosphereState, h: HydrologyState, dtYears: num
     const snow = h.snowpackM[i] as number;
     const drought = drought0;
     const targetPhenology = snow > 0.05 || T < 270 ? 0.05 : clamp01(light * water * (1 - drought));
-    s.phenology[i] = approach(s.phenology[i] as number, targetPhenology, Math.min(1, dt * 0.7));
+    /* x' = 0.7 (target − x). The old lerp factor `min(1, dt*0.7)` was the
+       forward-Euler of this rate, capped at a snap-to-target. */
+    s.phenology[i] = targetPhenology + ((s.phenology[i] as number) - targetPhenology) * exp(-0.7 * dt);
     const K = carryingCapacity(s, h, i);
     const biomass = s.biomassKgM2[i] as number;
-    const growth = npp * (1 - biomass / Math.max(K, 0.05));
-    const stress = drought * biomass * 0.4 + (snow > 0.2 ? biomass * 0.2 : 0);
-    s.biomassKgM2[i] = Math.max(0, biomass + dt * (growth - stress));
+    /* dB/dt = npp (1 − B/K) − σ B = npp − B (npp/K + σ). */
+    const stressCoeff = drought * 0.4 + (snow > 0.2 ? 0.2 : 0);
+    const kRate = npp / Math.max(K, 0.05) + stressCoeff;
+    if (kRate > 0) {
+      const eq = npp / kRate;
+      s.biomassKgM2[i] = Math.max(0, eq + (biomass - eq) * exp(-kRate * dt));
+    } else {
+      s.biomassKgM2[i] = Math.max(0, biomass + dt * npp);
+    }
     s.vegetationDensity[i] = clamp01((s.biomassKgM2[i] as number) / Math.max(K, 0.1));
 
     /* Damped producer/herbivore/predator chain. Semi-implicit losses and
-       bounded dt prevent the classic undamped Lotka-Volterra explosion. */
-    let P = s.producers[i] as number;
-    let H = s.herbivores[i] as number;
-    let R = s.predators[i] as number;
+       1-year substeps prevent the classic undamped Lotka-Volterra explosion
+       without dropping 99.98 % of a paleo interval. Once a substep stops
+       moving, the rest of the window is identity under constant forcing. */
     const food = Math.max(0.01, s.biomassKgM2[i] as number);
-    P += dt * (0.35 * (food - P) - 0.08 * H * P / (1 + P));
-    H += dt * (0.12 * H * P / (1 + P) - 0.08 * H - 0.035 * R * H / (1 + H));
-    R += dt * (0.025 * R * H / (1 + H) - 0.035 * R);
-    P = bounded(P, 0, Math.max(0.1, K * 2));
-    H = bounded(H, 0, Math.max(0.05, K));
-    R = bounded(R, 0, Math.max(0.01, K * 0.25));
-    if (H < 1e-8) { if ((s.herbivores[i] as number) >= 1e-8) s.extinctions++; H = 0; }
-    if (R < 1e-9) { if ((s.predators[i] as number) >= 1e-9) s.extinctions++; R = 0; }
-    s.producers[i] = P;
-    s.herbivores[i] = H;
-    s.predators[i] = R;
-    s.populationDensity[i] = H + R;
+    let remaining = dt;
+    let guard = 0;
+    while (remaining > 1e-12 && guard < 256) {
+      guard++;
+      const sub = Math.min(1, remaining);
+      const change = stepTrophic(s, i, K, food, sub);
+      remaining -= sub;
+      if (change < 1e-9) break;
+    }
   }
-  migrate(s, h, Math.min(0.15, dt * 0.02));
+  /* Small-dt matches the old `dt * 0.02`; large-dt saturates instead of
+     being capped at 0.15 per call (the same per-step fraction bug). */
+  migrate(s, h, dt > 0 ? 1 - exp(-0.02 * dt) : 0);
   s.steps++;
+}
+
+/** One damped trophic Euler substep. Returns the max absolute pool change. */
+function stepTrophic(s: BiosphereState, i: number, K: number, food: number, dt: number): number {
+  let P = s.producers[i] as number;
+  let H = s.herbivores[i] as number;
+  let R = s.predators[i] as number;
+  const P0 = P, H0 = H, R0 = R;
+  P += dt * (0.35 * (food - P) - 0.08 * H * P / (1 + P));
+  H += dt * (0.12 * H * P / (1 + P) - 0.08 * H - 0.035 * R * H / (1 + H));
+  R += dt * (0.025 * R * H / (1 + H) - 0.035 * R);
+  P = bounded(P, 0, Math.max(0.1, K * 2));
+  H = bounded(H, 0, Math.max(0.05, K));
+  R = bounded(R, 0, Math.max(0.01, K * 0.25));
+  if (H < 1e-8) { if ((s.herbivores[i] as number) >= 1e-8) s.extinctions++; H = 0; }
+  if (R < 1e-9) { if ((s.predators[i] as number) >= 1e-9) s.extinctions++; R = 0; }
+  s.producers[i] = P;
+  s.herbivores[i] = H;
+  s.predators[i] = R;
+  s.populationDensity[i] = H + R;
+  const dP = P > P0 ? P - P0 : P0 - P;
+  const dH = H > H0 ? H - H0 : H0 - H;
+  const dR = R > R0 ? R - R0 : R0 - R;
+  return dP > dH ? (dP > dR ? dP : dR) : (dH > dR ? dH : dR);
 }
 
 /**
@@ -226,6 +262,5 @@ function seasonalLight(season: number, T: number): number {
   return T > 285 ? 0.75 + 0.25 * triangular : 0.35 + 0.65 * triangular;
 }
 
-function approach(a: number, b: number, f: number): number { return a + (b - a) * f; }
 function clamp01(x: number): number { return x < 0 ? 0 : x > 1 ? 1 : x; }
 function bounded(x: number, lo: number, hi: number): number { return x < lo ? lo : x > hi ? hi : x; }

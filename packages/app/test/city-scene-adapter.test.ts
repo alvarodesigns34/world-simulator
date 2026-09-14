@@ -48,8 +48,8 @@ describe('T-0101 city scene adapter', () => {
 
   it('produces drawable instances from orbit', () => {
     const adapter = new CitySceneAdapter({ radiusM: R });
-    /* 2000 km up: every city is far beyond 40x its own radius. */
-    const built = adapter.build(world, { x: 0, y: 0, z: R + 2_000_000 });
+    /* Far enough that even a paleo megacity (T-0131 grew radii) is one block. */
+    const built = adapter.build(world, { x: 0, y: 0, z: R + 50_000_000 });
     expect(built.stats.instances).toBeGreaterThan(0);
     expect(built.stats.aggregates).toBeGreaterThan(0);
     /* No layout should have been generated: from orbit a city is one block. */
@@ -280,5 +280,29 @@ describe('T-0101 city scene adapter', () => {
       .build(empty, { x: 0, y: 0, z: R + 1e6 });
     expect(built.stats.buildings).toBe(0);
     expect(Number.isFinite(built.buildMs)).toBe(true);
+  });
+
+  it('does not drop the city under the camera for a larger distant capital', () => {
+    expect(world.cities.cities.length).toBeGreaterThan(1);
+    const ranked = [...world.cities.cities].sort((a, b) => a.population - b.population || a.id - b.id);
+    const town = ranked[0]!;
+    const capital = ranked[ranked.length - 1]!;
+    expect(capital.population).toBeGreaterThan(town.population);
+    const frame = surfaceFrameAt(town.cell, world.hydrology.level, R);
+    const d = Math.max(1500, town.radiusM);
+    const cam = {
+      x: frame.ox + frame.ux * d, y: frame.oy + frame.uy * d, z: frame.oz + frame.uz * d,
+    };
+    const built = new CitySceneAdapter({ radiusM: R, maxCities: 1 }).build(world, cam);
+    expect(built.stats.instances).toBeGreaterThan(0);
+    let nearest = Infinity;
+    for (let i = 0; i < built.scene.count; i++) {
+      const o = i * CITY_INSTANCE_FLOATS + CITY_INSTANCE_OFFSET.centre;
+      const r = Math.hypot(built.scene.data[o] as number, built.scene.data[o + 1] as number, built.scene.data[o + 2] as number);
+      if (r < nearest) nearest = r;
+    }
+    /* Population-order with maxCities=1 would draw the capital, hundreds of
+       kilometres away. The town under the camera is a few radii out. */
+    expect(nearest).toBeLessThan(8 * Math.max(2000, town.radiusM));
   });
 });

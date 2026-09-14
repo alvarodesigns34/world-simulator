@@ -185,8 +185,19 @@ export function buildCityScene(input: CitySceneInput, out?: Float32Array): CityS
     return true;
   };
 
-  /* --- cities --- */
-  for (const city of input.cities) {
+  /* --- cities, nearest first so a maxInstances cap drops the far ones
+     (T-0134). The adapter already prefers the city under the camera; this
+     defends the packer against a population-sorted input. */
+  const ordered = input.cities.map((city, index) => {
+    const f = city.frame;
+    const dx = f.ox - input.camX;
+    const dy = f.oy - input.camY;
+    const dz = f.oz - input.camZ;
+    return { city, index, dist: dx * dx + dy * dy + dz * dz };
+  });
+  ordered.sort((a, b) => a.dist - b.dist || a.index - b.index);
+
+  for (const { city } of ordered) {
     const f = city.frame;
     /* Camera-relative in f64, downcast once (DEC-005). */
     const rx = f.ox - input.camX;

@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { makeSeed } from '@ws/core';
+import { duration, HOUR, makeSeed } from '@ws/core';
 import { createWorld } from '@ws/sim';
 
 function world() {
@@ -38,6 +38,21 @@ describe('T-0096 the paleo regime keeps civilisation on a civilisation cadence',
     expect(w.climate.regime).toBe('paleo');
     expect(cadenceSeconds(w, 'civilisation') / y).toBeCloseTo(500, 3);
     expect(cadenceSeconds(w, 'economy') / y).toBeCloseTo(500, 3);
+    expect(cadenceSeconds(w, 'geology') / y).toBeCloseTo(100_000, 3);
+  }, 60000);
+
+  it('does not reset geology due on a T0↔T4 regime change', () => {
+    /* T-0135 / DEC-037. setCadence resets due to now. Geology is forbidden
+       from using it, so a mid-window T0→T4 must not fire geology early. */
+    const w = world();
+    const y = w.calendar.secondsPerYear;
+    w.scheduler.advance(duration(HOUR));
+    const before = w.scheduler.snapshot().slots.find((s) => s.id === 'geology')!;
+    w.apply({ kind: 'setTimeScale', scale: 1e8 });
+    expect(w.climate.regime).toBe('paleo');
+    const after = w.scheduler.snapshot().slots.find((s) => s.id === 'geology')!;
+    expect(after.due.year).toBe(before.due.year);
+    expect(after.due.seconds).toBe(before.due.seconds);
     expect(cadenceSeconds(w, 'geology') / y).toBeCloseTo(100_000, 3);
   }, 60000);
 });

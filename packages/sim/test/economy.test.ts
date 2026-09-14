@@ -294,6 +294,33 @@ describe('M10 trade is local arbitrage, and transport cost is what makes it', ()
     expect(net.roadKm + net.seaKm + net.railKm).toBeGreaterThan(0);
   }, 30000);
 
+  it('a road built stays built across a village founding', () => {
+    /* T-0139. rebuildTopology used to start every edge at TRACK/quality 0. */
+    const w = evolved(6);
+    const net = w.economy.network;
+    const built = net.edges.filter((e) => e.mode === MODE.ROAD || e.mode === MODE.RAIL);
+    expect(built.length).toBeGreaterThan(0);
+    const snapshot = built.map((e) => ({
+      a: net.nodes[e.a] as number,
+      b: net.nodes[e.b] as number,
+      mode: e.mode,
+      quality: e.quality,
+    }));
+    w.civilisation.topologyVersion += 1;
+    stepEconomy(w.economy, w.civilisation, w.hydrology, 1);
+    const after = w.economy.network;
+    for (const s of snapshot) {
+      const hit = after.edges.find((e) => {
+        const a = after.nodes[e.a] as number;
+        const b = after.nodes[e.b] as number;
+        return (a === s.a && b === s.b) || (a === s.b && b === s.a);
+      });
+      expect(hit, `lost ${String(s.a)}–${String(s.b)}`).toBeDefined();
+      expect(hit!.mode).toBe(s.mode);
+      expect(hit!.quality).toBeCloseTo(s.quality, 5);
+    }
+  }, 30000);
+
   it('keeps the trade graph sparse, which is what makes global routing unnecessary', () => {
     /* The design rule is "no global pathfinding". The structural evidence is
        that the graph is SPARSE: neighbour links plus a coastal ring, so edges

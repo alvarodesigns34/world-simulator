@@ -74,7 +74,7 @@ interface CorridorEntry {
 export interface CitySceneOptions {
   /** Planet radius in metres. The world does not carry one; the shell does. */
   readonly radiusM?: number;
-  /** Cities considered per frame, by population. The rest are not drawn. */
+  /** Cities considered per frame. Under-camera first, then by population. */
   readonly maxCities?: number;
   readonly maxBuildings?: number;
   readonly maxInstances?: number;
@@ -123,23 +123,36 @@ export class CitySceneAdapter {
     const radius = this.options.radiusM ?? EARTH_GEOMETRY.radius;
     const h = world.hydrology;
 
-    /* Largest first: from orbit the cap should drop hamlets, not capitals. */
-    const candidates = [...world.cities.cities]
-      .sort((a, b) => b.population - a.population || a.id - b.id)
-      .slice(0, maxCities);
-
-    const geometries: CityGeometry[] = [];
-    let detailed = 0;
-    for (const city of candidates) {
-      if (city.cell < 0 || city.cell >= h.cellCount) continue;
+    /* Camera first: a city under the camera cannot lose its slot to a larger
+       distant capital (T-0134). From orbit every city is AGGREGATE, so the
+       remainder still prefers population — hamlets drop, capitals stay. */
+    const scored = world.cities.cities.map((city) => {
+      if (city.cell < 0 || city.cell >= h.cellCount) {
+        return { city, dist: Number.POSITIVE_INFINITY, near: false };
+      }
       const sampler = cityTerrainSampler(h, city.cell);
       const baseZ = Math.max(sampler.elevationAt(0, 0), h.seaLevelM);
       const frame = surfaceFrameAt(city.cell, h.level, radius + baseZ);
       const dx = frame.ox - cam.x;
       const dy = frame.oy - cam.y;
       const dz = frame.oz - cam.z;
-      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      const tier = cityTierFor(distance, Math.max(1, city.radiusM));
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      return { city, dist, near: cityTierFor(dist, Math.max(1, city.radiusM)) !== CITY_TIER.AGGREGATE };
+    });
+    const near = scored.filter((s) => s.near)
+      .sort((a, b) => a.dist - b.dist || b.city.population - a.city.population || a.city.id - b.city.id);
+    const far = scored.filter((s) => !s.near)
+      .sort((a, b) => b.city.population - a.city.population || a.city.id - b.city.id);
+    const candidates = [...near, ...far].slice(0, maxCities);
+
+    const geometries: CityGeometry[] = [];
+    let detailed = 0;
+    for (const { city, dist } of candidates) {
+      if (city.cell < 0 || city.cell >= h.cellCount) continue;
+      const sampler = cityTerrainSampler(h, city.cell);
+      const baseZ = Math.max(sampler.elevationAt(0, 0), h.seaLevelM);
+      const frame = surfaceFrameAt(city.cell, h.level, radius + baseZ);
+      const tier = cityTierFor(dist, Math.max(1, city.radiusM));
 
       if (tier === CITY_TIER.AGGREGATE) {
         geometries.push(aggregateGeometry(frame, Math.max(1, city.radiusM)));

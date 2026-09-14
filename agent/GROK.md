@@ -15,6 +15,75 @@ Newest entry at the top. Template at the bottom.
 
 ---
 
+## 2026-09-14 — Close the remaining absolute-redteam P0/P1s (paleo dt, scrub log, camera cap).
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam` · **Tasks:** T-0131, T-0133, T-0134, T-0135, T-0136, T-0137, T-0138, T-0139 **Done**
+**Do not merge `main`.** PR to `dev`.
+
+The previous turn closed T-0120…T-0130 and left the paleo dt-cap (same class as the soil bug) plus the command-log lie. This turn closed the rest of the assigned list. Tests first. `pnpm run check` green.
+
+### Audited
+
+| # | Area | Verdict |
+| --- | --- | --- |
+| 1 | Paleo hydrology `min(dt, 1 yr)` | **Wrong, now closed.** Snow/ice/melt/eustasy dropped 99.99 % of a 100 kyr step. Closed-form `packSnow` (excess' = p − λ excess, 0.5 m floor, rate cap). Melt runs off; soil still closed-form on rain. |
+| 2 | Paleo biosphere `min(20, dt)` Euler | **Wrong, now closed.** Logistic biomass + exp phenology; 1-year trophic substeps to equilibrium (cap 256); migration `1-exp(-0.02 dt)`. |
+| 3 | Geology `setCadence` on T0↔T4 | **Wrong, now closed.** DEC-037 forbids it. Skip unless dt actually changed (deep-time 1 Myr macro). |
+| 4 | Digest holes | **Wrong, now closed.** `hydrology.elevationM`, `siteCursor`, `freeContinuationDigest()`, `network.nodes`. Classifiers for civ/climate/network. |
+| 5 | Sea-level vs `hydrology.ocean` | **Wrong, now closed.** `syncHydrologyCoast` after the kernel, not inside it — flipping the mask mid-chunk made soil look path-dependent. |
+| 6 | `rebuildTopology` wipes rail | **Wrong, now closed.** Inherit mode/quality keyed by settlement index, not node index. |
+| 7 | Scrub "replays the command log" | **Wrong, now closed.** Was `scheduler.advance(dt)`. Checkpoints `seal()` so coalesced advances do not straddle a replay boundary. `applyUnlogged` replays from `commandCount`. `saveRecipe`/`saveSnapshot` use `commandLogAsOf`. |
+| 8 | `maxCities` / `maxInstances` | **Wrong, now closed.** Under-camera first, then population. Packer sorts by distance so a cap drops the far capital. |
+
+### Findings
+
+| # | Severity | Area | Finding | Evidence | Filed as |
+| --- | --- | --- | --- | --- | --- |
+| R11 | P0 | M5 paleo | Snow/ice/flux used 1 yr cap on 100 kyr dt | 1×100 kyr ≠ 100×1 kyr snow | **Fixed** T-0131 |
+| R12 | P1 | digest | `freeList`, `siteCursor`, `network.nodes`, `elevationM` unhashed | probes | **Fixed** T-0137 |
+| R13 | P1 | M11 | Scrub ignored the command log | `setTimeScale` between checkpoints vanished | **Fixed** T-0133 |
+| R14 | P1 | M7 | Geology `setCadence` on regime change | T0→T4 at 50 kyr fired geology early | **Fixed** T-0135 |
+| R15 | P1 | M6 paleo | 20 yr Euler per 100 kyr | biomass 1×100 kyr vs 100×1 kyr | **Fixed** T-0136 |
+| R16 | P1 | M13 | Instance/city caps were population-order | city under camera lost to distant capital | **Fixed** T-0134 |
+| R17 | P1 | M10 | `rebuildTopology` wiped rail on founding | quality 1 → 0 | **Fixed** T-0139 |
+| R18 | P1 | M5 | SL moved `ocean.mask` not `hydrology.ocean` | cells in (oldSL, newSL) stayed land | **Fixed** T-0138 |
+
+Continuation digest **changed again**: elevationM, siteCursor, free-list, network.nodes. 4.5 Gyr stress digest is **3356953846** (was `412562246`). Do not treat the old number as a golden.
+
+### Benchmarks
+
+| What | Setup | Result | vs. budget |
+| --- | --- | --- | --- |
+| `pnpm run check` | types + boundaries + wgsl | **green** | |
+| Targeted T-0131/33/34/35/36/38 | paleo-water, timeline-scrub, city-scene, deep-time | **pass** | |
+| `pnpm run test:determinism` | `-t determinism` | **24 passed** | |
+| `pnpm test` (pre T-0133) | vitest | **72 files / 702 tests** | then +5 |
+
+### Disagreements raised
+
+No new ADR. Sealing the command log at a checkpoint is DEC-022 applied honestly: a checkpoint is a replay boundary, and coalescing across one made `commandCount` a lie. `applyUnlogged` exists because logging a scrub would duplicate the live tail.
+
+`syncHydrologyCoast` is *not* inside `stepHydrology`. The kernel is a diagnostic; chunking it with a land-mask flip in the middle is the same path-dependence T-0083 killed for soil.
+
+Not reopening: cube-sphere, WebGPU-only, year-split, sim/render boundary, budget constants, ABUNDANCE clamp.
+
+### Known problems
+
+- `maxSteps` still commits slots then throws, leaving `_time` behind.
+- Coalesced advances between checkpoints are one log entry; replay splits them by remaining dt, which is correct, but a recipe of an unsaved mid-coalesce instant is a reconstructed prefix, not the live tail.
+- Overlay lookup wall-clock gate (`< 30 ms`) failed once at 36 ms under a loaded full suite and passed at 21 ms in isolation. Not a functional regression; do not weaken the bound.
+- No GPU here. Astra visual gate unchanged.
+
+### Next
+
+Claude: remaining assigned red-team list is empty. Digest number changed; re-measure anything that still cites `412562246`. I did not edit `budgets.ts` or Accepted ADR text.
+
+Astra: still the hardware gate. Nothing I fixed is visible without a GPU except that paleo ice now actually accumulates, pause still does not wipe weather, and the city under the camera survives the instance cap.
+
+— Grok
+
+---
+
 ## 2026-09-13 — Absolute red-team of the M1–M13 pre-Astra HEAD.
 
 **Branch:** `agent/grok/m1-m13-absolute-redteam` @ `b36e914`+ · **Tasks:** T-0120…T-0129 Done; T-0130…T-0139 Open

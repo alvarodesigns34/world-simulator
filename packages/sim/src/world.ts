@@ -52,7 +52,7 @@ import {
   stepDynamicGeology,
   type DynamicGeologyState,
 } from './geology/dynamic.js';
-import { initHydrology, rebuildHydrologyRouting, stepHydrology, type HydrologyState } from './hydrology/system.js';
+import { initHydrology, rebuildHydrologyRouting, stepHydrology, syncHydrologyCoast, type HydrologyState } from './hydrology/system.js';
 import { initBiosphere, stepBiosphere, type BiosphereState } from './biosphere/system.js';
 import { hashWorldState } from './hash.js';
 import { deriveOcean, refreshOcean, type OceanState } from './ocean/sea.js';
@@ -192,6 +192,13 @@ export interface World {
    */
   geologyEventCursor: number;
   apply(cmd: Command): void;
+  /**
+   * Apply a command without appending to the log (T-0133).
+   *
+   * Scrub reconstructs from a checkpoint by replaying commands already in the
+   * log. Logging them again would duplicate the live tail.
+   */
+  applyUnlogged(cmd: Command): void;
   advance(dt: number): void;
   /**
    * Geological fast-forward with an explicitly approximate civilisation and
@@ -408,16 +415,10 @@ export function createWorld(opts: WorldOptions = {}): World {
       worldRef.geologyEventCursor = v;
     },
     apply(cmd: Command): void {
-      if (cmd.kind === 'advance') {
-        if (!Number.isFinite(cmd.seconds) || cmd.seconds < 0) {
-          throw new Error('advance requires a finite non-negative duration');
-        }
-        /* A paused scheduler no-ops the step; logging it would make the recipe
-           claim time passed that did not. */
-        if (scheduler.state !== 'running') return;
-      }
-      applyCommand(world, worldRef, cmd);
-      commands.push(cmd);
+      dispatchCommand(world, worldRef, cmd, true);
+    },
+    applyUnlogged(cmd: Command): void {
+      dispatchCommand(world, worldRef, cmd, false);
     },
     advance(dt: number): void {
       if (!Number.isFinite(dt) || dt < 0) {
@@ -463,6 +464,24 @@ export function createWorld(opts: WorldOptions = {}): World {
     },
   };
   return world;
+}
+
+function dispatchCommand(
+  world: World,
+  ref: WorldRuntimeRef,
+  cmd: Command,
+  log: boolean,
+): void {
+  if (cmd.kind === 'advance') {
+    if (!Number.isFinite(cmd.seconds) || cmd.seconds < 0) {
+      throw new Error('advance requires a finite non-negative duration');
+    }
+    /* A paused scheduler no-ops the step; logging it would make the recipe
+       claim time passed that did not. */
+    if (world.scheduler.state !== 'running') return;
+  }
+  applyCommand(world, ref, cmd);
+  if (log) world.commands.push(cmd);
 }
 
 function applyCommand(
@@ -636,7 +655,15 @@ function applyRegimeCadences(world: World, ref: WorldRuntimeRef, regime: Regime)
   world.scheduler.setCadence(OWNER_BIOSPHERE, { kind: 'every', dt: c.biosphere });
   world.scheduler.setCadence(OWNER_CIVILISATION, { kind: 'every', dt: c.civilisation });
   world.scheduler.setCadence(OWNER_ECONOMY, { kind: 'every', dt: c.civilisation });
-  world.scheduler.setCadence(OWNER_GEOLOGY, { kind: 'every', dt: c.geology });
+  /* DEC-037 / T-0135: geology stays on a fixed 100 kyr simulation-time
+     cadence and may not use `setCadence`. Calling it here reset `due` to
+     now, so a T0→T4 at 50 kyr fired geology 50 kyr early. Deep-time is the
+     one path that actually changes the dt (1 Myr macro); restore only then. */
+  const geologyCadence = world.scheduler.cadenceOf(OWNER_GEOLOGY);
+  const geologyDt = geologyCadence?.kind === 'every' ? (geologyCadence.dt as unknown as number) : NaN;
+  if (geologyDt !== (c.geology as unknown as number)) {
+    world.scheduler.setCadence(OWNER_GEOLOGY, { kind: 'every', dt: c.geology });
+  }
   world.scheduler.setCadence(OWNER_ROTATION, { kind: 'every', dt: c.climate });
   /* Below the paleo regime every society is resolved individually; at paleo the
      interesting quantity is the population envelope (DEC-015). */
@@ -780,7 +807,8 @@ function makeHydrology(store: FieldStore, ref: WorldRuntimeRef, calendar: Calend
       FID.riverDischarge, FID.snowpack, FID.glacier],
     step: (ctx) => {
       stepHydrology(ref.hydrology, ref.climate, ctx.dt as number);
-      if (Math.abs(ref.ocean.seaLevel - ref.hydrology.seaLevelM) > 1e-6) {
+      const flipped = syncHydrologyCoast(ref.hydrology);
+      if (Math.abs(ref.ocean.seaLevel - ref.hydrology.seaLevelM) > 1e-6 || flipped > 0) {
         refreshOcean(ref.ocean, ref.geology, ref.hydrology.seaLevelM);
       }
       publishHydrology(store, ref.hydrology);

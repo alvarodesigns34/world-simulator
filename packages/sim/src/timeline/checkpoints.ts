@@ -11,9 +11,9 @@
  * THE MECHANISM. Checkpoints of the authoritative state are captured as the
  * world advances, kept under a byte budget, and thinned so that recent history
  * stays dense while distant history stays reachable. Scrubbing restores the
- * nearest checkpoint at or before the target and replays the command log
- * forward to it, so a scrub never resimulates from year zero when a nearer
- * checkpoint exists.
+ * nearest checkpoint at or before the target and replays the commands
+ * logged after that checkpoint, so a scrub never resimulates from year
+ * zero when a nearer checkpoint exists.
  *
  * WHY IT IS SEPARATE FROM `persistence.ts`. That module's `encode` turns every
  * typed array into a JSON `number[]`, which is right for a file and wrong for
@@ -144,6 +144,10 @@ export function absoluteSeconds(t: SimTime, secondsPerYear: number): number {
 }
 
 export function captureCheckpoint(world: World): WorldCheckpoint {
+  /* T-0133. A checkpoint is a replay boundary. Sealing stops the next
+     advance from merging into the entry that ended here, so commandCount
+     still names the first command that has not yet happened. */
+  world.commands.seal();
   const roots: Record<string, Frozen> = {
     geology: freeze(world.geology, new Set()),
     ocean: freeze(world.ocean, new Set()),

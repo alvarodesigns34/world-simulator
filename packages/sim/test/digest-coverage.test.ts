@@ -322,4 +322,81 @@ describe('T-0094 M8 civilisation coverage still holds', () => {
       return () => { w.civilisation.claim[c] = o; };
     });
   }, 60000);
+
+  it('sees siteCursor and the free-list continuation', () => {
+    const w = evolved();
+    mustMove(w, 'civ.siteCursor', () => {
+      const o = w.civilisation.siteCursor;
+      w.civilisation.siteCursor = o + 1;
+      return () => { w.civilisation.siteCursor = o; };
+    });
+    mustMove(w, 'store.freeList', () => {
+      const snap = w.civilisation.store.snapshot();
+      const a = w.civilisation.store.create();
+      w.civilisation.store.destroy(a);
+      return () => { w.civilisation.store.restore(snap); };
+    });
+  }, 60000);
+});
+
+describe('T-0137 classifiers name every member', () => {
+  it('classifies CivilisationState', () => {
+    const COVERED = new Set([
+      'store', 'claim', 'totalPopulation', 'foundedTotal', 'collapsedTotal',
+      'relocatedTotal', 'topologyVersion', 'nextCulture', 'steps', 'year',
+      'siteCursor',
+    ]);
+    const DERIVED = new Set([
+      'habitability', 'claimDistance', 'cellAreaM2', 'siteIndex', 'siteIndexBasis',
+    ]);
+    const CONFIG = new Set(['level', 'cellCount', 'detail']);
+    const DIAGNOSTIC = new Set(['strainedCount']);
+    const w = evolved(2);
+    const unclassified: string[] = [];
+    for (const key of Object.keys(w.civilisation)) {
+      if (COVERED.has(key) || DERIVED.has(key) || CONFIG.has(key) || DIAGNOSTIC.has(key)) continue;
+      unclassified.push(key);
+    }
+    expect(unclassified).toEqual([]);
+  }, 60000);
+
+  it('classifies ClimateState', () => {
+    const COVERED = new Set(['T', 'q', 'u', 'v', 'h', 'precipMean', 'ice', 'regime', 'steps']);
+    const GEOMETRY = new Set([
+      'n', 'grid', 'lat', 'sinLat', 'cosLat', 'eastX', 'eastY',
+      'northX', 'northY', 'northZ', 'gradCoeffE', 'gradCoeffN',
+      'edgeI', 'edgeJ', 'edgeLength', 'edgeUi', 'edgeVi', 'edgeUj', 'edgeVj',
+      'areaM2', 'elev', 'ocean',
+    ]);
+    const SCRATCH = new Set([
+      'precip', 'precipAcc', 'evapAcc', 'Tocean', 'Tmean', 'qsat',
+      'gradT', 'gradH', 'gradElev', 'edgeFlux', 'outgoing',
+      'transportDelta', 'heightDelta',
+    ]);
+    const w = evolved(2);
+    const unclassified: string[] = [];
+    for (const key of Object.keys(w.climate)) {
+      if (COVERED.has(key) || GEOMETRY.has(key) || SCRATCH.has(key)) continue;
+      unclassified.push(key);
+    }
+    expect(unclassified).toEqual([]);
+  }, 60000);
+
+  it('classifies TransportNetwork and sees network.nodes', () => {
+    const COVERED = new Set(['nodes', 'edges', 'topologyGeneration']);
+    const DERIVED = new Set(['nodeOf', 'adjacency', 'roadKm', 'railKm', 'seaKm']);
+    const CACHE = new Set(['routeCache']);
+    const w = evolved(2);
+    const unclassified: string[] = [];
+    for (const key of Object.keys(w.economy.network)) {
+      if (COVERED.has(key) || DERIVED.has(key) || CACHE.has(key)) continue;
+      unclassified.push(key);
+    }
+    expect(unclassified).toEqual([]);
+    mustMove(w, 'network.nodes', () => {
+      const o = w.economy.network.nodes[0] as number;
+      w.economy.network.nodes[0] = o + 1;
+      return () => { w.economy.network.nodes[0] = o; };
+    });
+  }, 60000);
 });

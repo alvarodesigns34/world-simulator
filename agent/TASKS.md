@@ -20,7 +20,7 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ## Now — M1–M13 absolute red-team (Grok, 2026-09-13)
 
-Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact.
+Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact. **T-0120…T-0139 are Done** (no T-0132). Remaining M1–M13 work is GPU/visual (Astra) and the open P2s T-0095/T-0096/T-0097.
 
 | ID | Title | Owner | Status | Pri | Acceptance |
 | --- | --- | --- | --- | --- | --- |
@@ -35,14 +35,14 @@ Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known au
 | T-0128 | Digest blind to `climate.regime` | Grok | **Done** | P1 | `mustMove` on regime with cadences untouched. |
 | T-0129 | `geologyEventCursor` / city layouts not restored | Grok | **Done** | P1 | Checkpoint + snapshot carry the cursor; restore `dropAllLayouts`. |
 | T-0130 | App advanced and logged while paused | Grok | **Done** | P1 | Loop checks `running`. `advance` while paused is a no-op and is not logged. |
-| **T-0131** | **Paleo hydrology integrates 1 yr of snow/ice per 100 kyr** | **Grok** | **Open** | **P0** | Same class as the old soil bug, same file (`dtSeconds = min(..., YEAR)`). Path-independent snow/ice/sea-level vs 100 kyr as 1 kyr × 100. |
-| T-0133 | Scrub comments claim command-log replay; code is `scheduler.advance(dt)` | Grok | Open | P1 | Between-checkpoint `setTimeScale`/`setRegime` survive a scrub. Save-while-in-history refuses or snapshots the reconstructed log. |
-| T-0134 | `maxInstances` / `maxCities` are population-order, not camera | Grok | Open | P1 | City under the camera cannot lose to a larger distant capital. |
-| T-0135 | Geology `setCadence` on every regime change (DEC-037) | Grok | Open | P1 | Geology `due` is independent of T0↔T4. |
-| T-0136 | Paleo biosphere is one 20 yr Euler step per 100 kyr | Grok | Open | P1 | Closed-form or substeps; 100 kyr vs 20×1 yr biomass agrees. |
-| T-0137 | Digest still blind to `freeList`, `siteCursor`, `network.nodes`, `hydrology.elevationM` | Grok | Open | P1 | `mustMove` each, plus a classifier for `CivilisationState`/`ClimateState`/`TransportNetwork` like the economy one. |
-| T-0138 | Sea-level moves `ocean.mask`, not `hydrology.ocean`, until the geology tick | Grok | Open | P1 | Cells with `elevation ∈ (oldSL, newSL)` reclassify within a hydrology step. |
-| T-0139 | `rebuildTopology` wipes rail quality on every founding | Grok | Open | P1 | A road built stays built across a village founding. |
+| **T-0131** | **Paleo hydrology integrates 1 yr of snow/ice per 100 kyr** | **Grok** | **Done** | **P0** | Same class as the old soil bug, same file (`dtSeconds = min(..., YEAR)`). Path-independent snow/ice/sea-level vs 100 kyr as 1 kyr × 100. |
+| T-0133 | Scrub comments claim command-log replay; code is `scheduler.advance(dt)` | Grok | **Done** | P1 | Between-checkpoint `setTimeScale`/`setRegime` survive a scrub. Save-while-in-history refuses or snapshots the reconstructed log. |
+| T-0134 | `maxInstances` / `maxCities` are population-order, not camera | Grok | **Done** | P1 | City under the camera cannot lose to a larger distant capital. |
+| T-0135 | Geology `setCadence` on every regime change (DEC-037) | Grok | **Done** | P1 | Geology `due` is independent of T0↔T4. |
+| T-0136 | Paleo biosphere is one 20 yr Euler step per 100 kyr | Grok | **Done** | P1 | Closed-form or substeps; 100 kyr vs 20×1 yr biomass agrees. |
+| T-0137 | Digest still blind to `freeList`, `siteCursor`, `network.nodes`, `hydrology.elevationM` | Grok | **Done** | P1 | `mustMove` each, plus a classifier for `CivilisationState`/`ClimateState`/`TransportNetwork` like the economy one. |
+| T-0138 | Sea-level moves `ocean.mask`, not `hydrology.ocean`, until the geology tick | Grok | **Done** | P1 | Cells with `elevation ∈ (oldSL, newSL)` reclassify within a hydrology step. |
+| T-0139 | `rebuildTopology` wipes rail quality on every founding | Grok | **Done** | P1 | A road built stays built across a village founding. |
 
 ---
 

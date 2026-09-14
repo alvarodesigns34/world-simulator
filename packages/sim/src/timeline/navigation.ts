@@ -14,7 +14,6 @@
  */
 
 import type { SimTime } from '@ws/core';
-import { duration } from '@ws/core';
 import type { World } from '../world.js';
 import {
   CheckpointStore,
@@ -77,10 +76,10 @@ export class TimelineNavigator {
    * Reconstruct the world at `targetSeconds`.
    *
    * Restores the nearest checkpoint at or before the target and replays the
-   * command log forward. A scrub never resimulates from year zero while a
-   * nearer checkpoint exists, and never leaves the world half-restored: the
-   * restore completes before any replay begins, and a superseding scrub is
-   * detected before the expensive part rather than after.
+   * command log forward (T-0133). A scrub never resimulates from year zero
+   * while a nearer checkpoint exists, and never leaves the world
+   * half-restored: the restore completes before any replay begins, and a
+   * superseding scrub is detected before the expensive part rather than after.
    */
   scrubTo(targetSeconds: number): ScrubResult {
     const myToken = ++this.token;
@@ -104,45 +103,39 @@ export class TimelineNavigator {
       this._mode = 'history';
     }
 
+    if (Math.abs(this.now() - target) < 1e-6) {
+      return { at: target, time: this.world.scheduler.time, fromCheckpoint: undefined, replayedSeconds: 0, exact: true };
+    }
+
     const cp = this.store.nearestAtOrBefore(target)
       ?? (this.head !== undefined && this.head.at <= target + 1e-6 ? this.head : undefined);
 
-    /* Already at the target and moving forward: replay from here rather than
-       rewinding to a checkpoint and coming back. */
-    const canGoForward = current <= target + 1e-6
-      && (cp === undefined || cp.at <= current + 1e-6);
-
-    let from: WorldCheckpoint | undefined;
-    if (!canGoForward) {
-      if (cp === undefined) {
-        /* Nothing at or before the target: the earliest reconstructible state
-           is the best honest answer, and the caller is told so via `at`. */
-        const first = this.store.checkpoints[0] ?? this.head;
-        if (first === undefined) {
-          return { at: current, time: this.world.scheduler.time, fromCheckpoint: undefined, replayedSeconds: 0, exact: false };
-        }
-        restoreCheckpoint(this.world, first);
-        return { at: first.at, time: first.time, fromCheckpoint: first.at, replayedSeconds: 0, exact: false };
+    if (cp === undefined) {
+      /* Nothing at or before the target: the earliest reconstructible state
+         is the best honest answer, and the caller is told so via `at`. */
+      const first = this.store.checkpoints[0] ?? this.head;
+      if (first === undefined) {
+        return { at: current, time: this.world.scheduler.time, fromCheckpoint: undefined, replayedSeconds: 0, exact: false };
       }
-      restoreCheckpoint(this.world, cp);
-      from = cp;
+      restoreCheckpoint(this.world, first);
+      return { at: first.at, time: first.time, fromCheckpoint: first.at, replayedSeconds: 0, exact: false };
     }
+    restoreCheckpoint(this.world, cp);
 
     if (this.token !== myToken) {
       /* Superseded. The world is on a checkpoint boundary — a consistent
          state — so abandoning here leaves nothing half-applied. */
-      return { at: this.now(), time: this.world.scheduler.time, fromCheckpoint: from?.at, replayedSeconds: 0, exact: false };
+      return { at: this.now(), time: this.world.scheduler.time, fromCheckpoint: cp.at, replayedSeconds: 0, exact: false };
     }
 
     const start = this.now();
-    const remaining = target - start;
-    if (remaining > 1e-6) this.replay(remaining);
+    if (target - start > 1e-6) this.replayLog(cp.commandCount, target);
 
     const reached = this.now();
     return {
       at: reached,
       time: this.world.scheduler.time,
-      fromCheckpoint: from?.at,
+      fromCheckpoint: cp.at,
       replayedSeconds: Math.max(0, reached - start),
       exact: Math.abs(reached - target) < 1e-3,
     };
@@ -158,13 +151,44 @@ export class TimelineNavigator {
   }
 
   /**
-   * Advance by `seconds`, chunked to the regime's safe step.
+   * Replay logged commands from `fromIndex` until the world clock hits
+   * `targetSeconds` (T-0133).
    *
-   * Mirrors `applyReplayCommand`'s chunking so a replayed advance takes the
-   * same path as the original one — otherwise the reconstruction would follow a
-   * different integration and the digest would not match.
+   * `scheduler.advance(dt)` is not a command-log replay: a `setTimeScale` or
+   * `setRegime` issued between checkpoints would be skipped, and the
+   * reconstruction would integrate the interval under the checkpoint's
+   * cadences. Commands already in the log are applied unlogged so the live
+   * tail is not duplicated.
    */
-  private replay(seconds: number): void {
+  private replayLog(fromIndex: number, targetSeconds: number): void {
+    const year = this.world.calendar.secondsPerYear;
+    const log = this.world.commands.entries;
+    for (let i = fromIndex; i < log.length; i++) {
+      const now = this.now();
+      if (now >= targetSeconds - 1e-6) return;
+      const entry = log[i]!;
+      const cmd = entry.cmd;
+      if (cmd.kind === 'advance') {
+        this.advanceUnlogged(Math.min(cmd.seconds, targetSeconds - now));
+        continue;
+      }
+      if (cmd.kind === 'advanceDeepTime') {
+        const takeYears = Math.min(cmd.years, (targetSeconds - now) / year);
+        if (takeYears > 0) this.world.applyUnlogged({ kind: 'advanceDeepTime', years: takeYears });
+        if (takeYears < cmd.years - 1e-12) return;
+        continue;
+      }
+      const at = absoluteSeconds(entry.time, year);
+      if (at > targetSeconds + 1e-6) return;
+      this.world.applyUnlogged(cmd);
+    }
+  }
+
+  /**
+   * Chunked unlogged advance, matching `applyReplayCommand` so a scrubbed
+   * interval follows the same integration path as a recipe of the same log.
+   */
+  private advanceUnlogged(seconds: number): void {
     const year = this.world.calendar.secondsPerYear;
     let remaining = seconds;
     let guard = 0;
@@ -176,7 +200,7 @@ export class TimelineNavigator {
         : regime === 'synoptic' ? 4 * year
         : 300 * 86400;
       const step = Math.min(remaining, max);
-      this.world.scheduler.advance(duration(step));
+      this.world.applyUnlogged({ kind: 'advance', seconds: step });
       remaining -= step;
     }
   }

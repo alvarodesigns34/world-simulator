@@ -6,6 +6,55 @@ unsure about, and what specifically needs checking.
 
 ---
 
+## 2026-09-14 · Grok → Claude / Opus · M1–M13 absolute red-team closed. T-0131…T-0139 Done.
+
+**Branch:** `agent/grok/m1-m13-absolute-redteam`
+**Base:** `b36e914` (`agent/claude/m1-m13-pre-astra-repair`)
+**Do not merge `main`.** PR to `dev`.
+
+The previous handoff left T-0131 (P0 paleo water) and T-0133…T-0139 open. They are closed. ChatGPT's "no known automated P0/P1" is now a smaller lie: I have not re-audited M12 overlay, M13 cinematic feel, or anything that needs a GPU.
+
+### What is done (fixed, tests first)
+
+- **T-0131.** Paleo hydrology integrates the interval. `packSnow` is the simultaneous ODE (accumulation + firn). Melt goes to runoff, not the soil bucket. 1×100 kyr snow/ice/SL agrees with 100×1 kyr under constant forcing.
+- **T-0136.** Biosphere: closed-form logistic biomass, exp phenology, 1-year trophic substeps to eq, migration `1-exp(-0.02 dt)`.
+- **T-0135.** `applyRegimeCadences` does not `setCadence(OWNER_GEOLOGY)` unless dt actually changed. T0↔T4 leaves geology `due` alone. Deep-time still restores the 1 Myr macro.
+- **T-0137.** Digest folds `hydrology.elevationM`, `siteCursor`, `store.freeContinuationDigest()`, `network.nodes`. Classifiers for `CivilisationState` / `ClimateState` / `TransportNetwork`.
+- **T-0138.** `syncHydrologyCoast` runs in the hydrology *subsystem* after `stepHydrology`, then `refreshOcean`. Not inside the kernel — flipping the land mask between diagnostic chunks made soil look path-dependent.
+- **T-0139.** `rebuildTopology` inherits mode/quality keyed by settlement index.
+- **T-0133.** Checkpoints `seal()` the command log. Scrub restores the nearest checkpoint and `applyUnlogged`s from `commandCount`. `saveRecipe`/`saveSnapshot` persist `commandLogAsOf(now)`, so a historical save is the reconstructed prefix, not the live tail.
+- **T-0134.** Adapter picks under-camera cities first; packer sorts by distance so `maxInstances` drops the far capital.
+
+`pnpm run check` green. Targeted suites green. Continuation digest **changed again**. 4.5 Gyr stress prints **3356953846**.
+
+### What is not done
+
+- Astra GPU/visual list. Unchanged. I did not spend her.
+- `maxSteps` still commits slots then throws.
+- T-0095 OPFS cold-start, T-0096 regional hydrology, T-0097 real-GPU pass: still open P2, not mine this turn.
+- I did not re-audit M12 overlay stall, cinematic feel, or Ampere.
+
+### Seams
+
+- Composition root still `packages/app/src/main.ts`. `sim ⇏ render`.
+- `applyUnlogged` is scrub-only. Recipe replay still uses `apply` (it *should* log).
+- `syncHydrologyCoast` must not move back into `stepHydrology`. The kernel is invoked as a diagnostic with arbitrary chunking.
+- `resume()` is still the quiesce reverse. Unpause is `resumeRunning()`.
+- Command-log coalescing still happens between seals. A checkpoint is the boundary; do not "fix" coalescing globally or T-0120's 60 Hz recipe explodes.
+
+### Specifically check
+
+1. That 4.5 Gyr / recipe goldens citing `412562246` are updated to **3356953846**, or dropped as goldens.
+2. That I did not edit `budgets.ts` or Accepted ADR text.
+3. That a RECIPE of a world scrubbed into history no longer contains the live tail — that is the whole point of T-0133's save path.
+4. `packSnow` rate-cap vs closed form: if converted hits `COMPACT_RATE_CAP * dt` the excess is not the ODE equilibrium. Path-independence still holds because the cap is a function of total dt, not of chunking.
+
+Astra's GPU/visual list is unchanged. I did not spend her.
+
+— Grok
+
+---
+
 ## 2026-09-13 · Grok → Claude / Opus · M1–M13 absolute red-team. P0s in recipe, slot reuse, paleo water.
 
 **Branch:** `agent/grok/m1-m13-absolute-redteam`
