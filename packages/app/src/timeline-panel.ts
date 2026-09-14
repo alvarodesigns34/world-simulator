@@ -21,6 +21,13 @@ type Download = (filename: string, text: string, type?: string) => void;
  */
 export class TimelinePanel {
   readonly root: HTMLDivElement;
+  /**
+   * The product interface drives the same navigator through this panel, so
+   * there is exactly one timeline implementation and the debug controls and
+   * the product controls cannot disagree about where in history the world is
+   * (T-0164). The panel's own DOM is hidden by default and comes back with the
+   * diagnostics overlay.
+   */
   private readonly time: HTMLSpanElement;
   private readonly status: HTMLSpanElement;
   private readonly scrub: HTMLInputElement;
@@ -91,7 +98,45 @@ export class TimelinePanel {
 
   get inHistory(): boolean { return this.nav.mode === 'history'; }
 
-  private resumeLive(): void {
+  /** Where the scrub sits, 0 at the earliest reachable instant and 1 at the live head. */
+  get fraction(): number {
+    const earliest = this.nav.earliestReachable();
+    const latest = this.nav.latestReachable();
+    if (!(latest > earliest)) return 1;
+    const now = absoluteSeconds(this.world.scheduler.time, this.world.calendar.secondsPerYear);
+    return Math.max(0, Math.min(1, (now - earliest) / (latest - earliest)));
+  }
+
+  /** History markers as fractions of the reachable range, for the product timeline. */
+  marks(): readonly { at: number; bookmark: boolean; title: string }[] {
+    const earliest = this.nav.earliestReachable();
+    const latest = this.nav.latestReachable();
+    if (!(latest > earliest)) return [];
+    const span = latest - earliest;
+    const out: { at: number; bookmark: boolean; title: string }[] = [];
+    for (const mark of this.world.history.bookmarks()) {
+      const t = absoluteSeconds(mark.time, this.world.calendar.secondsPerYear);
+      out.push({ at: Math.max(0, Math.min(1, (t - earliest) / span)), bookmark: true, title: mark.label });
+    }
+    /* Only the events worth a tick: a thousand routine markers is a smear. */
+    for (const event of this.world.history.events()) {
+      if (event.importance < 0.75) continue;
+      const t = absoluteSeconds(event.time, this.world.calendar.secondsPerYear);
+      out.push({ at: Math.max(0, Math.min(1, (t - earliest) / span)), bookmark: false, title: event.label });
+      if (out.length > 64) break;
+    }
+    return out;
+  }
+
+  bookmarkNow(): void {
+    this.world.history.bookmark(this.world.scheduler.time, `Mark ${format(this.world.scheduler.time, this.world.calendar)}`);
+  }
+
+  setVisible(visible: boolean): void {
+    this.root.style.display = visible ? '' : 'none';
+  }
+
+  resumeLive(): void {
     this.nav.returnToLive();
     this.scrub.value = String(TimelinePanel.STEPS);
     this.status.textContent = 'LIVE';
@@ -99,7 +144,7 @@ export class TimelinePanel {
     this.readout.textContent = 'history: live';
   }
 
-  private scrubToFraction(fraction: number): void {
+  scrubToFraction(fraction: number): void {
     const earliest = this.nav.earliestReachable();
     const latest = this.nav.latestReachable();
     if (!(latest > earliest)) { this.readout.textContent = 'history: not yet recorded'; return; }

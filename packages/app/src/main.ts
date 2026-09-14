@@ -14,6 +14,8 @@ import {
   format,
   usFromMs,
   v3,
+  vcross,
+  vnorm,
 } from '@ws/core';
 import { EARTH_GEOMETRY, cubeDim, cubeIndex, type QuadKey } from '@ws/data';
 import {
@@ -45,6 +47,8 @@ import {
   SCIENTIFIC_FIELDS,
   cinematicTargets,
   cityLayout,
+  saveRecipe,
+  saveSnapshot,
   cityTerrainSampler,
   createWorld,
   largestCity,
@@ -55,7 +59,8 @@ import {
 } from '@ws/sim';
 import { CitySceneAdapter } from './city-scene-adapter.js';
 import { FrameCapture, captureStats, captureToDataUrl } from './capture.js';
-import { probeWorld } from './probe.js';
+import { probeWorld, type ProbeResult } from './probe.js';
+import { Shell, type FeatureOption } from './ui/shell.js';
 import { createHeightPageSampler, createTerrainResidual } from './terrain-source.js';
 import { Hud } from './hud.js';
 import { openOpfsTileStore } from './opfs.js';
@@ -251,6 +256,201 @@ async function main(): Promise<void> {
   const timeline = new TimelinePanel(document.body, world, download);
   const science = new ScientificPanel(document.body, world, overlay, download);
 
+  /*
+   * THE PRODUCT INTERFACE (T-0164).
+   *
+   * `hud`, `overlay`'s legend and the timeline panel's own DOM are the
+   * ENGINEERING instruments. They stay, they are still correct, and they are
+   * now behind F3 — because they were the only interface, and an interface
+   * made of frame times and bracketed key hints tells a user nothing about
+   * what this application can do.
+   */
+  hud.setVisible(false);
+  timeline.setVisible(false);
+
+  const FEATURE_ROLES: readonly FeatureOption[] = [
+    { id: 'relief', label: 'Mountains' },
+    { id: 'continent', label: 'Great river' },
+    { id: 'civilisation', label: 'Largest settlement' },
+    { id: 'city', label: 'Largest city' },
+    { id: 'infrastructure', label: 'Infrastructure' },
+    { id: 'science', label: 'Pollution hotspot' },
+  ];
+  /** Altitude each feature is worth looking at from. */
+  const FEATURE_ALTITUDE: Readonly<Record<string, number>> = {
+    relief: 55_000, continent: 40_000, civilisation: 32_000,
+    city: 9_000, infrastructure: 24_000, science: 120_000,
+  };
+
+  let selected: ProbeResult | null = null;
+  let paused = false;
+  let diagnosticsOpen = false;
+
+  /**
+   * One layer switch for both the natural view and the scientific fields.
+   *
+   * The scientific overlay and the globe were two unconnected controls: `v`
+   * toggled an equirectangular map and `c` cycled a field that only that map
+   * showed. A viewer had no way to know either existed. Now "View" is one list,
+   * `Natural` is the cinematic surface, and any other entry puts that field on
+   * the globe with its own legend — and turns the cinematic grade OFF, because
+   * a measured field must not be shaded by an amplified surface (T-0161).
+   */
+  const setLayer = (id: string): void => {
+    shell.setLayer(id);
+    if (id === 'shaded') {
+      overlay.visible = false;
+      debugMode = 'shaded';
+      renderer.cinematic = true;
+      return;
+    }
+    overlay.visible = true;
+    renderer.cinematic = false;
+    if (VISUAL_FIELDS.includes(id as (typeof VISUAL_FIELDS)[number])) {
+      world.apply({ kind: 'setVisualField', field: id });
+    }
+  };
+
+  const cycleSunMode = (): void => {
+    const order: SunMode[] = [SUN_MODE.REAL, SUN_MODE.RAKING, SUN_MODE.NOON];
+    sunMode = order[(order.indexOf(sunMode) + 1) % order.length] as SunMode;
+    shell.say(`Light: ${SUN_MODE_LABEL[sunMode]}`);
+  };
+
+  const toggleDiagnostics = (): void => {
+    diagnosticsOpen = !diagnosticsOpen;
+    hud.setVisible(diagnosticsOpen);
+    timeline.setVisible(diagnosticsOpen);
+  };
+
+  /** Fly to a feature the WORLD chose, and say what was chosen and why. */
+  const flyToFeature = (role: string, altitudeM: number): {
+    ok: boolean; label: string; why: string;
+  } => {
+    const targets = cinematicTargets(world, PLANET) as Record<string, {
+      lat: number; lon: number; cell: number; why: string } | undefined>;
+    const target = targets[role];
+    const label = FEATURE_ROLES.find((f) => f.id === role)?.label ?? role;
+    if (target === undefined) {
+      return { ok: false, label, why: `This world has no ${label.toLowerCase()} yet.` };
+    }
+    descentT = -1;
+    cinematicT = -1;
+    poleSweep = false;
+    cam = lookAtCentre(cameraFromGeodetic(
+      { lat: target.lat, lon: target.lon, altitude: altitudeM }, PLANET));
+    selected = probeWorld(world, target.lat, target.lon, PLANET);
+    return { ok: true, label, why: target.why };
+  };
+
+  const applyPreset = (id: string): void => { shell.say(`Preset ${id} is not available yet.`); };
+
+  let featureTick = 0;
+
+  /** Which features this world can actually offer right now. */
+  const availableFeatures = (): readonly FeatureOption[] => {
+    const targets = cinematicTargets(world, PLANET) as Record<string, { why: string } | undefined>;
+    return FEATURE_ROLES.map((f) => ({
+      ...f,
+      available: targets[f.id] !== undefined,
+      hint: targets[f.id]?.why ?? '',
+    }));
+  };
+
+  /**
+   * What the inspector shows for a place.
+   *
+   * Contextual, not exhaustive: a row appears when the world has an answer.
+   * Showing "vegetation: —" for every ocean pixel is noise, and noise is what
+   * the previous interface was made of.
+   */
+  const inspectorFor = (p: ProbeResult): Parameters<typeof shell.setInspector>[0] => {
+    const rows: [string, string][] = [];
+    const deg = (r: number): string => `${(r * 180 / Math.PI).toFixed(3)}\u00B0`;
+    rows.push(['Latitude', deg(p.lat)]);
+    rows.push(['Longitude', deg(p.lon)]);
+    if (p.isOcean) {
+      rows.push(['Depth', `${Math.round(p.depthM ?? 0).toLocaleString('en-US')} m`]);
+    } else {
+      rows.push(['Elevation', `${Math.round(p.elevationM - p.seaLevelM).toLocaleString('en-US')} m`]);
+    }
+    if (p.temperatureK !== null) rows.push(['Temperature', `${(p.temperatureK - 273.15).toFixed(1)} \u00B0C`]);
+    if (p.precipitation !== null && p.precipitation > 0) {
+      rows.push(['Precipitation', `${(p.precipitation * 3.156e7 / 1000).toFixed(0)} mm/yr`]);
+    }
+    if (!p.isOcean && p.vegetation !== null) rows.push(['Vegetation', `${Math.round(p.vegetation * 100)}%`]);
+    if (!p.isOcean && p.soilMoistureM !== null) rows.push(['Soil moisture', `${p.soilMoistureM.toFixed(3)} m`]);
+    if ((p.snowpackM ?? 0) > 0.02) rows.push(['Snowpack', `${((p.snowpackM ?? 0) * 100).toFixed(0)} cm w.e.`]);
+    if ((p.glacierM ?? 0) > 0.5) rows.push(['Glacier', `${Math.round(p.glacierM ?? 0)} m`]);
+    if ((p.riverDischargeM3s ?? 0) > 1) {
+      rows.push(['River discharge', `${Math.round(p.riverDischargeM3s ?? 0).toLocaleString('en-US')} m\u00B3/s`]);
+    }
+    if ((p.lakeDepthM ?? 0) > 0) rows.push(['Lake depth', `${(p.lakeDepthM ?? 0).toFixed(1)} m`]);
+    if ((p.pollution ?? 0) > 0) rows.push(['Pollution', (p.pollution ?? 0).toExponential(1)]);
+    if (p.settlementIndex !== null) rows.push(['Territory of', `settlement #${p.settlementIndex}`]);
+    if (p.nearestCity !== null) {
+      rows.push(['Nearest city', `#${p.nearestCity.id}, ${Math.round(p.nearestCity.distanceKm)} km`]);
+      rows.push(['Its population', Math.round(p.nearestCity.population).toLocaleString('en-US')]);
+    }
+    return {
+      title: p.isOcean ? 'Ocean' : 'Land',
+      ...(p.isOcean ? {} : { subtitle: `${Math.round(p.elevationM - p.seaLevelM)} m above sea level` }),
+      rows,
+    };
+  };
+
+  const shell = new Shell(document.body, {
+    onPlayPause: () => {
+      paused = !paused;
+      shell.say(paused ? 'Simulation paused' : 'Simulation running');
+    },
+    onSpeed: (scale) => { world.apply({ kind: 'setTimeScale', scale }); },
+    onLayer: (id) => { setLayer(id); },
+    onFeature: (id) => {
+      const result = flyToFeature(id, FEATURE_ALTITUDE[id] ?? 40_000);
+      shell.say(result.ok ? `${result.label}: ${result.why}` : result.why);
+    },
+    onSunMode: () => { cycleSunMode(); },
+    onScrub: (fraction) => { timeline.scrubToFraction(fraction); },
+    onResumeLive: () => { timeline.resumeLive(); },
+    onBookmark: () => { timeline.bookmarkNow(); shell.say('Bookmarked this moment'); },
+    onDeepTime: (years) => {
+      if (!Number.isFinite(years) || years <= 0) return;
+      world.apply({ kind: 'advanceDeepTime', years });
+      shell.say(`Advanced ${years.toLocaleString('en-US')} years (approximated envelope)`);
+    },
+    onSave: (kind) => {
+      download(kind === 'recipe' ? 'world.wsim.json' : 'world.snapshot.json',
+        kind === 'recipe' ? saveRecipe(world) : saveSnapshot(world));
+    },
+    onScreenshot: () => {
+      void shoot().then((url) => {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `world-simulator-${Date.now()}.png`;
+        a.click();
+        shell.say('Screenshot saved');
+      });
+    },
+    onDiagnostics: () => { toggleDiagnostics(); },
+    onPreset: (id) => { applyPreset(id); },
+  }, {
+    layers: [
+      { id: 'shaded', label: 'Natural', hint: 'terrain' },
+      { id: 'elevation', label: 'Elevation' },
+      { id: 'temperature', label: 'Temperature' },
+      { id: 'precip', label: 'Precipitation' },
+      { id: 'biome', label: 'Biomes' },
+      { id: 'settlementPop', label: 'Population' },
+      { id: 'territory', label: 'Territory' },
+      { id: 'pollution', label: 'Pollution' },
+    ],
+    features: FEATURE_ROLES,
+    presets: [],
+  });
+  shell.setLayer('shaded');
+  shell.setInspector({ title: 'Nothing selected', rows: [] });
+
   /* M9 city plan panel. Off by default — it is an instrument, not chrome — and
      toggled with `y`. Drawn from the layout cache, so opening it costs one
      generation and then nothing. */
@@ -303,6 +503,45 @@ async function main(): Promise<void> {
   if (autoDescent) descentT = 0;
 
   let dragging = false;
+  let downX = 0;
+  let downY = 0;
+
+  /**
+   * Ray-cast a screen position onto the planet's sea-level sphere.
+   *
+   * Sea level rather than the terrain: a terrain-exact pick needs the height
+   * field along the ray, and at the altitudes selection is used from, the
+   * difference is well under one screen pixel. What matters is that a click
+   * lands on the right PLACE, which this gives exactly.
+   */
+  const pickSurface = (clientX: number, clientY: number): { lat: number; lon: number } | null => {
+    const rect = canvas.getBoundingClientRect();
+    const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = 1 - ((clientY - rect.top) / rect.height) * 2;
+    const d = derive(cam, PLANET);
+    const tanHalf = Math.tan(cam.fovY / 2);
+    const aspect = rect.width / Math.max(1, rect.height);
+    const right = vnorm(vcross(d.forward, d.up));
+    const up = vcross(right, d.forward);
+    const dir = vnorm(v3(
+      d.forward.x + right.x * ndcX * tanHalf * aspect + up.x * ndcY * tanHalf,
+      d.forward.y + right.y * ndcX * tanHalf * aspect + up.y * ndcY * tanHalf,
+      d.forward.z + right.z * ndcX * tanHalf * aspect + up.z * ndcY * tanHalf,
+    ));
+    /* |o + t·dir|² = R², the near root. */
+    const o = cam.position;
+    const b = 2 * (o.x * dir.x + o.y * dir.y + o.z * dir.z);
+    const c = o.x * o.x + o.y * o.y + o.z * o.z - PLANET.radius * PLANET.radius;
+    const disc = b * b - 4 * c;
+    if (disc < 0) return null;
+    const t = (-b - Math.sqrt(disc)) / 2;
+    if (!(t > 0)) return null;
+    const px = o.x + dir.x * t;
+    const py = o.y + dir.y * t;
+    const pz = o.z + dir.z * t;
+    const r = Math.hypot(px, py, pz) || 1;
+    return { lat: Math.asin(Math.max(-1, Math.min(1, pz / r))), lon: Math.atan2(py, px) };
+  };
   let lastX = 0;
   let lastY = 0;
 
@@ -310,10 +549,23 @@ async function main(): Promise<void> {
     dragging = true;
     lastX = e.clientX;
     lastY = e.clientY;
+    downX = e.clientX;
+    downY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
   });
-  canvas.addEventListener('pointerup', () => {
+  canvas.addEventListener('pointerup', (e) => {
+    const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
     dragging = false;
+    /*
+     * SELECTION (T-0162). A click that did not drag is a pick: cast the view
+     * ray at the sphere and inspect where it lands. Before this there was no
+     * way to ask the world about a place at all — the application had a
+     * planet you could orbit and nothing you could interrogate.
+     */
+    if (moved > 4) return;
+    const hit = pickSurface(e.clientX, e.clientY);
+    if (hit === null) { shell.say('That is space, not the planet.'); return; }
+    selected = probeWorld(world, hit.lat, hit.lon, PLANET);
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!dragging || descentT >= 0 || cinematicT >= 0) return;
@@ -351,21 +603,23 @@ async function main(): Promise<void> {
       cam = setAltitude(cam, d.altitude * 1.4, PLANET);
     }
     if (e.key === 'p' || e.key === 'P') poleSweep = !poleSweep;
-    if (e.key === '`' || e.key === 'h' || e.key === 'H') hud.toggle();
-    if (e.key === 'v' || e.key === 'V') overlay.visible = !overlay.visible;
+    if (e.key === '`' || e.key === 'h' || e.key === 'H' || e.key === 'F3') toggleDiagnostics();
+    if (e.key === ' ') {
+      e.preventDefault();
+      paused = !paused;
+      shell.say(paused ? 'Simulation paused' : 'Simulation running');
+    }
+    if (e.key === 'v' || e.key === 'V') setLayer(overlay.visible ? 'shaded' : 'elevation');
     if (e.key === 'y' || e.key === 'Y') {
       cityVisible = !cityVisible;
       cityCanvas.style.display = cityVisible ? 'block' : 'none';
     }
     if (e.key === 'u' || e.key === 'U') cities3d = !cities3d;
-    if (e.key === 'l' || e.key === 'L') {
-      const order: SunMode[] = [SUN_MODE.REAL, SUN_MODE.RAKING, SUN_MODE.NOON];
-      sunMode = order[(order.indexOf(sunMode) + 1) % order.length] as SunMode;
-    }
+    if (e.key === 'l' || e.key === 'L') cycleSunMode();
     if (e.key === 'c' || e.key === 'C') {
       const i = VISUAL_FIELDS.indexOf(world.visualField as (typeof VISUAL_FIELDS)[number]);
       const next = VISUAL_FIELDS[(i + 1) % VISUAL_FIELDS.length] as string;
-      world.apply({ kind: 'setVisualField', field: next });
+      setLayer(next);
     }
     if (e.key === '=' || e.key === '+') world.apply({ kind: 'setTimeScale', scale: world.timeScale * 10 });
     if (e.key === '-' || e.key === '_') world.apply({ kind: 'setTimeScale', scale: Math.max(1, world.timeScale / 10) });
@@ -429,7 +683,7 @@ async function main(): Promise<void> {
     /* While the timeline is scrubbed into history the world is a
        reconstruction of a past instant, so it must not advance — otherwise the
        user would be simulating a branch they did not ask for (T-0095). */
-    if (!timeline.inHistory && world.scheduler.state === 'running') {
+    if (!paused && !timeline.inHistory && world.scheduler.state === 'running') {
       world.advance(wallDt * world.timeScale);
       timeline.record();
     }
@@ -533,6 +787,27 @@ async function main(): Promise<void> {
     timeline.update();
     science.update();
 
+    /* ---- the product interface, once per frame ---- */
+    const dNow = derive(cam, PLANET);
+    shell.setTop({
+      worldName: 'Genesis',
+      simTime: format(world.scheduler.time, EARTH_CALENDAR),
+      regime: world.climate.regime,
+      timeScale: world.timeScale,
+      paused,
+      sunModeLabel: SUN_MODE_LABEL[sunMode],
+      altitudeLabel: formatAltitude(dNow.altitude),
+    });
+    shell.setTimeline({
+      label: format(world.scheduler.time, EARTH_CALENDAR),
+      inHistory: timeline.inHistory,
+      fraction: timeline.fraction,
+      rangeLabel: `${world.history.events().length} events · ${world.history.bookmarks().length} bookmarks`,
+      marks: timeline.marks(),
+    });
+    if (featureTick++ % 60 === 0) shell.setFeatures(availableFeatures());
+    if (selected !== null) shell.setInspector(inspectorFor(selected));
+
     telemetry.end(hFrame, usFromMs(performance.now()));
     requestAnimationFrame(frame);
   };
@@ -616,6 +891,13 @@ function aimFromWorld(world: ReturnType<typeof createWorld>): CinematicTargets {
     if (point !== undefined) out[role] = { lat: point.lat, lon: point.lon };
   }
   return out as CinematicTargets;
+}
+
+/** Altitude in the unit a human reads at that scale. */
+function formatAltitude(m: number): string {
+  if (m >= 1e6) return `${(m / 1e6).toFixed(m >= 1e7 ? 0 : 1)} 000 km`.replace(' 000', '000');
+  if (m >= 1000) return `${(m / 1000).toFixed(m >= 100_000 ? 0 : 1)} km`;
+  return `${Math.round(m)} m`;
 }
 
 function meanOf(a: Float64Array): number {

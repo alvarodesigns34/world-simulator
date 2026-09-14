@@ -61,9 +61,20 @@ export class Hud {
   }
 
   toggle(): void {
-    this.visible = !this.visible;
-    this.el.style.display = this.visible ? 'block' : 'none';
+    this.setVisible(!this.visible);
   }
+
+  /**
+   * The diagnostics overlay is OFF by default (T-0164). It was the only
+   * interface the application had; it is now the engineering one, behind F3,
+   * and the product interface is what opens.
+   */
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+    this.el.style.display = visible ? 'block' : 'none';
+  }
+
+  get shown(): boolean { return this.visible; }
 
   update(input: HudInput): void {
     this.frames++;
