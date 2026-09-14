@@ -47,11 +47,14 @@ export const POST_LANE = {
   exposure: 0,
   /** y: highlight bloom strength, 0 disables. */
   bloom: 1,
-  /** z, w: reserved. */
+  /** z: wall-clock seconds, for render-only animation only (DEC-017). */
+  timeS: 2,
+  /** w: relief shading exaggeration; 1 is true slope (T-0161). */
+  reliefExaggeration: 3,
 } as const;
 
-/** PatchInstance: seven vec4s. Byte offset = float * 4. */
-export const INSTANCE_FLOATS = 28;
+/** PatchInstance: eight vec4s. Byte offset = float * 4. */
+export const INSTANCE_FLOATS = 32;
 export const INSTANCE_BYTES = INSTANCE_FLOATS * 4;
 
 export const INSTANCE_OFFSET = {
@@ -62,6 +65,22 @@ export const INSTANCE_OFFSET = {
   elev: 16,
   surface: 20,
   cryo: 24,
+  page: 28,
+} as const;
+
+/**
+ * What `page` carries (T-0151). The height page is what lets a patch's 33x33
+ * vertices express terrain instead of interpolating four corner heights.
+ */
+export const PAGE_LANE = {
+  /** x: index into the height page pool, or -1 while the page bakes. */
+  index: 0,
+  /** y: metres between page samples, the denominator of the normal gradient. */
+  spacingM: 1,
+  /** z: page side = verticesPerSide + 2 (the border ring). */
+  side: 2,
+  /** w: skirt depth in metres (T-0152). */
+  skirtM: 3,
 } as const;
 
 /**
@@ -88,4 +107,4 @@ export const VERTEX_ATTR = {
 export const ENTRY_POINTS = { vertex: 'vs', fragment: 'fs' } as const;
 
 /** Bind group 0 slots. Checked against the shader's @binding attributes. */
-export const BINDINGS = { uniforms: 0, instances: 1 } as const;
+export const BINDINGS = { uniforms: 0, instances: 1, heights: 2 } as const;

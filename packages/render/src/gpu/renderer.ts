@@ -11,7 +11,7 @@
  */
 
 import { budgets, vnorm, vscale, v3, vcross, type Vec3 } from '@ws/core';
-import { type PlanetGeometry, type QuadKey } from '@ws/data';
+import { cellSize, type PlanetGeometry, type QuadKey } from '@ws/data';
 import type { CameraState } from '../camera/state.js';
 import { derive, nearPlane } from '../camera/state.js';
 import {
@@ -25,7 +25,7 @@ import {
   sortVisibleInPlace,
   type SelectStats,
 } from '../lod/select.js';
-import { NodePool, type PatchNode } from '../lod/quadtree.js';
+import { NodePool, type PatchNode, type TerrainResidual } from '../lod/quadtree.js';
 import { PLANET_WGSL } from '../shaders/planet.wgsl.js';
 import type { GpuContext } from './device.js';
 import { FLOATS_PER_INSTANCE, packPatchInstance, patchCorners, patchIndices, type PackedCorners } from './instance.js';
@@ -38,6 +38,8 @@ import {
 } from './layout.js';
 import { WINDING_UNKNOWN, type WindingProbeOutcome } from './winding.js';
 import { CityRenderer, type CityInstanceBatch } from './city-renderer.js';
+import { HeightPagePool, type HeightPageSampler, type HeightPoolStats } from './height-pool.js';
+import { SkyRenderer } from './sky-renderer.js';
 import { adaptExposure, createExposureState, sceneKeyLuminance, snapExposure, type ExposureState } from '../post/exposure.js';
 
 const EMPTY_INSTANCES = new Float32Array(0);
@@ -59,6 +61,22 @@ export interface RendererOptions {
   readonly winding?: WindingProbeOutcome;
   readonly patchVerticesPerSide?: number;
   readonly maxLevel?: number;
+  /**
+   * Fills a patch's height page (T-0151). Without it the renderer falls back
+   * to four corner heights per patch, which is what made subdividing a
+   * mountain produce four smooth quads instead of a mountain.
+   */
+  readonly heightPage?: HeightPageSampler;
+  /** Resident height pages. Memory is capacity * (n+2)^2 * 4 bytes. */
+  readonly heightPageCapacity?: number;
+  /**
+   * Terrain the patch grid cannot resolve, in metres (T-0151). Without it the
+   * selector uses the sphere's sag alone and stops refining long before the
+   * terrain runs out of detail.
+   */
+  readonly terrainResidual?: TerrainResidual;
+  /** Screen-space error target in pixels. Lower refines more. */
+  readonly screenSpaceErrorPx?: number;
 }
 
 export type DebugMode = 'shaded' | 'lod' | 'patches' | 'height';
@@ -83,6 +101,8 @@ export interface FrameStats extends SelectStats {
   readonly gpuFrameMs: number;
   /** Adapted exposure gain the shader used this frame (T-0103). */
   readonly exposure: number;
+  /** Height page pool occupancy and traffic (T-0151). */
+  readonly heightPages: HeightPoolStats | null;
   /** Scene key luminance the adaptation was driving toward. */
   readonly sceneLuminance: number;
   readonly patchVerticesPerSide: number;
@@ -94,7 +114,8 @@ export class PlanetRenderer {
   private readonly planet: PlanetGeometry;
   private readonly n: number;
   private readonly maxLevel: number;
-  private readonly pool = new NodePool();
+  private readonly screenSpaceErrorPx: number | undefined;
+  private readonly pool: NodePool;
   private readonly workspace = createSelectWorkspace();
 
   private pipeline!: GPURenderPipeline;
@@ -133,8 +154,12 @@ export class PlanetRenderer {
   elevationAt: ElevationSampler | null = null;
   surfaceAt: SurfaceSampler | null = null;
   cryoAt: CryoSampler | null = null;
-  /** Filmic grade/bloom approximation. Disabled for scientific layers. */
-  cinematic = false;
+  /**
+   * Filmic grade, bloom and relief shading. ON by default: it is the normal
+   * look of the application. Scientific mode turns it off so a measured field
+   * is never shaded by an amplified surface or bent by a tone curve.
+   */
+  cinematic = true;
 
   /**
    * City and infrastructure boxes for the next frame, camera-relative (M13,
@@ -151,20 +176,44 @@ export class PlanetRenderer {
    * unreachable from `sim` by construction.
    */
   readonly exposure: ExposureState = createExposureState();
-  /** Highlight bloom strength. 0 disables it. Astra's to tune. */
+  /** Highlight bloom strength. 0 disables it. */
   bloomStrength = 0.16;
+  /**
+   * Shading-only relief exaggeration (T-0161). 1 is true slope. It tilts the
+   * lighting normal, never a vertex, and scientific mode forces it to 1 so a
+   * measured surface is never shaded by an amplified one.
+   */
+  reliefExaggeration = 4;
   /** Set false to hold exposure fixed, for a like-for-like comparison. */
   exposureAdaptation = true;
 
   private city: CityRenderer | null = null;
+  private readonly heights: HeightPagePool;
+  private readonly sky: SkyRenderer;
+  private readonly hasHeightSource: boolean;
+  private previousStats: FrameStats | null = null;
 
   constructor(gpu: GpuContext, opts: RendererOptions) {
     this.gpu = gpu;
     this.planet = opts.planet;
     this.n = opts.patchVerticesPerSide ?? budgets.QUALITY.patchVerticesPerSide;
+    this.pool = new NodePool(opts.terrainResidual, this.n);
     this.maxLevel = opts.maxLevel ?? 12;
+    this.screenSpaceErrorPx = opts.screenSpaceErrorPx;
     this.winding = opts.winding ?? WINDING_UNKNOWN;
     this.createStaticResources();
+    /*
+     * The pool always exists because the shader always declares binding 2, and
+     * WebGPU requires every declared binding to be bound. Without a sampler it
+     * holds a single unused page and every patch reports index -1, which is
+     * exactly the old four-corner behaviour.
+     */
+    this.sky = new SkyRenderer(gpu);
+    this.hasHeightSource = opts.heightPage !== undefined;
+    this.heights = new HeightPagePool(gpu, opts.heightPage ?? (() => undefined), {
+      verticesPerSide: this.n,
+      capacity: this.hasHeightSource ? (opts.heightPageCapacity ?? 3072) : 1,
+    });
   }
 
   get nodePool(): NodePool {
@@ -273,6 +322,7 @@ export class PlanetRenderer {
       entries: [
         { binding: BINDINGS.uniforms, resource: { buffer: this.uniformBuffer } },
         { binding: BINDINGS.instances, resource: { buffer: this.instanceBuffer } },
+        { binding: BINDINGS.heights, resource: { buffer: this.heights.buffer } },
       ],
     });
   }
@@ -314,8 +364,52 @@ export class PlanetRenderer {
       h11: h.h11,
       surface: this.surfaceAt?.(node.key) ?? [0, 0, 0, 0],
       cryo: this.cryoAt?.(node.key) ?? [0, 0, 0, 0],
+      page: this.pageFor(node),
     };
     packPatchInstance(out, at, withH);
+  }
+
+  /**
+   * The patch's height page, its sample spacing, and its skirt depth (T-0151).
+   *
+   * Spacing is the patch's arc length divided by the grid, which is the
+   * denominator the shader's normal gradient needs to be in real metres per
+   * metre rather than per grid step.
+   *
+   * SKIRT DEPTH is scaled to the SAMPLE spacing, not to the patch.
+   *
+   * The first version used the patch's geometric error, which at L4 is the
+   * sagitta of a 625 km quad against the sphere — 15 km, so the skirt was a
+   * 45 km wall around every patch and the planet from orbit was visibly
+   * quilted. The gap a skirt actually has to hide is the mismatch at a shared
+   * EDGE between two levels, and that is bounded by how much the terrain moves
+   * across ONE sample, not one patch.
+   */
+  private pageFor(node: PatchNode): readonly [number, number, number, number] {
+    const side = this.n + 2;
+    const arcM = cellSize(node.key.level, this.planet);
+    const spacing = arcM / Math.max(1, this.n - 1);
+    const skirt = Math.max(25, spacing * 0.12);
+    const index = this.hasHeightSource ? this.heights.acquire(node.key) : -1;
+    return [index, spacing, side, skirt];
+  }
+
+  /**
+   * The last frame's statistics, without drawing.
+   *
+   * Offscreen mode has no swapchain to render into on the animation frame, but
+   * the HUD and telemetry still want a reading; this returns the previous
+   * frame's rather than inventing one.
+   */
+  lastStats(): FrameStats {
+    return this.previousStats ?? {
+      nodesVisited: 0, culledHorizon: 0, culledFrustum: 0, visible: 0, triangles: 0,
+      maxLevelReached: 0, budgetPatches: 0, budgetExhausted: false, lodCounts: [],
+      poolHits: 0, poolMisses: 0,
+      cpuSelectMs: 0, cpuEncodeMs: 0, drawnPatches: 0, altitude: 0, cameraNear: 0,
+      cameraSpeed: 0, gpuFrameMs: -1, exposure: this.exposure.exposure, sceneLuminance: 0,
+      heightPages: null, patchVerticesPerSide: this.n, pixelCount: 0,
+    };
   }
 
   render(cam: CameraState, target: GPUTextureView, width: number, height: number): FrameStats {
@@ -323,6 +417,7 @@ export class PlanetRenderer {
     const { device } = this.gpu;
 
     const t0 = nowMs();
+    this.heights.beginFrame();
     const result = selectPatches(cam, {
       planet: this.planet,
       viewportWidth: width,
@@ -330,6 +425,7 @@ export class PlanetRenderer {
       gpuTier: this.gpu.tier,
       patchVerticesPerSide: this.n,
       maxLevel: this.maxLevel,
+      ...(this.screenSpaceErrorPx === undefined ? {} : { screenSpaceErrorPx: this.screenSpaceErrorPx }),
       previouslySplit: this.previouslySplit,
       pool: this.pool,
       workspace: this.workspace,
@@ -388,7 +484,13 @@ export class PlanetRenderer {
     const exposure = this.exposureAdaptation
       ? adaptExposure(this.exposure, luminance, wallDt)
       : snapExposure(this.exposure, this.exposure.adapted);
-    this.uniformData.set([exposure, this.bloomStrength, 0, 0], UNIFORM_OFFSET.post);
+    /* post.z is wall-clock seconds, used only by render-only animation (ocean
+       chop). It never reaches simulation state (DEC-017). */
+    this.uniformData.set(
+      [exposure, this.bloomStrength, (nowMs() / 1000) % 3600,
+        this.cinematic ? this.reliefExaggeration : 1],
+      UNIFORM_OFFSET.post,
+    );
     device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
 
     /* Created on first use: a session that never looks at a city pays for no
@@ -399,6 +501,22 @@ export class PlanetRenderer {
     } else if (this.city !== null) {
       this.city.upload({ data: EMPTY_INSTANCES, count: 0 });
     }
+
+    /* Stars and sky, behind everything (T-0160). */
+    const right = vnorm(vcross(d.forward, d.up));
+    const trueUp = vcross(right, d.forward);
+    this.sky.update({
+      forward: [d.forward.x, d.forward.y, d.forward.z],
+      right: [right.x, right.y, right.z],
+      up: [trueUp.x, trueUp.y, trueUp.z],
+      tanHalfFovY: Math.tan(cam.fovY / 2),
+      aspect: width / height,
+      altitudeM: d.altitude,
+      sun: [this.sunDirection.x, this.sunDirection.y, this.sunDirection.z],
+      exposure,
+      radial: [d.surfaceNormal.x, d.surfaceNormal.y, d.surfaceNormal.z],
+      scientific: !this.cinematic,
+    });
 
     const encoder = device.createCommandEncoder({ label: 'frame' });
     const stamp =
@@ -423,6 +541,7 @@ export class PlanetRenderer {
       ...(stamp ? { timestampWrites: stamp } : {}),
     });
 
+    this.sky.draw(pass);
     if (visible.length > 0 && this.bindGroup !== null) {
       pass.setPipeline(this.pipeline);
       pass.setBindGroup(0, this.bindGroup);
@@ -460,7 +579,7 @@ export class PlanetRenderer {
     this.lastCamT = now;
     this.haveLastCam = true;
 
-    return {
+    const stats: FrameStats = {
       ...result.stats,
       cpuSelectMs: t1 - t0,
       cpuEncodeMs: t2 - t1,
@@ -471,9 +590,12 @@ export class PlanetRenderer {
       gpuFrameMs: this.lastGpuMs,
       exposure,
       sceneLuminance: luminance,
+      heightPages: this.hasHeightSource ? this.heights.stats() : null,
       patchVerticesPerSide: this.n,
       pixelCount: width * height,
     };
+    this.previousStats = stats;
+    return stats;
   }
 
   private scheduleGpuRead(): void {
@@ -499,6 +621,8 @@ export class PlanetRenderer {
   get cityInstancesDrawn(): number { return this.city?.lastDrawn ?? 0; }
 
   destroy(): void {
+    this.sky.destroy();
+    this.heights.destroy();
     this.city?.destroy();
     this.city = null;
     this.instanceBuffer?.destroy();

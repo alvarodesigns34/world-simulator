@@ -25,7 +25,7 @@
  * it is what makes a recorded cinematic reproducible.
  */
 
-import { EARTH_GEOMETRY, type PlanetGeometry } from '@ws/data';
+import { EARTH_GEOMETRY, cubeDim, cubeIndex, type PlanetGeometry } from '@ws/data';
 import { localFrameAtCell } from '../city/terrain.js';
 import { largestCity } from '../city/system.js';
 import { CIV } from '../civilisation/system.js';
@@ -65,12 +65,37 @@ export function cinematicTargets(
     -readonly [K in keyof CinematicTargetSet]: CinematicTargetSet[K];
   } = {};
 
-  /* Relief: the highest LAND the world actually built. Constrained to land
-     because an ocean maximum is a bathymetric artefact, not a mountain. */
-  const peak = argMax(h.cellCount, (i) => (h.ocean[i] === 0 ? (h.elevationM[i] as number) : -Infinity));
-  if (peak >= 0) {
-    out.relief = point(peak, h.level,
-      `highest land cell, ${Math.round(h.elevationM[peak] as number)} m`);
+  /*
+   * Relief: the STEEPEST land, not the highest (T-0163).
+   *
+   * "Highest cell" sounds like the mountains and is not. On a world whose sea
+   * level sits well below zero, the highest cell is often the middle of a wide
+   * high plateau — flying there shows a flat green plain, which is exactly
+   * what a shot called "Mountains and rivers" must not show. What makes
+   * terrain read as mountains is its GRADIENT, so that is what is selected,
+   * weighted a little by height so a steep sea cliff does not beat a range.
+   */
+  const gradient = (i: number): number => {
+    if (h.ocean[i] !== 0) return -Infinity;
+    const n = cubeDim(h.level);
+    const face = Math.floor(i / (n * n));
+    const local = i - face * n * n;
+    const y = Math.floor(local / n);
+    const x = local - y * n;
+    if (x < 1 || y < 1 || x >= n - 1 || y >= n - 1) return -Infinity;
+    const e = h.elevationM;
+    const dx = (e[cubeIndex(face, h.level, x + 1, y)] as number)
+      - (e[cubeIndex(face, h.level, x - 1, y)] as number);
+    const dy = (e[cubeIndex(face, h.level, x, y + 1)] as number)
+      - (e[cubeIndex(face, h.level, x, y - 1)] as number);
+    const relief = Math.hypot(dx, dy);
+    const lift = 1 + Math.max(0, (e[i] as number) - world.ocean.seaLevel) / 4000;
+    return relief * lift;
+  };
+  const steepest = argMax(h.cellCount, gradient);
+  if (steepest >= 0 && Number.isFinite(gradient(steepest))) {
+    out.relief = point(steepest, h.level,
+      `steepest land, ${Math.round(h.elevationM[steepest] as number)} m`);
   }
 
   /* Continent: the largest river mouth. Discharge is the one field that says

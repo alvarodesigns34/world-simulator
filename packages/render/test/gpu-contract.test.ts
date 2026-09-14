@@ -101,6 +101,7 @@ describe('PatchInstance: WGSL layout matches the CPU packer', () => {
     ['elev', INSTANCE_OFFSET.elev],
     ['surface', INSTANCE_OFFSET.surface],
     ['cryo', INSTANCE_OFFSET.cryo],
+    ['page', INSTANCE_OFFSET.page],
   ])('corner %s sits at CPU float offset %i', (name, floatOffset) => {
     const m = member('PatchInstance', name);
     expect(m.offset).toBe(floatOffset * 4);
@@ -108,11 +109,11 @@ describe('PatchInstance: WGSL layout matches the CPU packer', () => {
   });
 
   it('declares its members in the order the packer writes them', () => {
-    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11', 'elev', 'surface', 'cryo']);
+    expect(struct('PatchInstance').members.map((m) => m.name)).toEqual(['c00', 'c10', 'c01', 'c11', 'elev', 'surface', 'cryo', 'page']);
   });
 
-  it('has exactly seven members — another would silently shift the stride', () => {
-    expect(struct('PatchInstance').members).toHaveLength(7);
+  it('has exactly eight members — another would silently shift the stride', () => {
+    expect(struct('PatchInstance').members).toHaveLength(8);
     expect(struct('PatchInstance').size).toBe(INSTANCE_BYTES);
   });
 

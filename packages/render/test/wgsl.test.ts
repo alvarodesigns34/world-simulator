@@ -42,11 +42,12 @@ describe('WGSL identifier gate (Ampere / DEC-033)', () => {
     expect(PLANET_WGSL).toMatch(/mix\(/);
   });
 
-  it('PatchInstance is seven vec4s matching FLOATS_PER_INSTANCE', () => {
-    expect(FLOATS_PER_INSTANCE).toBe(28);
+  it('PatchInstance is eight vec4s matching FLOATS_PER_INSTANCE', () => {
+    expect(FLOATS_PER_INSTANCE).toBe(32);
     const fields = PLANET_WGSL.match(/^\s+c\d\d\s*:/gm);
     expect(fields?.length).toBe(4);
     expect(PLANET_WGSL).toMatch(/\belev\b/);
     expect(PLANET_WGSL).toMatch(/\bcryo\b/);
+    expect(PLANET_WGSL).toMatch(/\bpage\b/);
   });
 });

@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { makeSeed } from '@ws/core';
+import { cubeDim, cubeIndex } from '@ws/data';
 import { cinematicTargets, createWorld, duration, largestCity } from '../src/index.js';
 
 function evolved() {
@@ -31,14 +32,42 @@ describe('M13 cinematic target selection', () => {
   const world = evolved();
   const targets = cinematicTargets(world);
 
-  it('puts the relief shot on the highest LAND, not the deepest trench', () => {
+  /**
+   * T-0163. "Relief" means the steepest land, not the highest.
+   *
+   * The first version selected the highest cell, which sounds like the
+   * mountains and is not: on a world whose sea level sits at -3421 m the
+   * highest cell is the middle of a wide high plateau, and flying there — as
+   * this was observed to do in a browser — shows a flat green plain under a
+   * shot captioned "Mountains and rivers".
+   */
+  it('puts the relief shot on the steepest LAND, not the deepest trench', () => {
     const cell = cellOf(targets.relief);
     const h = world.hydrology;
     expect(h.ocean[cell]).toBe(0);
-    for (let i = 0; i < h.cellCount; i++) {
-      if (h.ocean[i] !== 0) continue;
-      expect(h.elevationM[i] as number).toBeLessThanOrEqual(h.elevationM[cell] as number);
-    }
+    expect(targets.relief?.why).toMatch(/steepest/);
+
+    /* It is a genuine maximum of the selection score, not merely somewhere. */
+    const n = cubeDim(h.level);
+    const scoreAt = (i: number): number => {
+      if (h.ocean[i] !== 0) return -Infinity;
+      const face = Math.floor(i / (n * n));
+      const local = i - face * n * n;
+      const y = Math.floor(local / n);
+      const x = local - y * n;
+      if (x < 1 || y < 1 || x >= n - 1 || y >= n - 1) return -Infinity;
+      const e = h.elevationM;
+      const dx = (e[cubeIndex(face, h.level, x + 1, y)] as number)
+        - (e[cubeIndex(face, h.level, x - 1, y)] as number);
+      const dy = (e[cubeIndex(face, h.level, x, y + 1)] as number)
+        - (e[cubeIndex(face, h.level, x, y - 1)] as number);
+      return Math.hypot(dx, dy) * (1 + Math.max(0, (e[i] as number) - world.ocean.seaLevel) / 4000);
+    };
+    const chosen = scoreAt(cell);
+    for (let i = 0; i < h.cellCount; i++) expect(scoreAt(i)).toBeLessThanOrEqual(chosen);
+
+    /* And it is steeper than the flat median, or the shot is pointless. */
+    expect(chosen).toBeGreaterThan(0);
   });
 
   it('puts the continent shot on the largest river', () => {

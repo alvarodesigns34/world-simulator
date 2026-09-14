@@ -32,9 +32,13 @@ import {
   lookAtCentre,
   moveTangential,
   setAltitude,
+  presentationSunDirection,
+  SUN_MODE,
+  SUN_MODE_LABEL,
   type CameraState,
   type CinematicTargets,
   type DebugMode,
+  type SunMode,
 } from '@ws/render';
 import {
   CITY_LOD,
@@ -50,6 +54,9 @@ import {
   sunState,
 } from '@ws/sim';
 import { CitySceneAdapter } from './city-scene-adapter.js';
+import { FrameCapture, captureStats, captureToDataUrl } from './capture.js';
+import { probeWorld } from './probe.js';
+import { createHeightPageSampler, createTerrainResidual } from './terrain-source.js';
 import { Hud } from './hud.js';
 import { openOpfsTileStore } from './opfs.js';
 import { sampleStreamedTile, TileStreamer } from './tile-streamer.js';
@@ -57,6 +64,20 @@ import { TimelinePanel } from './timeline-panel.js';
 import { ScientificPanel } from './scientific-panel.js';
 
 const PLANET = EARTH_GEOMETRY;
+
+/**
+ * How deep the visible terrain ladder goes (T-0151).
+ *
+ * It was `DESCENT.maxLevel` — 12 — a constant that belongs to the M1 descent
+ * trace, while authoritative tiles run to L18. With four corner heights per
+ * patch the cap cost nothing, because splitting added no detail; now that a
+ * patch carries real elevations, the cap is what stops the ground developing
+ * as you approach it. 15 is where the authoritative octave ladder falls below
+ * a metre for a world at geology L8, so refining further would subdivide a
+ * surface that has nothing left to say. Everything finer than this is surface
+ * material, not geometry.
+ */
+const TERRAIN_MAX_LEVEL = 15;
 const VISUAL_FIELDS = SCIENTIFIC_FIELDS.map((field) => field.id);
 
 function fail(message: string): void {
@@ -93,12 +114,30 @@ async function main(): Promise<void> {
     return;
   }
 
-  const context = canvas.getContext('webgpu');
-  if (context === null) {
-    fail('The canvas would not give a WebGPU context.');
-    return;
+  /*
+   * OFFSCREEN MODE (T-0150). `?offscreen=1` skips canvas configuration and
+   * presents nothing; frames are produced on demand through `wsCapture`.
+   *
+   * This is not a convenience. Some environments — notably headless Chromium
+   * on SwiftShader — render WebGPU perfectly into a texture but LOSE THE
+   * DEVICE when a canvas context is configured, because there is no
+   * compositor surface behind it. Without this switch the renderer cannot be
+   * looked at there at all, and "the tests pass" becomes the only available
+   * evidence. Same device, same pipelines, same shaders: only the presentation
+   * surface differs.
+   */
+  const offscreen = new URLSearchParams(location.search).has('offscreen');
+  let context: GPUCanvasContext | null = null;
+  if (!offscreen) {
+    context = canvas.getContext('webgpu');
+    if (context === null) {
+      fail('The canvas would not give a WebGPU context.');
+      return;
+    }
+    context.configure({ device: gpu.device, format: gpu.format, alphaMode: 'opaque' });
+  } else {
+    canvas.style.display = 'none';
   }
-  context.configure({ device: gpu.device, format: gpu.format, alphaMode: 'opaque' });
 
   const tileStorage = await openOpfsTileStore('ws-tiles-v2-integrated');
   const world = createWorld({
@@ -112,12 +151,32 @@ async function main(): Promise<void> {
   const winding = await probeWindingConvention(gpu.device);
 
   let patchN: number = budgets.QUALITY.patchVerticesPerSide;
+  /*
+   * The height field the patch grid is actually shaped by (T-0151). Without it
+   * the renderer falls back to four corner heights per patch, which is the
+   * defect this whole pass exists to remove.
+   */
+  const heightPage = createHeightPageSampler({
+    geology: world.geology, seed: world.seed,
+    hydrology: world.hydrology, biosphere: world.biosphere, economy: world.economy,
+  });
+  const terrainResidual = createTerrainResidual(world.geology.level);
   const makeRenderer = (): PlanetRenderer =>
     new PlanetRenderer(gpu, {
       planet: PLANET,
       patchVerticesPerSide: patchN,
-      maxLevel: DESCENT.maxLevel,
+      maxLevel: TERRAIN_MAX_LEVEL,
       winding,
+      heightPage,
+      terrainResidual,
+      /*
+       * A finer screen-space error target than the 4 px default (T-0151).
+       * With four corner heights per patch, splitting bought nothing and a
+       * loose target was free; now that a patch carries real elevations and
+       * per-vertex material, refinement is what reveals the ground, and 2.5 px
+       * is where a coastline stops being a staircase.
+       */
+      screenSpaceErrorPx: 2.5,
     });
   let renderer = makeRenderer();
   const elevationSampler = (key: QuadKey) => {
@@ -176,7 +235,7 @@ async function main(): Promise<void> {
     const y = delta >= 0 ? key.y >> delta : Math.min(dim - 1, (key.y << -delta) + (1 << Math.max(0, -delta - 1)));
     const i = cubeIndex(key.face, level, x, y);
     /* 5 cm of water equivalent hides the ground; 20 m of ice is opaque. */
-    const snow = Math.min(1, (world.hydrology.snowpackM[i] as number) / 0.05);
+    const snow = Math.min(1, Math.max(0, ((world.hydrology.snowpackM[i] as number) - 0.02) / 0.28));
     const glacier = Math.min(1, (world.hydrology.glacierM[i] as number) / 20);
     return [snow, glacier, 0, 0];
   };
@@ -210,10 +269,29 @@ async function main(): Promise<void> {
   let cities3d = true;
   const telemetry = new Telemetry(16_384, budgets.QUALITY.maxFrameMsDuringDescent);
 
+  /*
+   * OPEN ON A LIT PLANET (T-0153).
+   *
+   * The camera used to start at a fixed latitude and longitude with no regard
+   * for where the sun was, and at year zero the sun was behind the planet: the
+   * application opened on an unlit disc, a black ball with a faint rim. Every
+   * other visual system — terrain relief, ocean, atmosphere, snow — was
+   * invisible behind that one fact, and the honest reading of "it looks like a
+   * low-detail technical globe" starts here.
+   *
+   * The opening shot is now placed from the world's own sun position: high
+   * over the day side, offset toward the terminator so the relief is lit from
+   * the side rather than flat-on, which is when topography reads.
+   */
+  const openingSun = sunState(world.scheduler.time, world.calendar).sunPcf;
+  const openingLat = Math.asin(Math.max(-1, Math.min(1, openingSun.z /
+    Math.hypot(openingSun.x, openingSun.y, openingSun.z)))) * 0.55 + 0.25;
+  const openingLon = Math.atan2(openingSun.y, openingSun.x) + 0.55;
   let cam: CameraState = lookAtCentre(
-    cameraFromGeodetic({ lat: 0.35, lon: 0.6, altitude: 12_000_000 }, PLANET),
+    cameraFromGeodetic({ lat: openingLat, lon: openingLon, altitude: 12_000_000 }, PLANET),
   );
   let debugMode: DebugMode = 'shaded';
+  let sunMode: SunMode = SUN_MODE.REAL;
   let poleSweep = false;
   let descentT = -1;
   let cinematicT = -1;
@@ -280,6 +358,10 @@ async function main(): Promise<void> {
       cityCanvas.style.display = cityVisible ? 'block' : 'none';
     }
     if (e.key === 'u' || e.key === 'U') cities3d = !cities3d;
+    if (e.key === 'l' || e.key === 'L') {
+      const order: SunMode[] = [SUN_MODE.REAL, SUN_MODE.RAKING, SUN_MODE.NOON];
+      sunMode = order[(order.indexOf(sunMode) + 1) % order.length] as SunMode;
+    }
     if (e.key === 'c' || e.key === 'C') {
       const i = VISUAL_FIELDS.indexOf(world.visualField as (typeof VISUAL_FIELDS)[number]);
       const next = VISUAL_FIELDS[(i + 1) % VISUAL_FIELDS.length] as string;
@@ -316,7 +398,7 @@ async function main(): Promise<void> {
       renderer.elevationAt = elevationSampler;
       renderer.surfaceAt = surfaceSampler;
       renderer.cryoAt = cryoSampler;
-      renderer.cinematic = cinematicT >= 0;
+      renderer.cinematic = true;
     }
   });
 
@@ -354,7 +436,10 @@ async function main(): Promise<void> {
     telemetry.end(hSim, usFromMs(performance.now()));
 
     const sun = sunState(world.scheduler.time, world.calendar);
-    renderer.sunDirection = v3(sun.sunPcf.x, sun.sunPcf.y, sun.sunPcf.z);
+    /* The world's sun always drives the simulation; `sunMode` only decides
+       what the VIEWER is lit by (T-0159). */
+    renderer.sunDirection = presentationSunDirection(
+      sunMode, v3(sun.sunPcf.x, sun.sunPcf.y, sun.sunPcf.z), cam.position);
 
     let cinematicLabel = '';
     if (cinematicT >= 0) {
@@ -375,7 +460,7 @@ async function main(): Promise<void> {
       if (cinematicT >= CINEMATIC_DURATION_SECONDS) {
         download('ws-m13-cinematic-trace.json', telemetry.toJSONString());
         cinematicT = -1;
-        renderer.cinematic = false;
+        renderer.cinematic = true;
       }
     } else if (descentT >= 0) {
       descentT += wallDt;
@@ -398,7 +483,9 @@ async function main(): Promise<void> {
       : null;
     renderer.cityScene = built === null ? null : built.scene;
     tileStreamer.beginFrame(world.dynamicGeology.generation, world.ocean.seaLevel);
-    const stats = renderer.render(cam, context.getCurrentTexture().createView(), width, height);
+    const stats = context === null
+      ? renderer.lastStats()
+      : renderer.render(cam, context.getCurrentTexture().createView(), width, height);
     tileStreamer.endFrame();
     telemetry.record(ZONE.SELECT, usFromMs(now), usFromMs(stats.cpuSelectMs));
     telemetry.record(ZONE.ENCODE, usFromMs(now), usFromMs(stats.cpuEncodeMs));
@@ -450,6 +537,68 @@ async function main(): Promise<void> {
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+
+  /*
+   * Screenshot, and the visual-QA instrument (T-0150).
+   *
+   * Renders through the real renderer into an offscreen target and reads it
+   * back, which is both "save an image of this view" and the only way to SEE
+   * the output in an environment whose browser cannot present a WebGPU canvas
+   * to the compositor.
+   */
+  const capture = new FrameCapture(gpu.device, gpu.format);
+  const shoot = async (w = width, h = height): Promise<string> =>
+    captureToDataUrl(await capture.capture(renderer, cam, Math.max(16, w | 0), Math.max(16, h | 0)));
+  (window as unknown as Record<string, unknown>).wsCapture = shoot;
+  (window as unknown as Record<string, unknown>).wsPixelStats = async (
+    w = width, h = height,
+  ): Promise<unknown> =>
+    captureStats(await capture.capture(renderer, cam, Math.max(16, w | 0), Math.max(16, h | 0)));
+  /*
+   * FEATURE NAVIGATION (T-0158).
+   *
+   * The camera could be moved, but there was no way to move it TO anything:
+   * descending from a fixed opening shot lands on open ocean, which is most of
+   * the planet, and a user looking for the city the simulation grew had no
+   * means of finding it. This flies to features the WORLD chose — the same
+   * selection the cinematic uses (`cinematicTargets`), not a second
+   * incompatible one.
+   */
+  (window as unknown as Record<string, unknown>).wsProbe = (
+    lat?: number, lon?: number,
+  ): unknown => {
+    const d = derive(cam, PLANET);
+    return probeWorld(world, lat ?? d.latitude, lon ?? d.longitude, PLANET);
+  };
+  (window as unknown as Record<string, unknown>).wsSunMode = (mode: string): string => {
+    const valid = Object.values(SUN_MODE) as string[];
+    if (valid.includes(mode)) sunMode = mode as SunMode;
+    return SUN_MODE_LABEL[sunMode];
+  };
+  (window as unknown as Record<string, unknown>).wsFlyTo = (
+    role: string, altitudeM?: number,
+  ): unknown => {
+    const targets = cinematicTargets(world, PLANET) as Record<string, {
+      lat: number; lon: number; cell: number; why: string } | undefined>;
+    const target = targets[role];
+    if (target === undefined) return { ok: false, role, reason: 'the world has no such feature yet' };
+    descentT = -1;
+    cinematicT = -1;
+    poleSweep = false;
+    cam = lookAtCentre(cameraFromGeodetic(
+      { lat: target.lat, lon: target.lon, altitude: altitudeM ?? 60_000 }, PLANET));
+    return { ok: true, role, lat: target.lat, lon: target.lon, why: target.why };
+  };
+  (window as unknown as Record<string, unknown>).wsState = () => ({
+    altitudeM: derive(cam, PLANET).altitude,
+    simTime: format(world.scheduler.time, EARTH_CALENDAR),
+    cities: world.cities.cities.length,
+    settlements: world.civilisation.store.count,
+    population: world.civilisation.totalPopulation,
+    visualField: world.visualField,
+    seaLevel: world.ocean.seaLevel,
+    render: renderer.lastStats(),
+  });
 }
 
 /**

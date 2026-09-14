@@ -16,7 +16,7 @@
 import { v3, type Vec3 } from '@ws/core';
 import { cubeFaceToUnit, quadkey, type QuadKey } from '@ws/data';
 
-export const FLOATS_PER_INSTANCE = 28;
+export const FLOATS_PER_INSTANCE = 32;
 
 export interface CameraPos {
   readonly x: number;
@@ -52,6 +52,12 @@ export interface PackedCorners {
    * claimed visible seasonal snow cover.
    */
   readonly cryo?: readonly [number, number, number, number];
+  /**
+   * Height page index, sample spacing in metres, page side, skirt depth
+   * (T-0151, T-0152). Index -1 means "no page yet": the shader falls back to
+   * the four corner heights for one frame rather than stalling the pipeline.
+   */
+  readonly page?: readonly [number, number, number, number];
 }
 
 function relCorner(unit: { x: number; y: number; z: number }, radius: number, cam: CameraPos): Vec3 {
@@ -112,6 +118,11 @@ export function packPatchInstance(out: Float32Array, at: number, packed: PackedC
   out[k++] = cryo[1];
   out[k++] = cryo[2];
   out[k++] = cryo[3];
+  const page = packed.page ?? [-1, 1, 3, 0];
+  out[k++] = page[0];
+  out[k++] = page[1];
+  out[k++] = page[2];
+  out[k++] = page[3];
 }
 
 /**

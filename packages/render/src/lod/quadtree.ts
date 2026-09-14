@@ -48,10 +48,30 @@ export interface PatchNode {
  * Build a node from its key. Pure: same key + planet -> same node, on any
  * machine, in any order.
  */
+/**
+ * How far the terrain a patch DRAWS can still deviate from the terrain that
+ * exists, in metres (T-0151).
+ *
+ * WHY THIS HAD TO EXIST. The geometric error was the sphere's bilinear sag
+ * alone — the deviation of a flat quad from a smooth ball. Once a patch's
+ * 33x33 grid carries real elevations, that number stops describing the drawn
+ * surface: at 1 km altitude the sag of an L12 patch is 0.23 m, which is 0.2
+ * screen pixels, so the selector declared the patch good enough and stopped
+ * refining while actual topography went unresolved. The planet looked like a
+ * stretched texture close up because, by its own error metric, it was finished.
+ *
+ * A patch with `verticesPerSide` samples resolves detail down to its own grid
+ * spacing; what it cannot resolve is everything finer. That residual is the
+ * honest error, and it is what keeps the ladder descending.
+ */
+export type TerrainResidual = (level: number, verticesPerSide: number) => number;
+
 export function makeNode(
   key: QuadKey,
   planet: PlanetGeometry,
   maxTerrainElevation = 0,
+  terrainResidual?: TerrainResidual,
+  verticesPerSide = 33,
 ): PatchNode {
   const [u0, v0, u1, v1] = quadkey.bounds(key);
 
@@ -78,13 +98,14 @@ export function makeNode(
   const radius = Math.max(d(p00), d(p10), d(p01), d(p11), maxTerrainElevation);
 
   const error = bilinearSag(key.level, planet);
+  const residual = terrainResidual?.(key.level, verticesPerSide) ?? 0;
 
   return {
     key,
     centre,
     radius,
     normal,
-    geometricError: Math.max(error, maxTerrainElevation * 0.5),
+    geometricError: Math.max(error, residual, maxTerrainElevation * 0.5),
   };
 }
 
@@ -134,6 +155,17 @@ export class NodePool {
   hits = 0;
   misses = 0;
 
+  /**
+   * `terrainResidual` makes cached nodes carry a terrain-aware error (T-0151).
+   * It belongs to the pool rather than to each call because it must be the
+   * same for every node — an error metric that varied per lookup would make
+   * split decisions depend on call order.
+   */
+  constructor(
+    private readonly terrainResidual?: TerrainResidual,
+    private readonly verticesPerSide = 33,
+  ) {}
+
   get(key: QuadKey, planet: PlanetGeometry, maxTerrainElevation: number): PatchNode {
     if (maxTerrainElevation !== this.elev) {
       this.map.clear();
@@ -148,7 +180,7 @@ export class NodePool {
       return cached;
     }
     this.misses++;
-    const node = makeNode(key, planet, maxTerrainElevation);
+    const node = makeNode(key, planet, maxTerrainElevation, this.terrainResidual, this.verticesPerSide);
     this.map.set(id, node);
     return node;
   }
