@@ -169,6 +169,32 @@ is ≤ 2.9 px, limb ≤ 1.6 px, τ honestly 4.0.
 
 ## Queue
 
+### A-0002 — VERDICT
+
+Verdict: **REJECTED — gate incomplete; environment blocked, not a demonstrated rendering regression.**
+Date: 2026-09-14
+Final automated result (recorded 2026-09-15): `CI=1 pnpm test` passed **733/733 tests across 74 files** in 295.91 s, using the repository's existing sequential CI configuration. No assertions, timeouts or configuration were changed. The initial parallel timeout remains recorded below rather than erased by the passing rerun.
+Baseline: `agent/opus/m13-visual-reconstruction` @ `4bea022a7fa8e5c73f3a0a92bb1df8e4789dc857`.
+Branch: `agent/astra/m13-visual-gate`; **STACKED ON PR #13**, above the Opus reconstruction. Target `dev`; no merges.
+Platform: Linux x64 execution container, Node 24.19.0, pnpm 11.19.0; remote Chrome identified by browser provider. GPU, driver, browser version, viewport and DPI **not verified**. The execution container has no `/dev/dri`; this does not establish the remote browser's GPU.
+
+Evidence:
+- **OBSERVED IN REAL BROWSER:** no application content. Navigation to the local app was refused with `net::ERR_BLOCKED_BY_CLIENT`. Internal `chrome://gpu` inspection was separately denied by browser URL policy. Neither is evidence of an application rendering defect.
+- **FUNCTIONALLY TESTED BUT NOT VISUALLY OBSERVED:** all 244 source blobs matched the baseline SHA identities; frozen install and `pnpm run check` passed. `pnpm run check:sim-standalone` passed 499 tests; `pnpm run build` passed. The initial parallel full suite had 732 passes and one 5-second city-test timeout. A city-only invocation overlapping the standalone run also timed out; the standalone run passed that same test in 4818 ms. This is not an isolated performance measurement.
+- **FUNCTIONALLY TESTED BUT NOT VISUALLY OBSERVED:** Node execution of `createWorld({climateN:4, terrainLevel:8, genesis:{steps:120}})` before the first advance returned 0 cities, 0 settlements and population 0. `cinematicTargets` offered only `relief` and `science`; the science reason was `no pollution yet; deepest basin`. The brief's 60-person settlement was not reproduced at this earlier instant.
+- **NOT TESTABLE IN CURRENT ENVIRONMENT:** presented orbit/descent, lighting, water, seams, popping, z-fighting, stationary vertex swim, city visuals, cinematic playback, UI/inspector/F3, 1280×720 and 3840×2160/high-DPI behavior, L18/street level, GPU timings and page-pool tuning. No application screenshots or visual calibration are claimed.
+
+Findings:
+
+| # | Severity | What | Where | Filed as |
+| --- | --- | --- | --- | --- |
+| 1 | P1 gate blocker | No presented-frame evidence available in this session | Browser access / A-0002 §6 | T-0170 |
+| 2 | P1 product | Fresh default world cannot demonstrate cities; requires an evolved simulation-backed preset | `packages/app/src/main.ts`, world initialization | T-0171 (Opus) |
+| 3 | P2 validation | Parallel city promotion/retirement test crosses its 5-second timeout under load | `packages/sim/test/city.test.ts:247` | T-0172 (Grok) |
+
+Blocking: obtain a browser-accessible run on identified hardware and complete the requested visual route; then calibrate only from observed frames and measured GPU data. Provide a simulation-backed populated world for city inspection. Automated success cannot approve A-0002. No renderer, simulation, test, threshold or CI configuration was changed in this pass.
+
+
 | ID | Request | Milestone | Status |
 | --- | --- | --- | --- |
 | A-0001 | M1 gate — orbit→surface continuity, precision, depth, poles, popping, frame pacing | M1 | **First pass ran on Ampere. REJECTED (unusable). GPU defects fixed by Grok (T-0054). FieldStore contracts closed on `agent/grok/m1-final-redteam`. Second pass not yet requested — do not spend remaining budget until a human queues it, against that branch.** |

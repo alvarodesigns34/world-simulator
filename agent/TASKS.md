@@ -20,6 +20,17 @@ Update it at the end of every session (`agent/PROTOCOL.md` §4.2).
 
 ## Now — M1–M13 absolute red-team (Grok, 2026-09-13)
 
+### A-0002 follow-up — 2026-09-14
+
+2026-09-15 final rerun: existing sequential CI mode passed all 733 tests. T-0172 concerns parallel-load reliability, not a failing sequential CI assertion.
+
+| ID | Title | Owner | Status | Pri | Acceptance |
+| --- | --- | --- | --- | --- | --- |
+| T-0170 | A-0002 presented-frame validation | Astra | Blocked | P1 | Identify GPU/driver/browser/resolution/DPI; observe orbit, continuous descent, water, seams, cities, UI/F3 and cinematic; attach evidence and GPU measurements. This session's remote browser refused the local app. |
+| T-0171 | Simulation-backed evolved world for city inspection | Opus | Open | P1 | Implement the brief's Genesis/Living/Civilised preset work using real simulation evolution. Fresh default initialization measured 0 cities/0 settlements before first advance; demonstrate actual cities without renderer-invented population. |
+| T-0172 | Diagnose city test timeout under parallel load | Grok | Open | P2 | Reproduce `city.test.ts:247` with controlled CPU contention and compare the existing sequential CI mode. Keep assertions and time limits intact; distinguish environment load from a code regression. Initial full run: 732/733, one timeout; standalone run: 499/499, same city test passed. |
+
+
 Branch `agent/grok/m1-m13-absolute-redteam` on `b36e914`. ChatGPT's "no known automated P0/P1" did not survive contact. **T-0120…T-0148 are Done** (no T-0132). Remaining M1–M13 work is GPU/visual (Astra) and the open P2s T-0095/T-0096/T-0097.
 
 | ID | Title | Owner | Status | Pri | Acceptance |
