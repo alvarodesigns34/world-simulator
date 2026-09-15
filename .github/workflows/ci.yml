@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev, 'agent/**', 'claude/**']
+  pull_request:
+    branches: [main, dev]
+
+# ONE RUN PER REF.
+#
+# A push to an agent branch that has an open PR fires this workflow TWICE, three
+# seconds apart, on the same commit. Both runs execute the full suite, and on a
+# shared runner they compete for the same CPU: the loser's Vitest worker misses
+# its 5 s reporter RPC window and the job fails with
+# `[vitest-worker]: Timeout calling "onTaskUpdate"` AFTER printing 537/537
+# passed. It was reproducible as a pattern — the PR run passing and the push run
+# failing on the identical SHA, twice in a row — and not as a test failure,
+# because there was never a failing test.
+#
+# This does not weaken CI. It removes a duplicate run that was competing with
+# itself; exactly one full run still gates every commit, and nothing is skipped.
+# `head_ref` is set only for pull_request events (the source branch); `ref_name`
+# is the short branch name for pushes. Keying on the source branch for PRs and
+# the short push branch puts BOTH events for the same branch in one group —
+# keying on `ref` alone does not, because a PR event's ref is
+# `refs/pull/N/merge`, so the two runs never saw each other.
+concurrency:
+  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # DEC-011 / DEC-017 / DEC-027. These are errors, not warnings, and
+      # weakening them to make a change pass is forbidden (PROTOCOL §0).
+      # `pnpm run check` is types + boundaries + self-test + WGSL grammar.
+      # Splitting it into a subset that omits check:wgsl is how a reserved
+      # identifier ships (T-0054 / Ampere `meta`). Do not narrow this.
+      - name: Check
+        run: pnpm run check
+
+      - name: Tests
+        run: pnpm test
+
+      # The founding principle, as a job: the simulation must run with no
+      # renderer present. ARCHITECTURE.md §1.1.
+      - name: Simulation stands alone
+        run: pnpm run check:sim-standalone
+
+      - name: Build
+        run: pnpm run build
